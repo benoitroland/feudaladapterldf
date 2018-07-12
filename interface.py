@@ -522,14 +522,15 @@ args = parseOptions()
 def main():
     # https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/marcus-test-10
     # setup logging
-    #
     import logging.config
     logging.config.dictConfig({
         'version': 1,
         'disable_existing_loggers': True,
     })
+    logformat = "{%(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s"
+    loglevel = logging.getLevelName(args.loglevel.upper())
+    logging.basicConfig(level=loglevel, format=logformat)
 
-    print ("VERBOSITY: %d" % args.verbose)
     if args.verbose > 2:
         import http.client as http_client
         http_client.HTTPConnection.debuglevel = 1
@@ -537,9 +538,8 @@ def main():
         # logging.getLogger().setLevel(logging.ERROR)
         logging.getLogger().setLevel(logging.DEBUG)
 
-    logging.basicConfig(level=logging.DEBUG, 
-            format="{%(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s")
 
+    print ("VERBOSITY: %d" % args.verbose)
     logging.info('VERBOSITY: %d' % args.verbose)
 
 
