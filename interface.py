@@ -46,7 +46,7 @@ def parseOptions():# {{{
             action="store_true", default=False,
             help='Use fake input data')
     parser.add_argument('--logfile',     '-l', default='ldf-interface.log')
-    parser.add_argument('--loglevel',          default='debug')
+    parser.add_argument('--loglevel',          default='warning')
     parser.add_argument('--rest_user',   '-u', help='username for LDF rest interface')
     parser.add_argument('--rest_passwd', '-p', help='passwdname for LDF rest interface')
 
@@ -361,7 +361,8 @@ def create_initial_user(externalId):# {{{
 
     if resp.status_code == 200:
         resp_json=resp.json()
-        logging.info('update successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
+        if args.verbose:
+            logging.info('update successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
         if resp_json['result'] != 'success':
             logging.warning('update successful, but no "result=success" received; Check with REST admin')
         if args.verbose>1:
@@ -423,7 +424,8 @@ def update_user(data): # {{{
 
     if resp.status_code == 200:
         resp_json = resp.json()
-        logging.info('update successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
+        if args.verbose:
+            logging.info('update successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
         if resp_json['result'] != 'success':
             logging.warning('update successful, but no "result=success" received; Check with REST admin')
         return True
@@ -437,7 +439,8 @@ def register_user_for_service(externalId, serviceName):# {{{
     
     if resp.status_code == 200:
         resp_json = resp.json()
-        logging.info('registration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
+        if args.verbose:
+            logging.info('registration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
         if resp_json['result'] != 'success':
             logging.warning('registration successful, but no "result=success" received; Check with REST admin')
         return True
@@ -453,7 +456,8 @@ def deregister_user_from_service(externalId, serviceName):# {{{
     
     if resp.status_code == 200:
         resp_json = resp.json()
-        logging.info('deregistration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
+        if args.verbose:
+            logging.info('deregistration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
         if resp_json['result'] != 'success':
             logging.warning('deregistration successful, but no "result=success" received; Check with REST admin')
         return True
@@ -531,17 +535,14 @@ def main():
     loglevel = logging.getLevelName(args.loglevel.upper())
     logging.basicConfig(level=loglevel, format=logformat)
 
-    if args.verbose > 2:
+    if args.verbose > 3:
         import http.client as http_client
         http_client.HTTPConnection.debuglevel = 1
         logging.basicConfig()
         # logging.getLogger().setLevel(logging.ERROR)
         logging.getLogger().setLevel(logging.DEBUG)
 
-
-    print ("VERBOSITY: %d" % args.verbose)
-    logging.info('VERBOSITY: %d' % args.verbose)
-
+    print ('loglevel: %s' % logging.getLogger().getEffectiveLevel())
 
     # get data from stdin from the FEUDAL side
     inData  = get_jObject()
