@@ -45,6 +45,8 @@ def parseOptions():# {{{
     parser.add_argument('--fake_remove', '-fr',
             action="store_true", default=False,
             help='Use fake input data')
+    parser.add_argument('--logfile',     '-l', default='ldf-interface.log')
+    parser.add_argument('--loglevel',          default='debug')
     parser.add_argument('--rest_user',   '-u', help='username for LDF rest interface')
     parser.add_argument('--rest_passwd', '-p', help='passwdname for LDF rest interface')
 
@@ -358,22 +360,21 @@ def create_initial_user(externalId):# {{{
             headers = headers, data = data)
 
     if resp.status_code == 200:
-        logging.info('update successful: %s' % str(json.dumps(resp.json(), sort_keys=True, indent=4, separators=(',', ': '))))
+        resp_json=resp.json()
+        logging.info('update successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
+        if resp_json['result'] != 'success':
+            logging.warning('update successful, but no "result=success" received; Check with REST admin')
         if args.verbose>1:
             logging.debug("\n\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
         return True
     logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
 
-    print("\nthere was an unexpected status.")
-    print("the server said: %s (%s)" \
-            % (resp.status_code, resp.reason))
-    print ("")
+    logging.warning("\nthere was an unexpected status.")
+    logging.warning("the server said: %s (%s)" % (resp.status_code, resp.reason))
     
     if resp.status_code == 405:
         print ("\nUser probably already exists")
         return True
-
-    
     
     return False
 # }}}
@@ -421,7 +422,10 @@ def update_user(data): # {{{
             headers = headers, data = json_data)
 
     if resp.status_code == 200:
-        logging.info('update successful: %s' % str(json.dumps(resp.json(), sort_keys=True, indent=4, separators=(',', ': '))))
+        resp_json = resp.json()
+        logging.info('update successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
+        if resp_json['result'] != 'success':
+            logging.warning('update successful, but no "result=success" received; Check with REST admin')
         return True
     logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
     exit (22)
@@ -432,7 +436,10 @@ def register_user_for_service(externalId, serviceName):# {{{
     resp = requests.get (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd))
     
     if resp.status_code == 200:
-        logging.info('registration successful: %s' % str(json.dumps(resp.json(), sort_keys=True, indent=4, separators=(',', ': '))))
+        resp_json = resp.json()
+        logging.info('registration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
+        if resp_json['result'] != 'success':
+            logging.warning('registration successful, but no "result=success" received; Check with REST admin')
         return True
 
     logging.error("something went wrong registering {} for service {}".format(externalId, serviceName))
@@ -447,9 +454,8 @@ def deregister_user_from_service(externalId, serviceName):# {{{
     if resp.status_code == 200:
         resp_json = resp.json()
         logging.info('deregistration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
-        if resp_json['result'] == 'success':
-            return True
-        logging.warning('deregistration successful, but no "status=ok" received; Check with REST admin')
+        if resp_json['result'] != 'success':
+            logging.warning('deregistration successful, but no "result=success" received; Check with REST admin')
         return True
     if resp.status_code == 204:
         logging.info('deregistration apparently successful, but got no result')
