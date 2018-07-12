@@ -332,24 +332,6 @@ def user_exists(externalId):# {{{
     
     return False
 # }}}
-def create_or_update_user(data): # {{{
-    if not user_exists(data['externalId']):
-        logging.info('User didn\'t exist. Will create')
-        if not create_initial_user(data['externalId']): 
-            logging.error('FATAL: Failded to create an initial user with this data:\n%s' %\
-                        json.dumps(data, sort_keys=True, indent=4, separators=(',', ': ')))
-            exit (20)
-        logging.info('Initial user created')
-    else:
-        logging.info('Skipping initial creation of user, since he existed already')
-        
-    logging.info('Will update user now')
-    if not update_user (data):
-        logging.error('FATAL: Failded to create the full user with this data:\n%s' %\
-                    json.dumps(data, sort_keys=True, indent=4, separators=(',', ': ')))
-        exit (21)
-    return True
-# }}}
 def create_initial_user(externalId):# {{{
     externalId = remove_quotes(externalId)
     url = args.base_url + '/external-user/create'
@@ -542,7 +524,7 @@ def main():
         # logging.getLogger().setLevel(logging.ERROR)
         logging.getLogger().setLevel(logging.DEBUG)# }}}
 
-    # get data from stdin from the FEUDAL side
+    # get data from stdin from the FEUDAL side{{{
     inData  = get_jObject()
     inData  = generate_surName_givenName_from_name(inData)
     params  = get_params_from_input(inData, args)
@@ -550,7 +532,7 @@ def main():
         logging.debug("inData: "+json.dumps(inData, sort_keys=True, indent=4, separators=(',', ': ')))
     if args.verbose>0:
         logging.debug("params: "+json.dumps(params, sort_keys=True, indent=4, separators=(',', ': ')))
-
+# }}}
 
     desiredState = inData['state_target'] # one of "deployed" "removed" "rejected" "failed"
 
