@@ -525,7 +525,7 @@ args = parseOptions()
 
 def main():
     # https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/marcus-test-10
-    # setup logging
+    # setup logging{{{
     import logging.config
     logging.config.dictConfig({
         'version': 1,
@@ -540,9 +540,7 @@ def main():
         http_client.HTTPConnection.debuglevel = 1
         logging.basicConfig()
         # logging.getLogger().setLevel(logging.ERROR)
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    print ('loglevel: %s' % logging.getLogger().getEffectiveLevel())
+        logging.getLogger().setLevel(logging.DEBUG)# }}}
 
     # get data from stdin from the FEUDAL side
     inData  = get_jObject()
@@ -563,22 +561,64 @@ def main():
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
 
         # And go create the user
+        # fake some input data
         if args.fake or args.fake_remove:
             outData['externalId'] = 'marcus-test-10'
             outData['preferred_username'] = 'marcus-test-10'
+
+        # save state, whether user existed
         user_existed_before = user_exists (outData['externalId'])
-        
-        if create_or_update_user(outData):
-            logging.info("user created / updated successfully")
-            if not user_existed_before or args.force_registration: 
-                # FIXME: This is a hack: we only register users, if they
-                # didn't exit before; This should be fixed once LDF REST provides this functionality
-                logging.info('registering user')
-                register_user_for_service(outData['externalId'], 'sshtest')
-            else:
-                logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
+
+        # create initial user
+        if not user_existed_before:
+            logging.info('User didn\'t exist. Will create')
+            if not create_initial_user(outData['externalId']): 
+                logging.error('FATAL: Failed to create an initial user with this data:\n%s' %\
+                            json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+                if args.verbose:
+                    message = ('Failed to create an initial user with this data:\n%s' %\
+                            json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+                else:
+                    message = ('Failed to create the initial user')
+                state = 'failed'
+                print({"state": state, "message": message})
+                return 10
+
+            logging.info('Initial user created')
         else:
-            logging.error("some error occurred creating the user")
+            logging.info('Skipping initial creation of user, since he existed already')
+
+        # update the user
+        logging.info('Will update user now')
+        if not update_user (outData):
+            logging.error('FATAL: Failded to create the full user with this data:\n%s' %\
+                        json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+            if args.verbose:
+                message = ('Failed to update the user with this data:\n%s' %\
+                        json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+            else:
+                message = ('Failed to update the user')
+            print({"state": state, "message": message})
+            return 11
+        logging.info("user created / updated successfully")
+
+        # register user for service
+        if not user_existed_before or args.force_registration: 
+            # FIXME: This is a hack: we only register users, if they
+            # didn't exit before; This should be fixed once LDF REST provides this functionality
+            logging.info('registering user')
+            register_user_for_service(outData['externalId'], 'sshtest')
+            if 1==2:
+                if args.verbose:
+                    message = ('Failed to register user for service: %s' %\
+                            json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+                else:
+                    message = ('register user for service')
+                state = 'failed'
+                print ({"state": state, "message": message})
+                return 12
+        else:
+            logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
 
     elif desiredState == 'not_deployed':
         outData = get_all_variables_from_list(args.remove_parameters, params)
