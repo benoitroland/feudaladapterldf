@@ -85,6 +85,22 @@ def parseOptions():# {{{
             
     args = parser.parse_args()
 
+    # consistently remove all quotes from all input parameters:
+    for arg in vars(args):
+        typeOfArg = type(getattr(args, arg))
+        # print ("\narg: %s -- %s"%(arg, typeOfArg))
+        # print ("  before: %s: %s" %(arg, getattr(args, arg)))
+        if isinstance (getattr(args, arg),  str):
+            setattr(args, arg, remove_quotes(getattr(args, arg)))
+            # print ("  after:  %s: %s\n\n\n" %(arg, getattr(args, arg)))
+        elif isinstance(getattr(args, arg),  list):
+            newlist = []
+            for entry in getattr(args, arg):
+                entry =  remove_quotes(entry)
+                newlist.append(entry)
+            setattr(args, arg, newlist)
+            # print ("  after:  %s: %s\n\n\n" %(arg, getattr(args, arg)))
+
     # sanitise parameters
     args.base_url = args.base_url.rstrip('/"')
     args.base_url = args.base_url.lstrip('"')
@@ -98,8 +114,8 @@ def parseOptions():# {{{
         logging.error('Instead you provided "%s"' % str(args.issTranslateExpression))
         raise
 
-    if args.verbose > 1:
-        logging.debug(parser.format_values())
+    # if args.verbose > 1:
+        # logging.debug(parser.format_values())
     return args
 # }}}
 def get_jObject():# {{{
@@ -341,28 +357,23 @@ def create_initial_user(externalId):# {{{
     resp = requests.post (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd),\
             headers = headers, data = data)
 
-    if resp.status_code != 200:
-        print("\nthere was an unexpected status.")
-        print("the server said: %s (%s)" \
-                % (resp.status_code, resp.reason))
-        print ("")
+    if resp.status_code == 200:
+        logging.info('update successful: %s' % str(json.dumps(resp.json(), sort_keys=True, indent=4, separators=(',', ': '))))
+        if args.verbose>1:
+            logging.debug("\n\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
+        return True
+    logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
+
+    print("\nthere was an unexpected status.")
+    print("the server said: %s (%s)" \
+            % (resp.status_code, resp.reason))
+    print ("")
     
     if resp.status_code == 405:
         print ("\nUser probably already exists")
         return True
-    try:
-        resp_json=resp.json()
-    except Exception as e:
-        print ("\nJSONDecodeError: {0}".format(e))
-        print ("terminating")
-        print (str(resp.text))
-        exit (1)
-    
-    if args.verbose>1:
-        logging.debug("\n\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
 
-    if resp_json['result']=='success':
-        return True
+    
     
     return False
 # }}}
@@ -374,23 +385,21 @@ def update_user(data): # {{{
     #                 json.dumps(data, sort_keys=True, indent=4, separators=(',', ': ')))
     # print ('''{{"externalId": "{externalId}"}}'''.format(**data))
 
-    # remove quotes from sshkey:
-    data['sshKey'] = '"'+remove_quotes (data['sshKey'])+'"'
     postData = \
-'''{{"externalId":{externalId},
-"eppn":{eppn},
-"email":{email},
+'''{{"externalId":"{externalId}",
+"eppn":"{eppn}",
+"email":"{email}",
 "genericStore": {{
-    "key":{sshKey}
+    "key":"{sshKey}"
     }},
-"surName":{surName},
-"givenName":{givenName},
+"surName":"{surName}",
+"givenName":"{givenName}",
 "primaryGroup":{{
-    "id":{primaryGroupId}
+    "id":"{primaryGroupId}"
     }},
 "attributeStore": {{
-    "urn:oid:0.9.2342.19200300.100.1.1":{preferred_username},
-    "http://bwidm.de/bwidmOrgId":{bwidmOrgId}
+    "urn:oid:0.9.2342.19200300.100.1.1":"{preferred_username}",
+    "http://bwidm.de/bwidmOrgId":"{bwidmOrgId}"
     }}
 }}'''.format(**data)
 
@@ -412,20 +421,43 @@ def update_user(data): # {{{
             headers = headers, data = json_data)
 
     if resp.status_code == 200:
+        logging.info('update successful: %s' % str(json.dumps(resp.json(), sort_keys=True, indent=4, separators=(',', ': '))))
         return True
-    logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json))
+    logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
     exit (22)
 # }}}
 def register_user_for_service(externalId, serviceName):# {{{
     url = args.base_url + '/external-reg/register/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
-    logging.debug('rgistering with this url: %s' % str(url))
+    logging.debug('registering with this url: %s' % str(url))
     resp = requests.get (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd))
     
     if resp.status_code == 200:
+        logging.info('registration successful: %s' % str(json.dumps(resp.json(), sort_keys=True, indent=4, separators=(',', ': '))))
         return True
 
     logging.error("something went wrong registering {} for service {}".format(externalId, serviceName))
-    logging.error(resp.json())
+    logging.error(resp.text)
+    return False
+# }}}
+def deregister_user_from_service(externalId, serviceName):# {{{
+    url = args.base_url + '/external-reg/deregister/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
+    logging.debug('deregistering with this url: %s' % str(url))
+    resp = requests.get (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd))
+    
+    if resp.status_code == 200:
+        resp_json = resp.json()
+        logging.info('deregistration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
+        if resp_json['result'] == 'success':
+            return True
+        logging.warning('deregistration successful, but no "status=ok" received; Check with REST admin')
+        return True
+    if resp.status_code == 204:
+        logging.info('deregistration apparently successful, but got no result')
+        return True
+
+    logging.error("something went wrong deregistering: {} from service {}".format(externalId, serviceName))
+    logging.error("code: %d" %resp.status_code)
+    logging.error(resp.text())
     return False
 # }}}
 def assert_all_variables_defined_in_format(entry, params):# {{{
@@ -482,6 +514,7 @@ def get_all_variables_from_list(parameterList, params):# {{{
 args = parseOptions()
 
 def main():
+    # https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/marcus-test-10
     # setup logging
     #
     import logging.config
@@ -490,15 +523,18 @@ def main():
         'disable_existing_loggers': True,
     })
 
-    logging.basicConfig(level=logging.DEBUG, 
-            format="{%(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s")
-
+    print ("VERBOSITY: %d" % args.verbose)
     if args.verbose > 2:
         import http.client as http_client
         http_client.HTTPConnection.debuglevel = 1
         logging.basicConfig()
         # logging.getLogger().setLevel(logging.ERROR)
         logging.getLogger().setLevel(logging.DEBUG)
+
+    logging.basicConfig(level=logging.DEBUG, 
+            format="{%(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s")
+
+    logging.info('VERBOSITY: %d' % args.verbose)
 
 
     # get data from stdin from the FEUDAL side
@@ -520,7 +556,9 @@ def main():
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
 
         # And go create the user
-        # outData['externalId'] = '"marcus-test-8"'
+        if args.fake or args.fake_remove:
+            outData['externalId'] = 'marcus-test-10'
+            outData['preferred_username'] = 'marcus-test-10'
         user_existed_before = user_exists (outData['externalId'])
         
         if create_or_update_user(outData):
@@ -529,14 +567,24 @@ def main():
                 # FIXME: This is a hack: we only register users, if they
                 # didn't exit before; This should be fixed once LDF REST provides this functionality
                 logging.info('registering user')
-                register_user_for_service('marcus-test-7', 'sshtest')
+                register_user_for_service(outData['externalId'], 'sshtest')
             else:
                 logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
         else:
             logging.error("some error occurred creating the user")
 
     elif desiredState == 'not_deployed':
-        logging.warning('undeployment is not yet implemented')
+        outData = get_all_variables_from_list(args.remove_parameters, params)
+        if args.verbose>1:
+            logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+
+        # And go create the user
+        if args.fake or args.fake_remove:
+            outData['externalId'] = 'marcus-test-10'
+            outData['preferred_username'] = 'marcus-test-10'
+        logging.info('undeployment')
+        deregister_user_from_service(outData['externalId'], 'sshtest')
+
         
 
 if __name__ == "__main__":
