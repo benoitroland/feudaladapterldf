@@ -254,12 +254,14 @@ def get_params_from_input(inData, args):# {{{
         try:
             value = find_keys_in_input(inData, getattr(args, conf_item), conf_item)
         except AttributeError:
-            logging.error("Fatal: the parameter '%s' is not supported by this interface program." % conf_item)
-            logging.error("Please add it in the 'parseOptions' function")
-            exit (4)
+            logmsg = "Fatal: the parameter '%s' is not supported by this interface program." % conf_item
+            logmsg += "Please add it in the 'parseOptions' function"
+            logging.error (logmsg)
+            return ("failed", logmsg)
         if value is None:
-            logging.error('Fatal: A mandatory config value was not found in input, while processing "%s"'%conf_item)
-            exit (5)
+            logmsg = 'Fatal: A mandatory config value was not found in input, while processing "%s"'%conf_item
+            logging.error (logmsg)
+            return ("failed", logmsg)
         params[conf_item] = value
         if args.verbose>1:
             logging.debug('    got mandatory value for {:13s}: {}'.format(conf_item, value))
@@ -270,9 +272,10 @@ def get_params_from_input(inData, args):# {{{
         try:
             value = find_keys_in_input(inData, getattr(args, conf_item), conf_item)
         except AttributeError:
-            logging.error("Fatal: a specified parameter is not supported by this interface program.")
-            logging.error("Please add it in the 'parseOptions' function")
-            exit (6)
+            logmsg =  "Fatal: a specified parameter is not supported by this interface program."
+            logmsg += "Please add it in the 'parseOptions' function"
+            logging.error (logmsg)
+            return ("failed", logmsg)
         params[conf_item] = value
         if args.verbose>1:
             logging.debug('    got optional value for  {:13s}: {}'.format(conf_item, value))
@@ -280,8 +283,10 @@ def get_params_from_input(inData, args):# {{{
     # replace the iss string:
     iTE = args.issTranslateExpression
     if len(iTE) != 2:
-        logging.error('FATAL: issTranslateExpression needs to consist of exactly two entries: ["what to replate", "with what"]')
-        logging.error('Instead you provided "%s%"' % iTE)
+        log =  'FATAL: issTranslateExpression needs to consist of exactly two entries: ["what to replate", "with what"]'
+        log += 'Instead you provided "%s"' % iTE
+        logging.error (logmsg)
+        return ("failed", logmsg)
 
     # in case user provides https?:// in iTE, we just remove it:
     iTE[0] = re.sub('^https?://', '', iTE[0])
@@ -289,7 +294,7 @@ def get_params_from_input(inData, args):# {{{
     params['iss'] = re.sub('^https?://', '', params['iss'])
     params['iss'] = re.sub(iTE[0], iTE[1], params['iss'])
 
-    return (params)
+    return ("success", params)
 # }}}
 def dump_config_to_log(inData, params):# {{{
     if args.verbose>3:
@@ -316,7 +321,6 @@ def user_exists(externalId):# {{{
         #        % (resp.status_code, resp.reason))
         #print ("")
         pass
-        #exit (3)
     if resp.status_code == 403:
         return False
     try:
@@ -324,7 +328,9 @@ def user_exists(externalId):# {{{
     except Exception as e:
         print ("\nJSONDecodeError: {0}".format(e))
         print ("terminating")
-        exit (1)
+        logmsg = 'Error: ' + str(e) + '\nserver said: '
+        logmsg += resp.text
+        logging.error (logmsg)
     
     if args.verbose>2:
         logging.debug("\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
@@ -425,13 +431,16 @@ def register_user_for_service(externalId, serviceName):# {{{
         resp_json = resp.json()
         if args.verbose:
             logging.info('registration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
-        if resp_json['result'] != 'success':
-            logging.warning('registration successful, but no "result=success" received; Check with REST admin')
+        try:
+            if resp_json['result'] != 'success':
+                logging.warning('registration successful, but no "result=success" received; Check with REST admin')
+        except KeyError:
+            pass
         return ("success", "")
 
     logging.error("something went wrong registering {} for service {}".format(externalId, serviceName))
-    logging.error(resp.text)
-    return ("failed", "something went wrong registering {} for service {}\n{}".format(externalId, serviceName, resp.text))
+    logging.error(resp.json())
+    return ("failed", "something went wrong registering {} for service {}\n{}".format(externalId, serviceName, resp.json()))
 # }}}
 def deregister_user_from_service(externalId, serviceName):# {{{
     url = args.base_url + '/external-reg/deregister/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
@@ -444,15 +453,15 @@ def deregister_user_from_service(externalId, serviceName):# {{{
             logging.info('deregistration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
         if resp_json['result'] != 'success':
             logging.warning('deregistration successful, but no "result=success" received; Check with REST admin')
-        return True
+        return ("success", "")
     if resp.status_code == 204:
         logging.info('deregistration apparently successful, but got no result')
-        return True
+        return ("success", "")
 
     logging.error("something went wrong deregistering: {} from service {}".format(externalId, serviceName))
     logging.error("code: %d" %resp.status_code)
-    logging.error(resp.text())
-    return False
+    logging.error(resp.json())
+    return ("failed", "something went wrong deregistering {} for service {}\n{}".format(externalId, serviceName, resp.json()))
 # }}}
 def assert_all_variables_defined_in_format(entry, params):# {{{
     for unformatted_variable in re.findall('{[a-zA-Z0-9.-/]*}', entry):
@@ -460,13 +469,13 @@ def assert_all_variables_defined_in_format(entry, params):# {{{
         try:
             if params[variable] is None or params[variable] == "None" or params[variable] == "null":
                 if variable in args.mandatory_parameters:
-                    logging.error ("Fatal: Mandatory variable: {} is undefined!".format(variable))
-                    exit (8)
+                    logging.error ("Error: Mandatory variable: {} is undefined!".format(variable))
+                    return False
                 logging.info("Optional variable: {} is undefined!".format(variable))
                 return False 
         except KeyError:
-            logging.error ('FATAL: Variable unknown: "{}" while parsing {}'.format(variable, entry))
-            exit (9)
+            logging.error ('Error: Variable unknown: "{}" while parsing {}'.format(variable, entry))
+            return False
     return True
 # }}}
 def get_all_variables_from_list(parameterList, params):# {{{
@@ -478,13 +487,15 @@ def get_all_variables_from_list(parameterList, params):# {{{
         try:
             entry_value = getattr(args, entry_name+'Fmt')
         except AttributeError:
-            logging.error ('FATAL: "%s" is not a supported parameter. This needs to be fixed in the code in "parseOptions"' % entry_name)
-            exit (10)
+            logmsg = 'FATAL: "%s" is not a supported parameter. This needs to be fixed in the code in "parseOptions"' % entry_name
+            logging.error (logmsg)
+            return ("failed", logmsg)
         try: # Make sure we can iterate over entry_value
             iter(entry_value)
         except TypeError:
-            logging.error ('FATAL: there is no format string for "%sFmt". You need to define it in your config.' % entry_name)
-            exit (11)
+            logmsg = 'FATAL: there is no format string for "%sFmt". You need to define it in your config.' % entry_name
+            logging.error (logmsg)
+            return ("failed", logmsg)
         # print ("\n\nentry_value: >>%s<<"%entry_value)
         for entry in entry_value:
             # make sure that none of the fields used in entry are "None":
@@ -497,11 +508,12 @@ def get_all_variables_from_list(parameterList, params):# {{{
             # logging.debug("params: "+json.dumps(params, sort_keys=True, indent=4, separators=(',', ': ')))
             break
         if outData.get(entry_name) is None:
-            logging.error ("FATAL: Could not obtain values for %s" % entry_name)
-            exit (9)
+            logmsg = "FATAL: Could not obtain values for %s" % entry_name
+            logging.error (logmsg)
+            return ("failed", logmsg)
         if args.verbose>1:
             logging.info('{:23s}: {:23s}: {}'.format(entry_name, entry,  outData[entry_name]))
-    return outData
+    return ("success", outData )
 # }}}
 
 # args are global
@@ -529,20 +541,27 @@ def main():
     # get data from stdin from the FEUDAL side{{{
     inData  = get_jObject()
     inData  = generate_surName_givenName_from_name(inData)
-    params  = get_params_from_input(inData, args)
+    (state, params)  = get_params_from_input(inData, args)
     if args.verbose>1:
         logging.debug("inData: "+json.dumps(inData, sort_keys=True, indent=4, separators=(',', ': ')))
     if args.verbose>0:
         logging.debug("params: "+json.dumps(params, sort_keys=True, indent=4, separators=(',', ': ')))
+    if state != "success":
+        print ({"state": "failed", "message": params})
+        return 8
 # }}}
+
 
     desiredState = inData['state_target'] # one of "deployed" "removed" "rejected" "failed"
 
     if desiredState == 'deployed':# {{{
         # Derive all the variables required for LDAP Facade:
-        outData = get_all_variables_from_list(args.deploy_parameters, params)
+        (state, outData) = get_all_variables_from_list(args.deploy_parameters, params)
         if args.verbose>1:
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+        if state != "success":
+            print ({"state": "failed", "message": outData})
+            return 9
 
         # And go create the user
         # fake some input data
@@ -563,7 +582,6 @@ def main():
                 logging.error(logmsg)
                 if args.verbose:
                     message = message + '\n' + logmsg
-                state = 'failed'
                 print({"state": desiredState, "message": message})
                 return 10
 
@@ -589,27 +607,31 @@ def main():
             # FIXME: This is a hack: we only register users, if they
             # didn't exit before; This should be fixed once LDF REST provides this functionality
             logging.info('registering user')
-            (state, message) = register_user_for_service(outData['externalId'], 'sshtest')
+            (state, message) = register_user_for_service(outData['externalId'], args.ldf_service)
             if state != "success":
                 print ({"state": desiredState, "message": message})
                 return 12
         else:
             logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
     # }}}}}}
-    # undeploy user{{{
-    elif desiredState == 'not_deployed':
-        outData = get_all_variables_from_list(args.remove_parameters, params)
+    elif desiredState == 'not_deployed':    # undeploy user{{{
+        (state, outData) = get_all_variables_from_list(args.remove_parameters, params)
         if args.verbose>1:
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+        if state != "success":
+            print ({"state": "failed", "message": outData})
+            return 9
 
         # And go create the user
         if args.fake or args.fake_remove:
             outData['externalId'] = 'marcus-test-10'
             outData['preferred_username'] = 'marcus-test-10'
         logging.info('undeployment')
-        deregister_user_from_service(outData['externalId'], 'sshtest')
+        (state, message) = deregister_user_from_service(outData['externalId'],  args.ldf_service)
+        if state != "success":
+            print ({"state": desiredState, "message": message})
+            return 13
 # }}}
-        
 
 if __name__ == "__main__":
     main()
