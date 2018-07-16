@@ -337,6 +337,8 @@ def create_initial_user(externalId):# {{{
     url = args.base_url + '/external-user/create'
     headers ={'Content-Type': 'application/json'}
     data = json.dumps({'externalId':externalId})
+    state = "failed"
+    message = ""
 
     resp = requests.post (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd),\
             headers = headers, data = data)
@@ -349,7 +351,7 @@ def create_initial_user(externalId):# {{{
             logging.warning('update successful, but no "result=success" received; Check with REST admin')
         if args.verbose>1:
             logging.debug("\n\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
-        return True
+        return ("success", "")
     logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
 
     logging.warning("\nthere was an unexpected status.")
@@ -357,8 +359,10 @@ def create_initial_user(externalId):# {{{
     
     if resp.status_code == 405:
         print ("\nUser probably already exists")
-        return True
+        return ("success", "")
     
+    return ("failed", "There was an unexpected status. the server said: %s (%s)" % (resp.status_code, resp.reason))
+
     return False
 # }}}
 def update_user(data): # {{{
@@ -393,8 +397,7 @@ def update_user(data): # {{{
         logging.error('FATAL: your json is invalid')
         logging.error(str(e))
         logging.error('For reference, this is your json:\n'+postData)
-
-        exit (21)
+        return ("failed", "Invalid json, check server log")
 
     json_data = json.dumps(postData_json)
     if args.verbose>0:
@@ -410,9 +413,9 @@ def update_user(data): # {{{
             logging.info('update successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
         if resp_json['result'] != 'success':
             logging.warning('update successful, but no "result=success" received; Check with REST admin')
-        return True
+        return ("success", "")
     logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
-    exit (22)
+    return ("failed", 'Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
 # }}}
 def register_user_for_service(externalId, serviceName):# {{{
     url = args.base_url + '/external-reg/register/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
@@ -425,11 +428,11 @@ def register_user_for_service(externalId, serviceName):# {{{
             logging.info('registration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
         if resp_json['result'] != 'success':
             logging.warning('registration successful, but no "result=success" received; Check with REST admin')
-        return True
+        return ("success", "")
 
     logging.error("something went wrong registering {} for service {}".format(externalId, serviceName))
     logging.error(resp.text)
-    return False
+    return ("failed", "something went wrong registering {} for service {}\n{}".format(externalId, serviceName, resp.text))
 # }}}
 def deregister_user_from_service(externalId, serviceName):# {{{
     url = args.base_url + '/external-reg/deregister/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
@@ -551,57 +554,44 @@ def main():
         # save state, whether user existed
         user_existed_before = user_exists (outData['externalId'])
 
-        # create initial user
+        # create initial user{{{
         if not user_existed_before:
             logging.info('User didn\'t exist. Will create')
-            if not create_initial_user(outData['externalId']): 
+            (state, message) = create_initial_user(outData['externalId'])
+            if state != "success":
                 logging.error('FATAL: Failed to create an initial user with this data:\n%s' %\
                             json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
-                if args.verbose:
-                    message = ('Failed to create an initial user with this data:\n%s' %\
-                            json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
-                else:
-                    message = ('Failed to create the initial user')
                 state = 'failed'
-                print({"state": state, "message": message})
+                print({"state": desiredState, "message": message})
                 return 10
 
             logging.info('Initial user created')
         else:
             logging.info('Skipping initial creation of user, since he existed already')
-
-        # update the user
+# }}}
+        # update the user{{{
         logging.info('Will update user now')
-        if not update_user (outData):
+        (state, message) = update_user(outData)
+        if state != "success":
             logging.error('FATAL: Failded to create the full user with this data:\n%s' %\
                         json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
-            if args.verbose:
-                message = ('Failed to update the user with this data:\n%s' %\
-                        json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
-            else:
-                message = ('Failed to update the user')
-            print({"state": state, "message": message})
+            print({"state": desiredState, "message": message})
             return 11
         logging.info("user created / updated successfully")
-
-        # register user for service
+# }}}
+        # register user for service{{{
         if not user_existed_before or args.force_registration: 
             # FIXME: This is a hack: we only register users, if they
             # didn't exit before; This should be fixed once LDF REST provides this functionality
             logging.info('registering user')
-            register_user_for_service(outData['externalId'], 'sshtest')
-            if 1==2:
-                if args.verbose:
-                    message = ('Failed to register user for service: %s' %\
-                            json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
-                else:
-                    message = ('register user for service')
-                state = 'failed'
-                print ({"state": state, "message": message})
+            (state, message) = register_user_for_service(outData['externalId'], 'sshtest')
+            if state != "success":
+                print ({"state": desiredState, "message": message})
                 return 12
         else:
             logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
-
+# }}}
+    # undeploy user{{{
     elif desiredState == 'not_deployed':
         outData = get_all_variables_from_list(args.remove_parameters, params)
         if args.verbose>1:
@@ -613,7 +603,7 @@ def main():
             outData['preferred_username'] = 'marcus-test-10'
         logging.info('undeployment')
         deregister_user_from_service(outData['externalId'], 'sshtest')
-
+# }}}
         
 
 if __name__ == "__main__":
