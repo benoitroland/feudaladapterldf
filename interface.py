@@ -47,8 +47,10 @@ def parseOptions():# {{{
             help='Use fake input data')
     parser.add_argument('--logfile',     '-l', default='ldf-interface.log')
     parser.add_argument('--loglevel',          default='warning')
-    parser.add_argument('--rest_user',   '-u', help='username for LDF rest interface')
-    parser.add_argument('--rest_passwd', '-p', help='passwdname for LDF rest interface')
+    parser.add_argument('--rest_user',   '-u', help='username for LDF rest interface', required=True)
+    parser.add_argument('--rest_passwd', '-p', help='passwdname for LDF rest interface', required=True)
+    parser.add_argument('--ldf_service',       default='sshtest', required=True)
+
 
     # options for parsing incoming data:
     parser.add_argument('--state_target'         , action="append")
@@ -337,8 +339,6 @@ def create_initial_user(externalId):# {{{
     url = args.base_url + '/external-user/create'
     headers ={'Content-Type': 'application/json'}
     data = json.dumps({'externalId':externalId})
-    state = "failed"
-    message = ""
 
     resp = requests.post (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd),\
             headers = headers, data = data)
@@ -363,7 +363,6 @@ def create_initial_user(externalId):# {{{
     
     return ("failed", "There was an unexpected status. the server said: %s (%s)" % (resp.status_code, resp.reason))
 
-    return False
 # }}}
 def update_user(data): # {{{
 
@@ -539,7 +538,7 @@ def main():
 
     desiredState = inData['state_target'] # one of "deployed" "removed" "rejected" "failed"
 
-    if desiredState == 'deployed':
+    if desiredState == 'deployed':# {{{
         # Derive all the variables required for LDAP Facade:
         outData = get_all_variables_from_list(args.deploy_parameters, params)
         if args.verbose>1:
@@ -559,8 +558,11 @@ def main():
             logging.info('User didn\'t exist. Will create')
             (state, message) = create_initial_user(outData['externalId'])
             if state != "success":
-                logging.error('FATAL: Failed to create an initial user with this data:\n%s' %\
-                            json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+                logmsg = 'FATAL: Failed to create an initial user with this data:\n%s' %\
+                            json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
+                logging.error(logmsg)
+                if args.verbose:
+                    message = message + '\n' + logmsg
                 state = 'failed'
                 print({"state": desiredState, "message": message})
                 return 10
@@ -568,17 +570,20 @@ def main():
             logging.info('Initial user created')
         else:
             logging.info('Skipping initial creation of user, since he existed already')
-# }}}
+        # }}}
         # update the user{{{
         logging.info('Will update user now')
         (state, message) = update_user(outData)
         if state != "success":
-            logging.error('FATAL: Failded to create the full user with this data:\n%s' %\
-                        json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
+            logmsg = 'FATAL: Failded to create the full user with this data:\n%s' %\
+                        json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
+            logging.error(logmsg)
+            if args.verbose:
+                message = message + '\n' + logmsg
             print({"state": desiredState, "message": message})
             return 11
         logging.info("user created / updated successfully")
-# }}}
+        # }}}
         # register user for service{{{
         if not user_existed_before or args.force_registration: 
             # FIXME: This is a hack: we only register users, if they
@@ -590,7 +595,7 @@ def main():
                 return 12
         else:
             logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
-# }}}
+    # }}}}}}
     # undeploy user{{{
     elif desiredState == 'not_deployed':
         outData = get_all_variables_from_list(args.remove_parameters, params)
