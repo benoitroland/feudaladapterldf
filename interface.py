@@ -10,6 +10,7 @@
 import sys
 import os
 import json
+from simplejson import JSONDecodeError
 import base64
 import logging
 import re
