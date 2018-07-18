@@ -10,7 +10,6 @@
 import sys
 import os
 import json
-from simplejson import JSONDecodeError
 import base64
 import logging
 import re
@@ -206,7 +205,10 @@ def get_jObject():# {{{
     Json = str(Data)+ '=' * (4 - len(Data) % 4)
     try:
         jObject = json.loads(str(base64.urlsafe_b64decode(Json)))
-    except JSONDecodeError as e:
+    except json.decoder.JSONDecodeError as e:
+        logging.error('cannot convert to json: %s' % str(e))
+        logging.error('this is your json: %s' % str(base64.urlsafe_b64decode(Json)))
+    except Exception as e:
         logging.error('cannot convert to json: %s' % str(e))
         logging.error('this is your json: %s' % str(base64.urlsafe_b64decode(Json)))
 
