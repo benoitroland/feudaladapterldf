@@ -530,7 +530,7 @@ def main():
     })
     logformat = "{%(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s"
     loglevel = logging.getLevelName(args.loglevel.upper())
-    logging.basicConfig(level=loglevel, format=logformat)
+    logging.basicConfig(level=loglevel, format=logformat, filename=args.logfile)
 
     if args.verbose > 3:
         import http.client as http_client
