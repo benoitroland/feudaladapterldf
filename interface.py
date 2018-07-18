@@ -15,6 +15,7 @@ import logging
 import re
 import requests
 import configargparse
+import simplejson
 
 def remove_quotes(data):# {{{
     return data.lstrip('"').lstrip("'").rstrip('"').rstrip("'")
@@ -123,7 +124,7 @@ def parseOptions():# {{{
     return args
 # }}}
 def get_jObject():# {{{
-    Data = ""
+    data = ""
     if args.fake:# {{{
     # jObject 
         jObject = json.loads(str('''    {
@@ -198,22 +199,27 @@ def get_jObject():# {{{
         "questionnaire": null
     }'''))
         return jObject# }}}
-    if len(sys.argv) == 2:
-        Data = sys.argv[1]
-    else:
-        Data = sys.stdin.read()
-    Json = str(Data)+ '=' * (4 - len(Data) % 4)
+    # if len(sys.argv) == 2:
+    #     data = sys.argv[1]
+    # else:
+    data = sys.stdin.read()
+    Json = data
+    # Json = str(data)+ '=' * (4 - len(data) % 4)
     try:
-        jObject = json.loads(str(base64.urlsafe_b64decode(Json)))
+        jObject = json.loads(str(Json))
+        logging.debug('json decoding worked fine')
     except json.decoder.JSONDecodeError as e:
-        try:
-            jObject = json.loads(str(base64.urlsafe_b64decode(Json)))
-        except Exception as e:
-            logging.error('cannot convert to json: %s' % str(e))
-            logging.error('this is your json: %s' % str((Json)))
-            logging.error('this is your b64decoded json: %s' % str(base64.urlsafe_b64decode(Json)))
+        logging.error('cannot decode your json: %s' % str(e))
+        logging.error('this is your json: "%s"' % str((Json)))
+        exit (13)
     except Exception as e:
-        logging.error('There is no way out of this hell: %s' % str(e))
+        try:
+            jObject = json.loads(str(Json))
+            logging.debug('json decoding worked fine in 4th attempt')
+        except:
+            logging.error('There is no way out of this hell: %s' % str(e))
+            logging.error('this is your json: "%s"' % str((Json)))
+            exit (14)
 
     return jObject
 # }}}
@@ -257,6 +263,21 @@ def generate_surName_givenName_from_name(data):# {{{
     data['user']['givenName'] = givenName
     return data
     # }}}
+def sanitize_newlines (data):#{{{
+    # remove newlines from ssh keys:
+
+    # unity key:
+    try:
+        data['user']['userinfo']['ssh_key'] = data['user']['userinfo']['ssh_key'].rstrip('\n')
+    except KeyError:
+        pass
+    # feudal key:
+    try:
+        data['key']['key'] = data['key']['key'].rstrip('\n')
+    except KeyError:
+        pass
+    return data
+#}}}
 def get_params_from_input(inData, args):# {{{
     params = {}
     for conf_item in args.mandatory_parameters:
@@ -389,6 +410,7 @@ def update_user(data): # {{{
     #                 json.dumps(data, sort_keys=True, indent=4, separators=(',', ': ')))
     # print ('''{{"externalId": "{externalId}"}}'''.format(**data))
 
+    # sanitise sshKey:
     postData = \
 '''{{"externalId":"{externalId}",
 "eppn":"{eppn}",
@@ -430,8 +452,12 @@ def update_user(data): # {{{
         if resp_json['result'] != 'success':
             logging.warning('update successful, but no "result=success" received; Check with REST admin')
         return ("success", "")
-    logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
-    return ("failed", 'Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
+    try:
+        logmsg = 'Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json())
+    except:
+        logmsg = 'Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.text)
+    logging.debug(logmsg)
+    return ("failed", logmsg)
 # }}}
 def register_user_for_service(externalId, serviceName):# {{{
     url = args.base_url + '/external-reg/register/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
@@ -449,9 +475,16 @@ def register_user_for_service(externalId, serviceName):# {{{
             pass
         return ("success", "")
 
-    logging.error("something went wrong registering {} for service {}".format(externalId, serviceName))
-    logging.error(resp.json())
-    return ("failed", "something went wrong registering {} for service {}\n{}".format(externalId, serviceName, resp.json()))
+    msg = "something went wrong registering {} for service {}".format(externalId, serviceName)
+    logging.error(msg)
+    logmsg = msg
+    try:
+        msg = resp.json()
+    except json.decoder.JSONDecodeError:
+        msg = resp.text
+    logging.error(msg)
+    logmsg += '\n' + msg
+    return ("failed", logmsg)
 # }}}
 def deregister_user_from_service(externalId, serviceName):# {{{
     url = args.base_url + '/external-reg/deregister/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
@@ -469,10 +502,21 @@ def deregister_user_from_service(externalId, serviceName):# {{{
         logging.info('deregistration apparently successful, but got no result')
         return ("success", "")
 
-    logging.error("something went wrong deregistering: {} from service {}".format(externalId, serviceName))
-    logging.error("code: %d" %resp.status_code)
-    logging.error(resp.json())
-    return ("failed", "something went wrong deregistering {} for service {}\n{}".format(externalId, serviceName, resp.json()))
+    msg = "something went wrong deregistering: {} from service {}".format(externalId, serviceName)
+    logging.error(msg)
+    logmsg = msg
+    msg = "code: %d" %resp.status_code
+    logging.error(msg)
+    logmsg += '\n' + msg
+    try:
+        msg = resp.json()
+    except json.decoder.JSONDecodeError:
+        msg = resp.text
+    except simplejson.errors.JSONDecodeError:
+        msg = resp.text
+    logging.error(msg)
+    logmsg += '\n' + msg
+    return ("failed", logmsg)
 # }}}
 def assert_all_variables_defined_in_format(entry, params):# {{{
     for unformatted_variable in re.findall('{[a-zA-Z0-9.-/]*}', entry):
@@ -538,22 +582,26 @@ def main():
         'version': 1,
         'disable_existing_loggers': True,
     })
-    logformat = "{%(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s"
+    logformat = "{%(asctime)s %(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s"
     loglevel = logging.getLevelName(args.loglevel.upper())
     logging.basicConfig(level=loglevel, format=logformat, filename=args.logfile)
-    logging.debug('fum_ldf-interface v.0.0.1')
+    logging.debug('\n\n\nfum_ldf-interface v.0.0.1')
 
     if args.verbose > 3:
         import http.client as http_client
         http_client.HTTPConnection.debuglevel = 1
         logging.basicConfig()
         # logging.getLogger().setLevel(logging.ERROR)
-        logging.getLogger().setLevel(logging.DEBUG)# }}}
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    logging.info('verbosity: %d' % args.verbose)# }}}
 
     # get data from stdin from the FEUDAL side{{{
     inData  = get_jObject()
     inData  = generate_surName_givenName_from_name(inData)
+    inData  = sanitize_newlines(inData)
     (state, params)  = get_params_from_input(inData, args)
+
     if args.verbose>1:
         logging.debug("inData: "+json.dumps(inData, sort_keys=True, indent=4, separators=(',', ': ')))
     if args.verbose>0:
