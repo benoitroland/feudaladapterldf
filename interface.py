@@ -206,11 +206,14 @@ def get_jObject():# {{{
     try:
         jObject = json.loads(str(base64.urlsafe_b64decode(Json)))
     except json.decoder.JSONDecodeError as e:
-        logging.error('cannot convert to json: %s' % str(e))
-        logging.error('this is your json: %s' % str(base64.urlsafe_b64decode(Json)))
+        try:
+            jObject = json.loads(str(base64.urlsafe_b64decode(Json)))
+        except Exception as e:
+            logging.error('cannot convert to json: %s' % str(e))
+            logging.error('this is your json: %s' % str((Json)))
+            logging.error('this is your b64decoded json: %s' % str(base64.urlsafe_b64decode(Json)))
     except Exception as e:
-        logging.error('cannot convert to json: %s' % str(e))
-        logging.error('this is your json: %s' % str((Json)))
+        logging.error('There is no way out of this hell: %s' % str(e))
 
     return jObject
 # }}}
