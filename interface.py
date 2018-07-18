@@ -1,4 +1,3 @@
-#!./pyve/bin/python
 #!/usr/bin/env python3
 # pylint # {{{
 # vim: tw=100 foldmethod=marker
@@ -204,7 +203,12 @@ def get_jObject():# {{{
     else:
         Data = sys.stdin.read()
     Json = str(Data)+ '=' * (4 - len(Data) % 4)
-    jObject = json.loads(str(base64.urlsafe_b64decode(Json)))
+    try:
+        jObject = json.loads(str(base64.urlsafe_b64decode(Json)))
+    except JSONDecodeError as e:
+        logging.error('cannot convert to json: %s' % str(e))
+        logging.error('this is your json: %s' % str(base64.urlsafe_b64decode(Json)))
+
     return jObject
 # }}}
 def find_keys_in_input(inData, search_list, key_name):# {{{
@@ -531,6 +535,7 @@ def main():
     logformat = "{%(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s"
     loglevel = logging.getLevelName(args.loglevel.upper())
     logging.basicConfig(level=loglevel, format=logformat, filename=args.logfile)
+    logging.debug('fum_ldf-interface v.0.0.1')
 
     if args.verbose > 3:
         import http.client as http_client
