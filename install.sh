@@ -9,4 +9,5 @@ test -d pyve || {
 
 . pyve/bin/activate
 
-pip install configargparse requests
+pip install configargparse requests simplejson
+export PATH=`pwd`/pyve/bin
