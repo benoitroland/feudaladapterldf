@@ -9,4 +9,4 @@ test -d pyve || {
 
 . pyve/bin/activate
 
-pip install configargparse requests simplejson
+pip install configargparse requests
