@@ -210,7 +210,7 @@ def get_jObject():# {{{
         logging.error('this is your json: %s' % str(base64.urlsafe_b64decode(Json)))
     except Exception as e:
         logging.error('cannot convert to json: %s' % str(e))
-        logging.error('this is your json: %s' % str(base64.urlsafe_b64decode(Json)))
+        logging.error('this is your json: %s' % str((Json)))
 
     return jObject
 # }}}
