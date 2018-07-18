@@ -1,4 +1,3 @@
-#!./pyve/bin/python
 #!/usr/bin/env python3
 # pylint # {{{
 # vim: tw=100 foldmethod=marker
