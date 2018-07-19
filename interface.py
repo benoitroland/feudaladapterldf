@@ -439,7 +439,7 @@ def update_user(data): # {{{
         return ("failed", "Invalid json, check server log")
 
     json_data = json.dumps(postData_json)
-    if args.verbose>0:
+    if args.verbose>1:
         logging.debug('postData_json %s\n'%\
             json.dumps(postData_json, sort_keys=True, indent=4, separators=(',', ': ')))
 
@@ -528,7 +528,8 @@ def assert_all_variables_defined_in_format(entry, params):# {{{
                 if variable in args.mandatory_parameters:
                     logging.error ("Error: Mandatory variable: {} is undefined!".format(variable))
                     return False
-                logging.info("Optional variable: {} is undefined!".format(variable))
+                if args.verbose>1:
+                    logging.info("Optional variable: {} is undefined!".format(variable))
                 return False 
         except KeyError:
             logging.error ('Error: Variable unknown: "{}" while parsing {}'.format(variable, entry))
@@ -609,7 +610,7 @@ def main():
         return ("failed", params)
 
     (state, info_data) = get_all_variables_from_list(['email', 'eppn'], params)
-    logging.debug('Got request to process user:  ({email} - {eppn})'.format(**info_data))
+    logging.debug('Got request to %s user:  ({email} - {eppn})'.format(**info_data) % inData['state_target'])
 
     if args.verbose>1:
         logging.debug("inData: "+json.dumps(inData, sort_keys=True, indent=4, separators=(',', ': ')))
@@ -625,6 +626,7 @@ def main():
         if args.verbose>1:
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
         if state != "success":
+            logging.error('Failed to initialise deployment variables for user:  ({email} - {eppn})'.format(**info_data))
             return("failed", outData)
 
         # And go create the user
@@ -641,7 +643,9 @@ def main():
             logging.info('User didn\'t exist. Will create')
             (state, message) = create_initial_user(outData['externalId'])
             if state != "success":
-                logmsg = 'FATAL: Failed to create an initial user with this data:\n%s' %\
+                logmsg = 'Failed to create the initial user:  ({email} - {eppn})'.format(**info_data)
+                if args.verbose > 0:
+                    logmsg += 'FATAL: Failed to create an initial user with this data:\n%s' %\
                             json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
                 logging.error(logmsg)
                 if args.verbose:
@@ -656,7 +660,9 @@ def main():
         logging.info('Will update user now')
         (state, message) = update_user(outData)
         if state != "success":
-            logmsg = 'FATAL: Failded to create the full user with this data:\n%s' %\
+            logmsg = 'Failed to create the full user:  ({email} - {eppn})'.format(**info_data)
+            if args.verbose > 0:
+                logmsg += 'FATAL: Failded to create the full user with this data:\n%s' %\
                         json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
             logging.error(logmsg)
             if args.verbose:
@@ -668,7 +674,7 @@ def main():
         if not user_existed_before or args.force_registration: 
             # FIXME: This is a hack: we only register users, if they
             # didn't exit before; This should be fixed once LDF REST provides this functionality
-            logging.info('registering user')
+            logging.info('registering user:  ({email} - {eppn})'.format(**info_data))
             (state, message) = register_user_for_service(outData['externalId'], args.ldf_service)
             if state != "success":
                 return ('failed', message)
@@ -678,29 +684,33 @@ def main():
     # }}}}}}
     elif desiredState == 'not_deployed':    # undeploy user{{{
         (state, outData) = get_all_variables_from_list(args.remove_parameters, params)
-        if args.verbose>1:
+        if args.verbose>2:
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
         if state != "success":
             return ("failed", outData)
 
-        # And go create the user
+        # fake userdata
         if args.fake or args.fake_remove:
             outData['externalId'] = 'marcus-test-10'
             outData['preferred_username'] = 'marcus-test-10'
 
         # do the actual undeployment
-        logging.info('undeployment')
         (state, message) = deregister_user_from_service(outData['externalId'],  args.ldf_service)
         if state != "success":
-            return ("failed", message)
+            logmsg = 'Failed to undeploy user:  ({email} - {eppn})'.format(**info_data)
+            if args.verbose > 0:
+                logmsg += 'FATAL: Failded undeployment with this data:\n%s' %\
+                        json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
+            return ("failed", message+logmsg)
         return (desiredState, message)
     return ('failed', 'undefined desired state_target')
 # }}}
 
 if __name__ == "__main__":
     (state, message) = main()
+    message = 'what do you mean, message?'
     logging.debug('state: %s' % state)
     logging.debug('            message: >>%s<<' % message)
-    return_json = '{"state": "%s", "message": "%s"}' % (state, message)
+    return_json = '{"state": "%s", "message": "%s", "credential": "these are your credentials<br/> asdf"}' % (state, message)
     logging.debug('return_json: >>%s<<' % return_json)
     print (return_json)
