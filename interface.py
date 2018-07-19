@@ -609,8 +609,8 @@ def main():
     if state != "success":
         return ("failed", params)
 
-    (state, info_data) = get_all_variables_from_list(['email', 'eppn'], params)
-    logging.debug('Got request to %s user:  ({email} - {eppn})'.format(**info_data) % inData['state_target'])
+    (state, info_data) = get_all_variables_from_list(['externalId', 'email', 'eppn'], params)
+    logging.debug('Got request to %s user: {externalId} ({email} - {eppn})'.format(**info_data) % inData['state_target'])
 
     if args.verbose>1:
         logging.debug("inData: "+json.dumps(inData, sort_keys=True, indent=4, separators=(',', ': ')))
@@ -626,7 +626,7 @@ def main():
         if args.verbose>1:
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
         if state != "success":
-            logging.error('Failed to initialise deployment variables for user:  ({email} - {eppn})'.format(**info_data))
+            logging.error('Failed to initialise deployment variables for user: {externalId} ({email} - {eppn})'.format(**info_data))
             return("failed", outData)
 
         # And go create the user
@@ -643,7 +643,7 @@ def main():
             logging.info('User didn\'t exist. Will create')
             (state, message) = create_initial_user(outData['externalId'])
             if state != "success":
-                logmsg = 'Failed to create the initial user:  ({email} - {eppn})'.format(**info_data)
+                logmsg = 'Failed to create the initial user: {externalId}  ({email} - {eppn})'.format(**info_data)
                 if args.verbose > 0:
                     logmsg += 'FATAL: Failed to create an initial user with this data:\n%s' %\
                             json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
@@ -660,7 +660,7 @@ def main():
         logging.info('Will update user now')
         (state, message) = update_user(outData)
         if state != "success":
-            logmsg = 'Failed to create the full user:  ({email} - {eppn})'.format(**info_data)
+            logmsg = 'Failed to create the full user: {externalId}  ({email} - {eppn})'.format(**info_data)
             if args.verbose > 0:
                 logmsg += 'FATAL: Failded to create the full user with this data:\n%s' %\
                         json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
@@ -674,7 +674,7 @@ def main():
         if not user_existed_before or args.force_registration: 
             # FIXME: This is a hack: we only register users, if they
             # didn't exit before; This should be fixed once LDF REST provides this functionality
-            logging.info('registering user:  ({email} - {eppn})'.format(**info_data))
+            logging.info('registering user: {externalId}  ({email} - {eppn})'.format(**info_data))
             (state, message) = register_user_for_service(outData['externalId'], args.ldf_service)
             if state != "success":
                 return ('failed', message)
@@ -697,7 +697,7 @@ def main():
         # do the actual undeployment
         (state, message) = deregister_user_from_service(outData['externalId'],  args.ldf_service)
         if state != "success":
-            logmsg = 'Failed to undeploy user:  ({email} - {eppn})'.format(**info_data)
+            logmsg = 'Failed to undeploy user: {externalId}  ({email} - {eppn})'.format(**info_data)
             if args.verbose > 0:
                 logmsg += 'FATAL: Failded undeployment with this data:\n%s' %\
                         json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
