@@ -207,7 +207,7 @@ def get_jObject():# {{{
     # Json = str(data)+ '=' * (4 - len(data) % 4)
     try:
         jObject = json.loads(str(Json))
-        logging.debug('json decoding worked fine')
+        # logging.debug('json decoding worked fine')
     except json.decoder.JSONDecodeError as e:
         logging.error('cannot decode your json: %s' % str(e))
         logging.error('this is your json: "%s"' % str((Json)))
@@ -358,11 +358,12 @@ def user_exists(externalId):# {{{
     try:
         resp_json=resp.json()
     except Exception as e:
-        print ("\nJSONDecodeError: {0}".format(e))
-        print ("terminating")
+        # print ("\nJSONDecodeError: {0}".format(e))
+        # print ("terminating")
         logmsg = 'Error: ' + str(e) + '\nserver said: '
         logmsg += resp.text
         logging.error (logmsg)
+        return False
     
     if args.verbose>2:
         logging.debug("\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
@@ -396,7 +397,7 @@ def create_initial_user(externalId):# {{{
     logging.warning("the server said: %s (%s)" % (resp.status_code, resp.reason))
     
     if resp.status_code == 405:
-        print ("\nUser probably already exists")
+        logging.info("Got 405... User probably already exists")
         return ("success", "")
     
     return ("failed", "There was an unexpected status. the server said: %s (%s)" % (resp.status_code, resp.reason))
@@ -519,10 +520,11 @@ def deregister_user_from_service(externalId, serviceName):# {{{
     return ("failed", logmsg)
 # }}}
 def assert_all_variables_defined_in_format(entry, params):# {{{
+    ''' make sure the format string "entry" can be filled using data in params'''
     for unformatted_variable in re.findall('{[a-zA-Z0-9.-/]*}', entry):
         variable = re.sub('[{}]', '', unformatted_variable)
         try:
-            if params[variable] is None or params[variable] == "None" or params[variable] == "null":
+            if params[variable] is None or params[variable] == "None" or params[variable] == "null" or params[variable] == "":
                 if variable in args.mandatory_parameters:
                     logging.error ("Error: Mandatory variable: {} is undefined!".format(variable))
                     return False
@@ -538,6 +540,7 @@ def get_all_variables_from_list(parameterList, params):# {{{
     outData = {}
     # print ("\n\nparameterlist; >>%s<<" % parameterList)
     for entry_name in parameterList:
+        ''' first get the entry name, and try to obtain the format string for it'''
         # print ("\n\nentry_name: >>%s<<"%entry_name)
         try:
             entry_value = getattr(args, entry_name+'Fmt')
@@ -553,7 +556,8 @@ def get_all_variables_from_list(parameterList, params):# {{{
             return ("failed", logmsg)
         # print ("\n\nentry_value: >>%s<<"%entry_value)
         for entry in entry_value:
-            # make sure that none of the fields used in entry are "None":
+            ''' For each entry in the list of possible formats, try it out and break, once the first one worked'''
+            # make sure that none of the fields used in entry are undefined, "None" or "":
             if not assert_all_variables_defined_in_format(entry, params):
                 continue
                 
@@ -601,16 +605,17 @@ def main():
     inData  = generate_surName_givenName_from_name(inData)
     inData  = sanitize_newlines(inData)
     (state, params)  = get_params_from_input(inData, args)
+    if state != "success":
+        return ("failed", params)
+
+    (state, info_data) = get_all_variables_from_list(['email', 'eppn'], params)
+    logging.debug('Got request to process user:  ({email} - {eppn})'.format(**info_data))
 
     if args.verbose>1:
         logging.debug("inData: "+json.dumps(inData, sort_keys=True, indent=4, separators=(',', ': ')))
-    if args.verbose>0:
+    if args.verbose>1:
         logging.debug("params: "+json.dumps(params, sort_keys=True, indent=4, separators=(',', ': ')))
-    if state != "success":
-        print ({"state": "failed", "message": params})
-        return 8
 # }}}
-
 
     desiredState = inData['state_target'] # one of "deployed" "removed" "rejected" "failed"
 
@@ -620,8 +625,7 @@ def main():
         if args.verbose>1:
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
         if state != "success":
-            print ({"state": "failed", "message": outData})
-            return 9
+            return("failed", outData)
 
         # And go create the user
         # fake some input data
@@ -642,8 +646,7 @@ def main():
                 logging.error(logmsg)
                 if args.verbose:
                     message = message + '\n' + logmsg
-                print({"state": desiredState, "message": message})
-                return 10
+                return (desiredState,message)
 
             logging.info('Initial user created')
         else:
@@ -658,8 +661,7 @@ def main():
             logging.error(logmsg)
             if args.verbose:
                 message = message + '\n' + logmsg
-            print({"state": desiredState, "message": message})
-            return 11
+        return (desiredState, message)
         logging.info("user created / updated successfully")
         # }}}
         # register user for service{{{
@@ -669,29 +671,36 @@ def main():
             logging.info('registering user')
             (state, message) = register_user_for_service(outData['externalId'], args.ldf_service)
             if state != "success":
-                print ({"state": desiredState, "message": message})
-                return 12
+                return ('failed', message)
         else:
             logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
+        return (desiredState, message)
     # }}}}}}
     elif desiredState == 'not_deployed':    # undeploy user{{{
         (state, outData) = get_all_variables_from_list(args.remove_parameters, params)
         if args.verbose>1:
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
         if state != "success":
-            print ({"state": "failed", "message": outData})
-            return 9
+            return ("failed", outData)
 
         # And go create the user
         if args.fake or args.fake_remove:
             outData['externalId'] = 'marcus-test-10'
             outData['preferred_username'] = 'marcus-test-10'
+
+        # do the actual undeployment
         logging.info('undeployment')
         (state, message) = deregister_user_from_service(outData['externalId'],  args.ldf_service)
         if state != "success":
-            print ({"state": desiredState, "message": message})
-            return 13
+            return ("failed", message)
+        return (desiredState, message)
+    return ('failed', 'undefined desired state_target')
 # }}}
 
 if __name__ == "__main__":
-    main()
+    (state, message) = main()
+    logging.debug('state: %s' % state)
+    logging.debug('            message: >>%s<<' % message)
+    return_json = '{"state": "%s", "message": "%s"}' % (state, message)
+    logging.debug('return_json: >>%s<<' % return_json)
+    print (return_json)
