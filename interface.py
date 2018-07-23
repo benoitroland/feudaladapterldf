@@ -620,6 +620,10 @@ def main():
 
     desiredState = inData['state_target'] # one of "deployed" "removed" "rejected" "failed"
 
+
+    # FIXME: User these calls to verify user status:
+    curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-user/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
+    curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
     if desiredState == 'deployed':# {{{
         # Derive all the variables required for LDAP Facade:
         (state, outData) = get_all_variables_from_list(args.deploy_parameters, params)
@@ -667,19 +671,20 @@ def main():
             logging.error(logmsg)
             if args.verbose:
                 message = message + '\n' + logmsg
-        return (desiredState, message)
+        # return (desiredState, message)
         logging.info("user created / updated successfully")
         # }}}
         # register user for service{{{
-        if not user_existed_before or args.force_registration or True: 
-            # FIXME: This is a hack: we only register users, if they
-            # didn't exit before; This should be fixed once LDF REST provides this functionality
-            logging.info('registering user: {externalId}  ({email} - {eppn})'.format(**info_data))
-            (state, message) = register_user_for_service(outData['externalId'], args.ldf_service)
-            if state != "success":
-                return ('failed', message)
-        else:
-            logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
+        # if not user_existed_before or args.force_registration:
+        # FIXME: This is a hack: we only register users, if they
+        # didn't exit before; This should be fixed once LDF REST provides this functionality
+        logging.info('registering user: {externalId}  ({email} - {eppn})'.format(**info_data))
+        (state, message) = register_user_for_service(outData['externalId'], args.ldf_service)
+        if state != "success":
+            return ('failed', message)
+        # else:
+        #     logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
+        logging.info('user registered for service: %s - %s' % (state, message))
         return (desiredState, message)
     # }}}}}}
     elif desiredState == 'not_deployed':    # undeploy user{{{
@@ -695,6 +700,7 @@ def main():
             outData['preferred_username'] = 'marcus-test-10'
 
         # do the actual undeployment
+        logging.info('deregistering user from service')
         (state, message) = deregister_user_from_service(outData['externalId'],  args.ldf_service)
         if state != "success":
             logmsg = 'Failed to undeploy user: {externalId}  ({email} - {eppn})'.format(**info_data)
@@ -702,15 +708,14 @@ def main():
                 logmsg += 'FATAL: Failded undeployment with this data:\n%s' %\
                         json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
             return ("failed", message+logmsg)
+        logging.info('deregistration successful')
         return (desiredState, message)
     return ('failed', 'undefined desired state_target')
 # }}}
 
 if __name__ == "__main__":
     (state, message) = main()
-    message = 'what do you mean, message?'
     logging.debug('state: %s' % state)
-    logging.debug('            message: >>%s<<' % message)
-    return_json = '{"state": "%s", "message": "%s", "credential": "these are your credentials<br/> asdf"}' % (state, message)
+    return_json = '{"state": "%s", "credential": [{"username":"name"}, {"password":"secret"}]}' % (state)
     logging.debug('return_json: >>%s<<' % return_json)
     print (return_json)
