@@ -671,7 +671,7 @@ def main():
         logging.info("user created / updated successfully")
         # }}}
         # register user for service{{{
-        if not user_existed_before or args.force_registration: 
+        if not user_existed_before or args.force_registration or True: 
             # FIXME: This is a hack: we only register users, if they
             # didn't exit before; This should be fixed once LDF REST provides this functionality
             logging.info('registering user: {externalId}  ({email} - {eppn})'.format(**info_data))
