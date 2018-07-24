@@ -622,8 +622,8 @@ def main():
 
 
     # FIXME: User these calls to verify user status:
-    curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-user/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
-    curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
+    # curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-user/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
+    # curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
     if desiredState == 'deployed':# {{{
         # Derive all the variables required for LDAP Facade:
         (state, outData) = get_all_variables_from_list(args.deploy_parameters, params)
