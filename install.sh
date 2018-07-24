@@ -13,4 +13,4 @@ test -d pyve || {
 pip install --upgrade pip
 
 pip install configargparse requests simplejson
-export PATH=`pwd`/pyve/bin
+#export PATH=`pwd`/pyve/bin:PATH
