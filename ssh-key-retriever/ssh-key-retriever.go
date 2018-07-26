@@ -147,7 +147,7 @@ func main() {
 
 	for _, userinfo := range userinfos {
 		if userinfo.AttributeStore.BwidmOrgId == bwidmOrgId {
-			fmt.Printf("%v", userinfo)
+			fmt.Printf("%v\n", userinfo)
 		}
 	}
 }
