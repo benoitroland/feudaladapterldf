@@ -3,3 +3,6 @@ ldf-interface.conf
 ldf-interface.log
 pyve
 ssh-key-retriever.conf
+ssh-key-retriever/ssh-key-retriever.json.conf
+ssh-key-retriever/ssh-key-retriever
+*GOPATH*
