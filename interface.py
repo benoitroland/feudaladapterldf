@@ -46,11 +46,13 @@ def parseOptions():# {{{
     parser.add_argument('--fake_remove', '-fr',
             action="store_true", default=False,
             help='Use fake input data')
-    parser.add_argument('--logfile',     '-l', default='ldf-interface.log')
-    parser.add_argument('--loglevel',          default='warning')
-    parser.add_argument('--rest_user',   '-u', help='username for LDF rest interface', required=True)
-    parser.add_argument('--rest_passwd', '-p', help='passwdname for LDF rest interface', required=True)
-    parser.add_argument('--ldf_service',       default='sshtest', required=True)
+    parser.add_argument('--logfile',     '-l',             default='ldf-interface.log')
+    parser.add_argument('--loglevel',                      default='warning')
+    parser.add_argument('--rest_user',   '-u',             help='username for LDF rest interface', required=True)
+    parser.add_argument('--rest_passwd', '-p',             help='passwdname for LDF rest interface', required=True)
+    parser.add_argument('--ldf_service',                   default='sshtest')
+    parser.add_argument('--ldf_service_description',       default='None')
+    parser.add_argument('--ldf_service_login_info_fmt',    default='None')
 
 
     # options for parsing incoming data:
@@ -365,8 +367,8 @@ def user_exists(externalId):# {{{
         logging.error (logmsg)
         return False
     
-    if args.verbose>2:
-        logging.debug("\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
+    # if args.verbose>2:
+    #     logging.debug("\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
 
     if externalId == resp_json['externalId']:
         return True
@@ -474,7 +476,13 @@ def register_user_for_service(externalId, serviceName):# {{{
                 logging.warning('registration successful, but no "result=success" received; Check with REST admin')
         except KeyError:
             pass
-        return ("success", "")
+
+        # homeDir   = resp_json['registryValues']['homeDir']
+        # localUid  = resp_json['registryValues']['localUid']
+        # uidNumber = resp_json['registryValues']['uidNumber']
+        # return ('success', '', '"homeDir": "%s", "localUid": "%s", "uidNumber": "%s"' %\
+        #         (homeDir, localUid, uidNumber))
+        return ('success', '', resp_json)
 
     msg = "something went wrong registering {} for service {}".format(externalId, serviceName)
     logging.error(msg)
@@ -485,7 +493,7 @@ def register_user_for_service(externalId, serviceName):# {{{
         msg = resp.text
     logging.error(msg)
     logmsg += '\n' + msg
-    return ("failed", logmsg)
+    return ("failed", logmsg, '')
 # }}}
 def deregister_user_from_service(externalId, serviceName):# {{{
     url = args.base_url + '/external-reg/deregister/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
@@ -559,11 +567,18 @@ def get_all_variables_from_list(parameterList, params):# {{{
         for entry in entry_value:
             ''' For each entry in the list of possible formats, try it out and break, once the first one worked'''
             # make sure that none of the fields used in entry are undefined, "None" or "":
+            if args.verbose > 2:
+                logging.info('%s: trying: %s ' % (entry_name, entry))
+
             if not assert_all_variables_defined_in_format(entry, params):
+                if args.verbose > 2:
+                    logging.info('   did not work, next')
                 continue
                 
             # Then use the format
             outData[entry_name] = entry.format(**params)
+            if args.verbose > 2:
+                logging.info('   worked: %s' % outData[entry_name])
             # print ("\n\n entry: >>%s<<   \nformatted: >>%s<<" % (entry, entry.format(**params)))
             # logging.debug("params: "+json.dumps(params, sort_keys=True, indent=4, separators=(',', ': ')))
             break
@@ -571,7 +586,7 @@ def get_all_variables_from_list(parameterList, params):# {{{
             logmsg = "FATAL: Could not obtain values for %s" % entry_name
             logging.error (logmsg)
             return ("failed", logmsg)
-        if args.verbose>1:
+        if args.verbose>1 and args.verbose <= 2:
             logging.info('{:23s}: {:23s}: {}'.format(entry_name, entry,  outData[entry_name]))
     return ("success", outData )
 # }}}
@@ -607,7 +622,7 @@ def main():
     inData  = sanitize_newlines(inData)
     (state, params)  = get_params_from_input(inData, args)
     if state != "success":
-        return ("failed", params)
+        return ("failed", params, '')
 
     (state, info_data) = get_all_variables_from_list(['externalId', 'email', 'eppn'], params)
     logging.debug('Got request to %s user: {externalId} ({email} - {eppn})'.format(**info_data) % inData['state_target'])
@@ -631,7 +646,7 @@ def main():
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
         if state != "success":
             logging.error('Failed to initialise deployment variables for user: {externalId} ({email} - {eppn})'.format(**info_data))
-            return("failed", outData)
+            return("failed", outData, '')
 
         # And go create the user
         # fake some input data
@@ -654,7 +669,7 @@ def main():
                 logging.error(logmsg)
                 if args.verbose:
                     message = message + '\n' + logmsg
-                return (desiredState,message)
+                return (desiredState,message, '')
 
             logging.info('Initial user created')
         else:
@@ -671,28 +686,38 @@ def main():
             logging.error(logmsg)
             if args.verbose:
                 message = message + '\n' + logmsg
-        # return (desiredState, message)
+        # return (desiredState, message, '')
         logging.info("user created / updated successfully")
         # }}}
+
         # register user for service{{{
         # if not user_existed_before or args.force_registration:
-        # FIXME: This is a hack: we only register users, if they
-        # didn't exit before; This should be fixed once LDF REST provides this functionality
         logging.info('registering user: {externalId}  ({email} - {eppn})'.format(**info_data))
-        (state, message) = register_user_for_service(outData['externalId'], args.ldf_service)
+        (state, message, cred_part) = register_user_for_service(outData['externalId'], args.ldf_service)
         if state != "success":
-            return ('failed', message)
+            return ('failed', message, '')
+
+        # Create the message to show the user:
+        c_service = '"Service":"%s"'     % args.ldf_service_description
+        # c_user  = '"Username": "%s_%s"'% (outData['bwidmOrgId'], outData['preferred_username'])
+        c_user    = '"Username": "%s"'   % cred_part['registryValues']['localUid']
+        c_home    = '"Home Dir": "%s"'   % cred_part['registryValues']['homeDir']
+        c_uid     = '"UID Number": "%s"' % cred_part['registryValues']['uidNumber']
+        c_eid     = '"ExternalID": "%s"' % outData['externalId']
+        c_loginfo = '"Login Info": "%s"' % args.ldf_service_login_info_fmt.format(**outData)
+        
+        credentials = '{%s, %s, %s, %s, %s, %s}' % (c_service, c_user, c_eid, c_loginfo, c_home, c_uid)
         # else:
         #     logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
         logging.info('user registered for service: %s - %s' % (state, message))
-        return (desiredState, message)
+        return (desiredState, message, credentials)
     # }}}}}}
     elif desiredState == 'not_deployed':    # undeploy user{{{
         (state, outData) = get_all_variables_from_list(args.remove_parameters, params)
         if args.verbose>2:
             logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
         if state != "success":
-            return ("failed", outData)
+            return ("failed", outData, '')
 
         # fake userdata
         if args.fake or args.fake_remove:
@@ -707,15 +732,19 @@ def main():
             if args.verbose > 0:
                 logmsg += 'FATAL: Failded undeployment with this data:\n%s' %\
                         json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
-            return ("failed", message+logmsg)
+            return ("failed", message+logmsg, '')
+        credentials = '{"undeployment": "successful"}'
         logging.info('deregistration successful')
-        return (desiredState, message)
-    return ('failed', 'undefined desired state_target')
+        return (desiredState, message, credentials)
+    return ('failed', 'undefined desired state_target', '')
 # }}}
 
 if __name__ == "__main__":
-    (state, message) = main()
+    (state, message, credentials) = main()
     logging.debug('state: %s' % state)
-    return_json = '{"state": "%s", "credential": [{"username":"name"}, {"password":"secret"}]}' % (state)
+    if credentials != "":
+        return_json = '{"state": "%s", "message": "%s", "credentials": %s}' % (state, message, credentials)
+    else:
+        return_json = '{"state": "%s", "message": "%s"}' % (state, message)
     logging.debug('return_json: >>%s<<' % return_json)
     print (return_json)
