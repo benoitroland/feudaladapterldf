@@ -1,5 +1,5 @@
 Name: ssh-key-retriever
-Version: 0.0.2
+Version: 0.0.3
 Release: 1
 Summary: Commandline tool for obtaining ssh keys from the bwidm LDAP-Facade
 Group: Misc

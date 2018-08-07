@@ -1,4 +1,4 @@
-VERSION  = 0.0.2
+VERSION  = 0.0.3
 # These are needed for the RPM build target:
 BASEDIR         = $(PWD)
 BASENAME       := $(notdir $(PWD))
@@ -57,7 +57,7 @@ build:
 .PHONY: install
 install:
 	@install -D $(SSH_KEY_RETRIEVER) $(INSTALL_PATH)/bin/$(SSH_KEY_RETRIEVER)
-	@install -D $(CONFIG).example $(CONFIG_PATH)/$(CONFIG)
+	@install -m 644 -D $(CONFIG).example $(CONFIG_PATH)/$(CONFIG)
 	@echo "Installation complete!"
 
 
