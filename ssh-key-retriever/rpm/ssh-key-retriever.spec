@@ -7,7 +7,7 @@ License: MIT-License
 URL: https://git.scc.kit.edu:fum/fum_ldf-interface.git
 Source0: ssh-key-retriever.tar
 
-BuildRequires: go >= 7.29
+BuildRequires: golang >= 1.7
 
 BuildRoot:	%{_tmppath}/%{name}
 
@@ -31,6 +31,7 @@ make install INSTALL_PATH=${RPM_BUILD_ROOT}/usr MAN_PATH=${RPM_BUILD_ROOT}/usr/s
 %files
 %defattr(-,root,root,-)
 %{_bindir}/*
+/etc/ssh-key-retriever.json.conf
 #%doc
 #%{_mandir}/*
 
