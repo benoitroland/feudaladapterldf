@@ -85,8 +85,14 @@ func getConfig(configFiles []string) (c config, err error) {
 	if c.RestUser == "" {
 		log.Fatalf("[Conf] No 'RestUser' in config")
 	}
+	if c.RestUser == "xxxxxxx" { // default value in example config
+		log.Fatalf("[Conf] Invalid 'RestUser' 'xxxxxxx' in config")
+	}
 	if c.RestPassword == "" {
 		log.Fatalf("[Conf] No 'RestPassword' in config")
+	}
+	if c.RestPassword == "xxxxxxxxxxxxx" { // default value in example config
+		log.Fatalf("[Conf] Invalide 'RestPassword' 'xxxxxxxxxxxxx' in config")
 	}
 
 	return
@@ -130,12 +136,12 @@ func main() {
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	uInfos := strings.Split(*incomingUserName, "_")
-	if len(uInfos) != 2 {
+	if len(uInfos) < 2 {
 		log.Printf("Could not split incoming user name: %s", *incomingUserName)
 		os.Exit(0)
 	}
 	bwidmOrgId := uInfos[0]
-	username := uInfos[1]
+	username := strings.Join(uInfos[1:], "_")
 
 	configFiles := []string{"ssh-key-retriever.json.conf", "/etc/ssh-key-retriever.json.conf"}
 	config, err := getConfig(configFiles)
