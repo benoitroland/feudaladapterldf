@@ -1,0 +1,5 @@
+{
+    "BaseUrl"    : "https://bwidm-test.scc.kit.edu/rest/",
+    "RestUser"   : "xxxxxxx",
+    "RestPasswd" : "xxxxxxxxxxxxx"
+}
