@@ -46,7 +46,7 @@ distclean: clean
 .PHONY: srctar
 srctar:
 	#@(cd ..; tar cf $(BASENAME)/$(SRC_TAR) $(BASENAME)/src $(BASENAME)/Makefile)
-	@tar cf $(SRC_TAR) Makefile $(SSH_KEY_RETRIEVER) $(CONFIG).example $(PKG_NAME).go   --transform='s_^_$(PKG_NAME)-$(VERSION)/_'
+	@tar cf $(SRC_TAR) Makefile README.md $(SSH_KEY_RETRIEVER) $(CONFIG).example $(PKG_NAME).go   --transform='s_^_$(PKG_NAME)-$(VERSION)/_'
 
 .PHONY: build
 build:
@@ -58,6 +58,8 @@ build:
 install:
 	@install -D $(SSH_KEY_RETRIEVER) $(INSTALL_PATH)/bin/$(SSH_KEY_RETRIEVER)
 	@install -m 644 -D $(CONFIG).example $(CONFIG_PATH)/$(CONFIG)
+	@install -d $(INSTALL_PATH)/share/doc/ssh-key-retriever/
+	@install -m 644 -D README.md $(INSTALL_PATH)/share/doc/ssh-key-retriever/
 	@echo "Installation complete!"
 
 

@@ -32,6 +32,7 @@ make install INSTALL_PATH=${RPM_BUILD_ROOT}/usr MAN_PATH=${RPM_BUILD_ROOT}/usr/s
 %defattr(-,root,root,-)
 %{_bindir}/*
 /etc/ssh-key-retriever.json.conf
+/usr/share/doc/ssh-key-retriever/README.md
 #%doc
 #%{_mandir}/*
 
