@@ -10,7 +10,6 @@
 import sys
 import os
 import json
-import base64
 import logging
 import re
 import requests
@@ -63,7 +62,7 @@ def parseOptions():# {{{
     parser.add_argument('--givenName'            , action="append")
     parser.add_argument('--iss'                  , action="append")
     parser.add_argument('--sub'                  , action="append")
-    parser.add_argument('--key'                  , action="append")
+    parser.add_argument('--ssh_key'             , action="append")
     parser.add_argument('--groups'               , action="append")
     parser.add_argument('--questionnaire'        , action="append")
     parser.add_argument('--email'                , action="append")
@@ -129,62 +128,66 @@ def get_jObject():# {{{
     data = ""
     if args.fake:# {{{
     # jObject 
-        jObject = json.loads(str('''    {
+        jObject = json.loads(str('''{
         "state_target": "deployed",
         "user": {
-            "email": "marcus@lalala.de",
-                "groups": [
-                    "/myExampleColab",
-                    "/hdfdev",
-                    "/"
-                ],
+            "email": "marcus.hardt@kit.edu",
             "userinfo": {
                 "eduPersonEntitlement": [
                     "urn:test:hdf:group:root#unity.helmholtz-data-federation.de",
-                    "urn:test:hdf:group:root:myExampleColab#unity.helmholtz-data-federation.de"
+                    "urn:test:hdf:group:root:myExampleColab#unity.helmholtz-data-federation.de",
+                    "urn:test:hdf:group:root:GsiUserGroup#unity.helmholtz-data-federation.de"
                 ],
                 "email": "marcus.hardt@kit.edu",
                 "email_verified": "true",
                 "groups": [
                     "/myExampleColab",
-                    "/hdfdev",
                     "/"
                 ],
                 "name": "Marcus Hardt",
                 "preferred_username": "marcus",
-                "ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013",
+                "ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013user_info_ie_unity",
                 "sub": "61230996-664f-4422-9caa-76cf086f0d6c",
                 "iss": "https://unity.helmholtz-data-federation.de/oauth2"
             }
         },
         "key": {
-            "name": "Kee",
-            "key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2018"
+            "name": "test",
+            "key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2019_old_ie_key"
+        },
+        "credentials": {
+            "ssh_key": [
+                {
+                    "name": "test",
+                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu_from_creds"
+                },
+                {
+                    "name": "unity_key",
+                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013_unity_key_from_creds"
+                }
+            ]
         },
         "questionnaire": null
-    }'''))
+    }'''
+    
+    ))
         return jObject# }}}
     if args.fake_remove:# {{{
     # jObject 
-        jObject = json.loads(str('''    {
+        jObject = json.loads(str(''' {
         "state_target": "not_deployed",
         "user": {
-            "email": "marcus@lalala.de",
-                "groups": [
-                    "/myExampleColab",
-                    "/hdfdev",
-                    "/"
-                ],
+            "email": "nico.schlitter@kit.edu",
             "userinfo": {
                 "eduPersonEntitlement": [
                     "urn:test:hdf:group:root#unity.helmholtz-data-federation.de",
-                    "urn:test:hdf:group:root:myExampleColab#unity.helmholtz-data-federation.de"
+                    "urn:test:hdf:group:root:myExampleColab#unity.helmholtz-data-federation.de",
+                    "urn:test:hdf:group:root:GsiUserGroup#unity.helmholtz-data-federation.de"
                 ],
                 "email": "marcus.hardt@kit.edu",
                 "email_verified": "true",
                 "groups": [
                     "/myExampleColab",
-                    "/hdfdev",
                     "/"
                 ],
                 "name": "Marcus Hardt",
@@ -195,11 +198,25 @@ def get_jObject():# {{{
             }
         },
         "key": {
-            "name": "Kee",
-            "key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2018"
+            "name": "test",
+            "key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2019"
+        },
+        "credentials": {
+            "ssh_key": [
+                {
+                    "name": "test",
+                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu"
+                },
+                {
+                    "name": "unity_key",
+                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013"
+                }
+            ]
         },
         "questionnaire": null
-    }'''))
+    }
+
+       }'''))
         return jObject# }}}
     # if len(sys.argv) == 2:
     #     data = sys.argv[1]
@@ -225,31 +242,34 @@ def get_jObject():# {{{
 
     return jObject
 # }}}
-def find_keys_in_input(inData, search_list, key_name):# {{{
-    '''seach inData for list and return key on the first found list item'''
+def find_variable_by_name_in_json(inData, search_list, variable_name):# {{{
+    '''seach inData for list and return its value on the first found list item'''
     # logging.debug('search list: {}'.format(str(search_list)))
     if search_list is None:
-        # logging.debug ("Defaulting to finding the key by the name itself: %s"%key_name)
+        # logging.debug ("Defaulting to finding the value by the name itself: %s"%variable_name)
 
-        search_list = [key_name]
+        search_list = [variable_name]
     for entry in search_list:
-        if entry == 'key':
-            key = inData['key'].get('key')
+        if entry == 'key': # old and should be deprecated
+            value = inData['key'].get('key')
+        if entry == 'ssh_key': # there may be ssh_keys in credentials and in userinfo
+                               # we prefer those of credentials:
+            value = inData['credentials'].get('ssh_key')
         else:
-            key = inData.get(entry)
-        if key is not None:
-            # logging.info('found {} in inData: {}'.format(entry, key))
-            return key
+            value = inData.get(entry)
+        if value is not None:
+            # logging.info('found {} in inData: {}'.format(entry, value))
+            return value
         
-        key = inData['user'].get(entry)
-        if key is not None:
-            # logging.info('found {} in inData["user"]: {}'.format(entry, key))
-            return key
+        value = inData['user'].get(entry)
+        if value is not None:
+            # logging.info('found {} in inData["user"]: {}'.format(entry, value))
+            return value
 
-        key = inData['user']['userinfo'].get(entry)
-        if key is not None:
-            # logging.info('found {} in inData["user"]["userinfo"]: {}'.format(entry, key))
-            return key
+        value = inData['user']['userinfo'].get(entry)
+        if value is not None:
+            # logging.info('found {} in inData["user"]["userinfo"]: {}'.format(entry, value))
+            return value
     return None
 # }}}
 def generate_surName_givenName_from_name(data):# {{{
@@ -275,18 +295,21 @@ def sanitize_newlines (data):#{{{
         pass
     # feudal key:
     try:
-        data['key']['key'] = data['key']['key'].rstrip('\n')
+        for key in data['credentials']['ssh_key']:
+            key['value'] = key['value'].rstrip('\n')
     except KeyError:
         pass
     return data
 #}}}
 def get_params_from_input(inData, args):# {{{
+    '''processes the inData json structure to find all configured mandatory_parameters and
+    optional_parameters'''
     params = {}
     for conf_item in args.mandatory_parameters:
         if args.verbose>2:
             logging.debug('getting value for {}'.format(conf_item))
         try:
-            value = find_keys_in_input(inData, getattr(args, conf_item), conf_item)
+            value = find_variable_by_name_in_json(inData, getattr(args, conf_item), conf_item)
         except AttributeError:
             logmsg = "Fatal: the parameter '%s' is not supported by this interface program." % conf_item
             logmsg += "Please add it in the 'parseOptions' function"
@@ -304,7 +327,7 @@ def get_params_from_input(inData, args):# {{{
         if args.verbose>2:
             logging.debug('getting value for {}'.format(conf_item))
         try:
-            value = find_keys_in_input(inData, getattr(args, conf_item), conf_item)
+            value = find_variable_by_name_in_json(inData, getattr(args, conf_item), conf_item)
         except AttributeError:
             logmsg =  "Fatal: a specified parameter is not supported by this interface program."
             logmsg += "Please add it in the 'parseOptions' function"
@@ -419,7 +442,7 @@ def update_user(data): # {{{
 "eppn":"{eppn}",
 "email":"{email}",
 "genericStore": {{
-    "key":"{sshKey}"
+    "ssh_key":"{sshKey}"
     }},
 "surName":"{surName}",
 "givenName":"{givenName}",
@@ -636,7 +659,7 @@ def main():
     desiredState = inData['state_target'] # one of "deployed" "removed" "rejected" "failed"
 
 
-    # FIXME: User these calls to verify user status:
+    # FIXME: Use these calls to verify user status:
     # curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-user/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
     # curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
     if desiredState == 'deployed':# {{{
@@ -681,7 +704,7 @@ def main():
         if state != "success":
             logmsg = 'Failed to create the full user: {externalId}  ({email} - {eppn})'.format(**info_data)
             if args.verbose > 0:
-                logmsg += 'FATAL: Failded to create the full user with this data:\n%s' %\
+                logmsg += 'FATAL: Failed to create the full user with this data:\n%s' %\
                         json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
             logging.error(logmsg)
             if args.verbose:
