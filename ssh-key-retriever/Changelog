@@ -1,0 +1,10 @@
+- 0.0.3 
+    - Add README.md
+    - Fix permissions of config file
+- 0.0.4 
+    - Fix username_with_underscore problem
+    - Fix strange error message with default user / password ('xxxxxxxx')
+- 0.1.0 
+    - Now expecting list of SshKeys in genericStore (i.e. incompatible to
+      exiting stored keys
+    - Add changelog
