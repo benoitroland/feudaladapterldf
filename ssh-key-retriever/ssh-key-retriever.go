@@ -18,8 +18,12 @@ type (
 		UserName   string `json:"urn:oid:0.9.2342.19200300.100.1.1"`
 		BwidmOrgId string `json:"http://bwidm.de/bwidmOrgId"`
 	}
+	SshKey struct {
+		KeyName  string `json:"name"`
+		KeyValue string `json:"value"`
+	}
 	GenericStore struct {
-		Key string `json:"key"`
+		SshKey string `json:"ssh_key"`
 	}
 	LDFUserInfo struct {
 		AttributeStore AttributeStore `json:"attributeStore"`
@@ -46,8 +50,25 @@ var (
 	verbose          = app.Flag("verbose", "Verbosity").Bool()
 )
 
+func getSshKeys(b string) (sk []SshKey, err error) {
+	tmp := strings.Replace(b, "'", "\"", -1)
+	j := []byte(tmp)
+	err = json.Unmarshal(j, &sk)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return
+}
+
 func (l LDFUserInfo) String() (s string) {
-	s += l.GenericStore.Key
+	//s += l.GenericStore.SshKey
+	tmp := strings.Replace(l.GenericStore.SshKey, "'", "\"", -1)
+	SshKeys, _ := getSshKeys(tmp)
+
+	for _, sshKey := range SshKeys {
+		//fmt.Printf(">>>>>> %v <<<<<<<<<\n", sshKey.KeyValue)
+		s += sshKey.KeyValue + "\n"
+	}
 	return
 }
 
@@ -153,7 +174,7 @@ func main() {
 
 	for _, userinfo := range userinfos {
 		if userinfo.AttributeStore.BwidmOrgId == bwidmOrgId {
-			fmt.Printf("%v\n", userinfo)
+			fmt.Printf("%v", userinfo)
 		}
 	}
 }
