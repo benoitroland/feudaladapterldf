@@ -1,5 +1,5 @@
 Name: ssh-key-retriever
-Version: 0.0.4
+Version: 0.1.0
 Release: 1
 Summary: Commandline tool for obtaining ssh keys from the bwidm LDAP-Facade
 Group: Misc
@@ -33,6 +33,7 @@ make install INSTALL_PATH=${RPM_BUILD_ROOT}/usr MAN_PATH=${RPM_BUILD_ROOT}/usr/s
 %{_bindir}/*
 /etc/ssh-key-retriever.json.conf
 /usr/share/doc/ssh-key-retriever/README.md
+/usr/share/doc/ssh-key-retriever/Changelog
 #%doc
 #%{_mandir}/*
 

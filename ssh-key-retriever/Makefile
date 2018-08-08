@@ -1,4 +1,4 @@
-VERSION  = 0.0.4
+VERSION  = 0.1.0
 # These are needed for the RPM build target:
 BASEDIR         = $(PWD)
 BASENAME       := $(notdir $(PWD))
@@ -46,7 +46,7 @@ distclean: clean
 .PHONY: srctar
 srctar:
 	#@(cd ..; tar cf $(BASENAME)/$(SRC_TAR) $(BASENAME)/src $(BASENAME)/Makefile)
-	@tar cf $(SRC_TAR) Makefile README.md $(SSH_KEY_RETRIEVER) $(CONFIG).example $(PKG_NAME).go   --transform='s_^_$(PKG_NAME)-$(VERSION)/_'
+	@tar cf $(SRC_TAR) Makefile README.md Changelog $(SSH_KEY_RETRIEVER) $(CONFIG).example $(PKG_NAME).go   --transform='s_^_$(PKG_NAME)-$(VERSION)/_'
 
 .PHONY: build
 build:
@@ -60,6 +60,7 @@ install:
 	@install -m 644 -D $(CONFIG).example $(CONFIG_PATH)/$(CONFIG)
 	@install -d $(INSTALL_PATH)/share/doc/ssh-key-retriever/
 	@install -m 644 -D README.md $(INSTALL_PATH)/share/doc/ssh-key-retriever/
+	@install -m 644 -D Changelog $(INSTALL_PATH)/share/doc/ssh-key-retriever/
 	@echo "Installation complete!"
 
 
