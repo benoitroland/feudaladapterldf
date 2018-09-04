@@ -500,6 +500,7 @@ def register_user_for_service(externalId, serviceName):# {{{
         return ('success', '', resp_json)
 
     msg = "something went wrong registering {} for service {}".format(externalId, serviceName)
+    msg += "\n   status code: " + str(resp.status_code)
     logging.error(msg)
     logmsg = msg
     try:
@@ -701,6 +702,8 @@ def main():
             logging.error(logmsg)
             if args.verbose:
                 message = message + '\n' + logmsg
+        if state != "success":
+            return ('failed', message, '')
         # return (desiredState, message, '')
         logging.info("user created / updated successfully")
         # }}}
@@ -760,6 +763,6 @@ if __name__ == "__main__":
     if credentials != "":
         return_json = '{"state": "%s", "message": "%s", "credentials": %s}' % (state, message, credentials)
     else:
-        return_json = '{"state": "%s", "message": "%s"}' % (state, message)
+        return_json = '{"state": "%s", "message": %s}' % (state, json.dumps(message))
     logging.debug('return_json: >>%s<<' % return_json)
     print (return_json)
