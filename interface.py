@@ -545,8 +545,15 @@ def deregister_user_from_service(externalId, serviceName):# {{{
 # }}}
 def assert_all_variables_defined_in_format(entry, params):# {{{
     ''' make sure the format string "entry" can be filled using data in params'''
-    for unformatted_variable in re.findall('{[a-zA-Z0-9.-/]*}', entry):
+
+    unformatted_variables = re.findall('{[a-zA-Z0-9.-/_]*}', entry)
+    if args.verbose > 2:
+        logging.debug("entry: '%s'" % entry)
+        logging.debug("unformatted_variables: '%s'" % (unformatted_variables))
+    for unformatted_variable in unformatted_variables:
         variable = re.sub('[{}]', '', unformatted_variable)
+        if args.verbose > 2:
+            logging.debug("Check if '%s' is properly defined: '%s'" % (entry, params[variable]))
         try:
             if params[variable] is None or params[variable] == "None" or params[variable] == "null" or params[variable] == "":
                 if variable in args.mandatory_parameters:
@@ -584,6 +591,7 @@ def get_all_variables_from_list(parameterList, params):# {{{
             ''' For each entry in the list of possible formats, try it out and break, once the first one worked'''
             # make sure that none of the fields used in entry are undefined, "None" or "":
             if args.verbose > 2:
+                logging.info('\n')
                 logging.info('%s: trying: %s ' % (entry_name, entry))
 
             if not assert_all_variables_defined_in_format(entry, params):
