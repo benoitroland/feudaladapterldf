@@ -12,12 +12,17 @@ import os
 import json
 import logging
 import re
+import unicodedata
 import requests
 import configargparse
 import simplejson
 
 def remove_quotes(data):# {{{
     return data.lstrip('"').lstrip("'").rstrip('"').rstrip("'")
+# }}}
+def to_ascii(s):# {{{
+    '''Tansliterate umlauts to the non-dottet version'''
+    return unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode()
 # }}}
 def parseOptions():# {{{
     '''Parse the commandline options'''
@@ -53,6 +58,9 @@ def parseOptions():# {{{
     parser.add_argument('--ldf_service_description',       default='None')
     parser.add_argument('--ldf_service_login_info_fmt',    default='None')
 
+    parser.add_argument('--lowercase_entries'         , action="append", default=['eppn', 'preferred_username'])
+    parser.add_argument('--ascii_encoded_entries'     , action="append", \
+                                     default=['eppn', 'preferred_username'])
 
     # options for parsing incoming data:
     parser.add_argument('--state_target'         , action="append")
@@ -568,11 +576,15 @@ def assert_all_variables_defined_in_format(entry, params):# {{{
     return True
 # }}}
 def get_all_variables_from_list(parameterList, params):# {{{
+    '''Return all values requested by parameterList, if they're found in Params
+       Also make sure that the lowercase entries are lowercase and that the ascii encoded entries are
+       properly encoded'''
+
     entry   = ''
     outData = {}
     # print ("\n\nparameterlist; >>%s<<" % parameterList)
     for entry_name in parameterList:
-        ''' first get the entry name, and try to obtain the format string for it'''
+        # ''' first get the entry name, and try to obtain the format string for it'''
         # print ("\n\nentry_name: >>%s<<"%entry_name)
         try:
             entry_value = getattr(args, entry_name+'Fmt')
@@ -588,7 +600,7 @@ def get_all_variables_from_list(parameterList, params):# {{{
             return ("failed", logmsg)
         # print ("\n\nentry_value: >>%s<<"%entry_value)
         for entry in entry_value:
-            ''' For each entry in the list of possible formats, try it out and break, once the first one worked'''
+            # ''' For each entry in the list of possible formats, try it out and break, once the first one worked'''
             # make sure that none of the fields used in entry are undefined, "None" or "":
             if args.verbose > 2:
                 logging.info('\n')
@@ -610,6 +622,14 @@ def get_all_variables_from_list(parameterList, params):# {{{
             logmsg = "FATAL: Could not obtain values for %s" % entry_name
             logging.error (logmsg)
             return ("failed", logmsg)
+
+        # make sure encoding is right
+        if entry_name in args.lowercase_entries:
+            outData[entry_name] = outData[entry_name].lower()
+
+        if entry_name in args.ascii_encoded_entries:
+            outData[entry_name] = to_ascii(outData[entry_name])
+
         if args.verbose>1 and args.verbose <= 2:
             logging.info('{:23s}: {:23s}: {}'.format(entry_name, entry,  outData[entry_name]))
     return ("success", outData )
@@ -649,7 +669,7 @@ def main():
         return ("failed", params, '')
 
     (state, info_data) = get_all_variables_from_list(['externalId', 'email', 'eppn'], params)
-    logging.debug('Got request to %s user: {externalId} ({email} - {eppn})'.format(**info_data) % inData['state_target'])
+    logging.debug('Got request to for externalId: {externalId}\n    requested status: %s\n    email: {email}\n    eppn:{eppn})'.format(**info_data) % inData['state_target'])
 
     if args.verbose>1:
         logging.debug("inData: "+json.dumps(inData, sort_keys=True, indent=4, separators=(',', ': ')))
