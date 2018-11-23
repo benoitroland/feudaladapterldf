@@ -15,7 +15,6 @@ PASS="password"
 ENDP="https://bwidm-test.scc.kit.edu/rest"
 ```
 
-
 ## Create user
  <!--{{{-->
 ```
@@ -221,6 +220,38 @@ curl --basic -u $USER:$PASS $ENDP/external-user/find/externalId/hdf_61230996-664
 }
 ```
  <!--}}}-->
+
+## Group Management:
+In all shortness:
+
+Gibt rudimentäre Infos über die Gruppe aus:
+```
+https://bwidm-test.scc.kit.edu/rest/group-admin/find/id/<id>
+https://bwidm-test.scc.kit.edu/rest/group-admin/find/name/<name>
+```
+
+
+Gibt genauere Infos raus. Z.B. auch die Member und übergeordnete Gruppen:
+```
+https://bwidm-test.scc.kit.edu/rest/group-admin/find-detail/id/<id>
+https://bwidm-test.scc.kit.edu/rest/group-admin/find-detail/name/<name>
+```
+
+
+Legt eine Gruppe an:
+```
+https://bwidm-test.scc.kit.edu/rest/group-admin/create/<ssn>/<name>
+```
+
+<ssn> - Der Service Short Name, des Dienstes, dem die Gruppe zugeordnet ist.
+
+Fügt ein Benutzer einer Gruppe dazu, oder nimmt ihn raus:
+```
+https://bwidm-test.scc.kit.edu/rest/group-admin/add/groupId/<groupId>/userId/<userId>
+https://bwidm-test.scc.kit.edu/rest/group-admin/add/groupId/<groupId>/userId/<userId>
+```
+<userId> - Datenbank Id des Benutzers
+<groupId> - Datenbank Id der Gruppe
 
 
 # LDAP Configuration
