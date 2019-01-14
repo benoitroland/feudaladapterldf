@@ -31,10 +31,10 @@ def parseOptions():# {{{
             default_config_files = config_files,
             description='''ldf-interface''', ignore_unknown_config_file_keys=True)
 
-    parser.add_argument('--rest_user',   '-u',             help='username for LDF rest interface', required=True)
-    parser.add_argument('--rest_passwd', '-p',             help='passwdname for LDF rest interface', required=True)
+    parser.add_argument('--rest_user',   '-u',             help='username for LDF rest interface')
+    parser.add_argument('--rest_passwd', '-p',             help='passwdname for LDF rest interface')
     parser.add_argument('--iss'                  , action="append")
-    parser.add_argument('--bwidmOrgId')
+    parser.add_argument('--bwidmOrgId'           , default="hdf")
     parser.add_argument('--base_url'             , default="https://bwidm-test.scc.kit.edu/rest/")
     parser.add_argument('--verify_tls'           , default=True    , action="store_false" , help='disable verify')
     parser.add_argument('--issTranslateExpression')
@@ -45,19 +45,22 @@ def parseOptions():# {{{
     args.base_url   = args.base_url.rstrip('/')
     args.bwidmOrgId = remove_quotes(args.bwidmOrgId)
 
-    args.issTranslateExpressionJSON = json.loads(args.issTranslateExpression)
-
-    # print ( json.dumps(args.issTranslateExpressionJSON, sort_keys=True, indent=4, separators=(',', ': ')))
-    # ensure translation will work
     try:
-        for key in args.issTranslateExpressionJSON.keys():
-            # print ("key: %s" % key)
-            args.issTranslateExpressionJSON[key] = remove_quotes(args.issTranslateExpressionJSON[key])
+        args.issTranslateExpressionJSON = json.loads(args.issTranslateExpression)
+
+        # print ( json.dumps(args.issTranslateExpressionJSON, sort_keys=True, indent=4, separators=(',', ': ')))
+        # ensure translation will work
+        try:
+            for key in args.issTranslateExpressionJSON.keys():
+                # print ("key: %s" % key)
+                args.issTranslateExpressionJSON[key] = remove_quotes(args.issTranslateExpressionJSON[key])
+        except:
+            sys.stderr.write('FATAL: issTranslateExpression needs to consist of a one line json object that lists keys and values: \n')
+            sys.stderr.write('{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2", "test": "https://test.com"}')
+            sys.stderr.write('Instead you provided "%s"\n' % str(args.issTranslateExpression))
+            raise
     except:
-        sys.stderr.write('FATAL: issTranslateExpression needs to consist of a one line json object that lists keys and values: \n')
-        sys.stderr.write('{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2", "test": "https://test.com"}')
-        sys.stderr.write('Instead you provided "%s"\n' % str(args.issTranslateExpression))
-        raise
+        pass
 
     return args
 # }}}
