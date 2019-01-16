@@ -121,10 +121,21 @@ def parseOptions():# {{{
 
     # ensure translation will work
     try:
-        for i in range (0, 2):
-            args.issTranslateExpression[i] = remove_quotes(args.issTranslateExpression[i])
+        args.issTranslateExpressionJSON = json.loads(args.issTranslateExpression)
+
+        # print ( json.dumps(args.issTranslateExpressionJSON, sort_keys=True, indent=4, separators=(',', ': ')))
+        try:
+            for key in args.issTranslateExpressionJSON.keys():
+                # print ("key: %s" % key)
+                args.issTranslateExpressionJSON[key] = remove_quotes(args.issTranslateExpressionJSON[key])
+        except:
+            logging.error('FATAL: issTranslateExpression needs to be a one line json object that lists keys and values: \n')
+            logging.error('{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2", "test": "https://test.com"}')
+            logging.error('Instead you provided "%s"\n' % str(args.issTranslateExpression))
+            raise
     except:
-        logging.error('FATAL: issTranslateExpression needs to consist of exactly two entries: ["what to replate", "with what"]')
+        logging.error('FATAL: issTranslateExpression needs to consist of a one line json object that lists keys and values: \n')
+        logging.error('{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2", "test": "https://test.com"}')
         logging.error('Instead you provided "%s"' % str(args.issTranslateExpression))
         raise
 
