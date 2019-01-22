@@ -37,7 +37,7 @@ def parseOptions():# {{{
     parser.add_argument('--bwidmOrgId'           , default="hdf")
     parser.add_argument('--base_url'             , default="https://bwidm-test.scc.kit.edu/rest/")
     parser.add_argument('--verify_tls'           , default=True    , action="store_false" , help='disable verify')
-    parser.add_argument('--issTranslateExpression')
+    parser.add_argument('--issTranslateExpression', default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
     parser.add_argument(dest='sub_iss'  , help='Content of $REMOTE_USER. For testing use "test-offline" and "test-id"')
     args = parser.parse_args()
 
