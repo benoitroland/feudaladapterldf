@@ -166,19 +166,19 @@ def get_jObject():# {{{
                 "ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013user_info_ie_unity",
                 "sub": "61230996-664f-4422-9caa-76cf086f0d6c",
                 "iss": "https://unity.helmholtz-data-federation.de/oauth2"
+            },
+            "credentials": {
+                "ssh_key": [
+                    {
+                        "name": "test",
+                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu_from_creds"
+                    },
+                    {
+                        "name": "unity_key",
+                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013_unity_key_from_creds"
+                    }
+                ]
             }
-        },
-        "credentials": {
-            "ssh_key": [
-                {
-                    "name": "test",
-                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu_from_creds"
-                },
-                {
-                    "name": "unity_key",
-                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013_unity_key_from_creds"
-                }
-            ]
         },
         "questionnaire": null
     }'''
@@ -208,19 +208,19 @@ def get_jObject():# {{{
                 "ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013",
                 "sub": "61230996-664f-4422-9caa-76cf086f0d6c",
                 "iss": "https://unity.helmholtz-data-federation.de/oauth2"
+            },
+            "credentials": {
+                "ssh_key": [
+                    {
+                        "name": "test",
+                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu"
+                    },
+                    {
+                        "name": "unity_key",
+                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013"
+                    }
+                ]
             }
-        },
-        "credentials": {
-            "ssh_key": [
-                {
-                    "name": "test",
-                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu"
-                },
-                {
-                    "name": "unity_key",
-                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013"
-                }
-            ]
         },
         "questionnaire": null
     }
@@ -263,7 +263,7 @@ def find_variable_by_name_in_json(inData, search_list, variable_name):# {{{
             value = inData['key'].get('key')
         if entry == 'ssh_key': # there may be ssh_keys in credentials and in userinfo
                                # we prefer those of credentials:
-            value = inData['credentials'].get('ssh_key')
+            value = inData['user']['credentials'].get('ssh_key')
         else:
             value = inData.get(entry)
         if value is not None:
@@ -304,7 +304,7 @@ def sanitize_newlines (data):#{{{
         pass
     # feudal key:
     try:
-        for key in data['credentials']['ssh_key']:
+        for key in data['user']['credentials']['ssh_key']:
             key['value'] = key['value'].rstrip('\n')
     except KeyError:
         pass
