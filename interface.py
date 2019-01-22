@@ -95,7 +95,8 @@ def parseOptions():# {{{
 
     parser.add_argument('--base_url'             , default="https://bwidm-test.scc.kit.edu/rest/")
     parser.add_argument('--verify_tls'           , default=True    , action="store_false" , help='disable verify')
-    parser.add_argument('--issTranslateExpression', action="append")
+    parser.add_argument('--issTranslateExpression', action="append",
+            default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
             
     args = parser.parse_args()
 
@@ -119,14 +120,11 @@ def parseOptions():# {{{
     args.base_url = args.base_url.rstrip('/"')
     args.base_url = args.base_url.lstrip('"')
 
-    # ensure translation will work
+    # ensure translation will work as JSON
     try:
         args.issTranslateExpressionJSON = json.loads(args.issTranslateExpression)
-
-        # print ( json.dumps(args.issTranslateExpressionJSON, sort_keys=True, indent=4, separators=(',', ': ')))
         try:
             for key in args.issTranslateExpressionJSON.keys():
-                # print ("key: %s" % key)
                 args.issTranslateExpressionJSON[key] = remove_quotes(args.issTranslateExpressionJSON[key])
         except:
             logging.error('FATAL: issTranslateExpression needs to be a one line json object that lists keys and values: \n')
