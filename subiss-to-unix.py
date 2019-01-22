@@ -45,14 +45,11 @@ def parseOptions():# {{{
     args.base_url   = args.base_url.rstrip('/')
     args.bwidmOrgId = remove_quotes(args.bwidmOrgId)
 
-    # ensure translation will work
+    # ensure translation will work as JSON
     try:
         args.issTranslateExpressionJSON = json.loads(args.issTranslateExpression)
-
-        # print ( json.dumps(args.issTranslateExpressionJSON, sort_keys=True, indent=4, separators=(',', ': ')))
         try:
             for key in args.issTranslateExpressionJSON.keys():
-                # print ("key: %s" % key)
                 args.issTranslateExpressionJSON[key] = remove_quotes(args.issTranslateExpressionJSON[key])
         except:
             sys.stderr.write('FATAL: issTranslateExpression needs to be a one line json object that lists keys and values: \n')
