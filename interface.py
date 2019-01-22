@@ -95,7 +95,7 @@ def parseOptions():# {{{
 
     parser.add_argument('--base_url'             , default="https://bwidm-test.scc.kit.edu/rest/")
     parser.add_argument('--verify_tls'           , default=True    , action="store_false" , help='disable verify')
-    parser.add_argument('--issTranslateExpression', action="append",
+    parser.add_argument('--issTranslateExpression', 
             default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
             
     args = parser.parse_args()
@@ -347,18 +347,21 @@ def get_params_from_input(inData, args):# {{{
             logging.debug('    got optional value for  {:13s}: {}'.format(conf_item, value))
 
     # replace the iss string:
-    iTE = args.issTranslateExpression
-    if len(iTE) != 2:
-        log =  'FATAL: issTranslateExpression needs to consist of exactly two entries: ["what to replate", "with what"]'
-        log += 'Instead you provided "%s"' % iTE
-        logging.error (logmsg)
-        return ("failed", logmsg)
+    iTE = args.issTranslateExpressionJSON
+    # if len(iTE) != 2:
+        # logmsg =  'FATAL: issTranslateExpression needs to consist of exactly two entries: ["what to replate", "with what"]'
+        # logmsg += 'Instead you provided "%s"' % iTE
+        # logging.error (logmsg)
+        # return ("failed", logmsg)
 
-    # in case user provides https?:// in iTE, we just remove it:
-    iTE[0] = re.sub('^https?://', '', iTE[0])
-    # then we also remove it in the actual value, too
-    params['iss'] = re.sub('^https?://', '', params['iss'])
-    params['iss'] = re.sub(iTE[0], iTE[1], params['iss'])
+    iss = params['iss']
+    iss = re.sub('^https?://', '', iss)
+    iss = iss.rstrip('/')
+    for key in iTE.keys():
+        # in case user provides https?:// in iTE, we just remove it:
+        iTE[key] = re.sub('^https?://', '', iTE[key])
+        iss = re.sub("%s$"%iTE[key], key, iss)
+    params['iss'] = iss
 
     return ("success", params)
 # }}}
