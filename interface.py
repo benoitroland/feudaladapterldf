@@ -646,13 +646,7 @@ def get_all_variables_from_list(parameterList, params):# {{{
             logging.info('{:23s}: {:23s}: {}'.format(entry_name, entry,  outData[entry_name]))
     return ("success", outData )
 # }}}
-
-# args are global
-args = parseOptions()
-
-def main():
-    # https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/marcus-test-10
-    # setup logging{{{
+def setup_logging: # {{{
     import logging.config
     logging.config.dictConfig({
         'version': 1,
@@ -672,7 +666,13 @@ def main():
 
     logging.info('verbosity: %d' % args.verbose)# }}}
 
-    # get data from stdin from the FEUDAL side{{{
+# args are global
+args = parseOptions()
+
+def main():
+    setup_logging()
+
+    # get data from stdin from the FEUDAL side {{{
     inData  = get_jObject()
     inData  = generate_surName_givenName_from_name(inData)
     inData  = sanitize_newlines(inData)
