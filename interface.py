@@ -347,22 +347,22 @@ def get_params_from_input(inData, args):# {{{
             logging.debug('    got optional value for  {:13s}: {}'.format(conf_item, value))
 
     # replace the iss string:
+    # iTE maps from [shortname] to [longname]:
+    # default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
+    #
     iTE = args.issTranslateExpressionJSON
-    # if len(iTE) != 2:
-        # logmsg =  'FATAL: issTranslateExpression needs to consist of exactly two entries: ["what to replate", "with what"]'
-        # logmsg += 'Instead you provided "%s"' % iTE
-        # logging.error (logmsg)
-        # return ("failed", logmsg)
 
     iss = params['iss']
     iss = re.sub('^https?://', '', iss)
     iss = iss.rstrip('/')
     for key in iTE.keys():
-        # in case user provides https?:// in iTE, we just remove it:
+        # in case config provides https?:// in iTE, we just remove it:
         iTE[key] = re.sub('^https?://', '', iTE[key])
-        iss = re.sub("%s$"%iTE[key], key, iss)
-    params['iss'] = iss
+        if iTE[key] == iss:
+            iss_shortname = key
+            break
 
+    params['iss'] = iss_shortname
     return ("success", params)
 # }}}
 def dump_config_to_log(inData, params):# {{{
