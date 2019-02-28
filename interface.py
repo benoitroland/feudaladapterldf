@@ -517,7 +517,7 @@ def register_user_for_service(externalId, serviceName):# {{{
         # uidNumber = resp_json['registryValues']['uidNumber']
         # return ('success', '', '"homeDir": "%s", "localUid": "%s", "uidNumber": "%s"' %\
         #         (homeDir, localUid, uidNumber))
-        return ('success', '', resp_json)
+        return ('success', 'User registered for service', resp_json)
 
     msg = "something went wrong registering {} for service {}".format(externalId, serviceName)
     msg += "\n   status code: " + str(resp.status_code)
@@ -646,7 +646,7 @@ def get_all_variables_from_list(parameterList, params):# {{{
             logging.info('{:23s}: {:23s}: {}'.format(entry_name, entry,  outData[entry_name]))
     return ("success", outData )
 # }}}
-def setup_logging: # {{{
+def setup_logging(): # {{{
     import logging.config
     logging.config.dictConfig({
         'version': 1,
