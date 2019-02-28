@@ -542,10 +542,10 @@ def deregister_user_from_service(externalId, serviceName):# {{{
             logging.info('deregistration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
         if resp_json['result'] != 'success':
             logging.warning('deregistration successful, but no "result=success" received; Check with REST admin')
-        return ("success", "")
+        return ("success", "Deregistration successful")
     if resp.status_code == 204:
         logging.info('deregistration apparently successful, but got no result')
-        return ("success", "")
+        return ("success", "Deregistration successful (despite empty result from LDF)")
 
     msg = "something went wrong deregistering: {} from service {}".format(externalId, serviceName)
     logging.error(msg)
