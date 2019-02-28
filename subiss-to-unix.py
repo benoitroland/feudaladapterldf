@@ -37,7 +37,7 @@ def parseOptions():# {{{
     parser.add_argument('--bwidmOrgId'           , default="hdf")
     parser.add_argument('--base_url'             , default="https://bwidm-test.scc.kit.edu/rest/")
     parser.add_argument('--verify_tls'           , default=True    , action="store_false" , help='disable verify')
-    parser.add_argument('--issTranslateExpression')
+    parser.add_argument('--issTranslateExpression', default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
     parser.add_argument(dest='sub_iss'  , help='Content of $REMOTE_USER. For testing use "test-offline" and "test-id"')
     args = parser.parse_args()
 
@@ -45,14 +45,11 @@ def parseOptions():# {{{
     args.base_url   = args.base_url.rstrip('/')
     args.bwidmOrgId = remove_quotes(args.bwidmOrgId)
 
-    # ensure translation will work
+    # ensure translation will work as JSON
     try:
         args.issTranslateExpressionJSON = json.loads(args.issTranslateExpression)
-
-        # print ( json.dumps(args.issTranslateExpressionJSON, sort_keys=True, indent=4, separators=(',', ': ')))
         try:
             for key in args.issTranslateExpressionJSON.keys():
-                # print ("key: %s" % key)
                 args.issTranslateExpressionJSON[key] = remove_quotes(args.issTranslateExpressionJSON[key])
         except:
             sys.stderr.write('FATAL: issTranslateExpression needs to be a one line json object that lists keys and values: \n')

@@ -95,7 +95,8 @@ def parseOptions():# {{{
 
     parser.add_argument('--base_url'             , default="https://bwidm-test.scc.kit.edu/rest/")
     parser.add_argument('--verify_tls'           , default=True    , action="store_false" , help='disable verify')
-    parser.add_argument('--issTranslateExpression', action="append")
+    parser.add_argument('--issTranslateExpression', 
+            default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
             
     args = parser.parse_args()
 
@@ -119,12 +120,20 @@ def parseOptions():# {{{
     args.base_url = args.base_url.rstrip('/"')
     args.base_url = args.base_url.lstrip('"')
 
-    # ensure translation will work
+    # ensure translation will work as JSON
     try:
-        for i in range (0, 2):
-            args.issTranslateExpression[i] = remove_quotes(args.issTranslateExpression[i])
+        args.issTranslateExpressionJSON = json.loads(args.issTranslateExpression)
+        try:
+            for key in args.issTranslateExpressionJSON.keys():
+                args.issTranslateExpressionJSON[key] = remove_quotes(args.issTranslateExpressionJSON[key])
+        except:
+            logging.error('FATAL: issTranslateExpression needs to be a one line json object that lists keys and values: \n')
+            logging.error('{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2", "test": "https://test.com"}')
+            logging.error('Instead you provided "%s"\n' % str(args.issTranslateExpression))
+            raise
     except:
-        logging.error('FATAL: issTranslateExpression needs to consist of exactly two entries: ["what to replate", "with what"]')
+        logging.error('FATAL: issTranslateExpression needs to consist of a one line json object that lists keys and values: \n')
+        logging.error('{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2", "test": "https://test.com"}')
         logging.error('Instead you provided "%s"' % str(args.issTranslateExpression))
         raise
 
@@ -157,19 +166,19 @@ def get_jObject():# {{{
                 "ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013user_info_ie_unity",
                 "sub": "61230996-664f-4422-9caa-76cf086f0d6c",
                 "iss": "https://unity.helmholtz-data-federation.de/oauth2"
+            },
+            "credentials": {
+                "ssh_key": [
+                    {
+                        "name": "test",
+                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu_from_creds"
+                    },
+                    {
+                        "name": "unity_key",
+                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013_unity_key_from_creds"
+                    }
+                ]
             }
-        },
-        "credentials": {
-            "ssh_key": [
-                {
-                    "name": "test",
-                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu_from_creds"
-                },
-                {
-                    "name": "unity_key",
-                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013_unity_key_from_creds"
-                }
-            ]
         },
         "questionnaire": null
     }'''
@@ -199,19 +208,19 @@ def get_jObject():# {{{
                 "ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013",
                 "sub": "61230996-664f-4422-9caa-76cf086f0d6c",
                 "iss": "https://unity.helmholtz-data-federation.de/oauth2"
+            },
+            "credentials": {
+                "ssh_key": [
+                    {
+                        "name": "test",
+                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu"
+                    },
+                    {
+                        "name": "unity_key",
+                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013"
+                    }
+                ]
             }
-        },
-        "credentials": {
-            "ssh_key": [
-                {
-                    "name": "test",
-                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu"
-                },
-                {
-                    "name": "unity_key",
-                    "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013"
-                }
-            ]
         },
         "questionnaire": null
     }
@@ -254,7 +263,7 @@ def find_variable_by_name_in_json(inData, search_list, variable_name):# {{{
             value = inData['key'].get('key')
         if entry == 'ssh_key': # there may be ssh_keys in credentials and in userinfo
                                # we prefer those of credentials:
-            value = inData['credentials'].get('ssh_key')
+            value = inData['user']['credentials'].get('ssh_key')
         else:
             value = inData.get(entry)
         if value is not None:
@@ -295,7 +304,7 @@ def sanitize_newlines (data):#{{{
         pass
     # feudal key:
     try:
-        for key in data['credentials']['ssh_key']:
+        for key in data['user']['credentials']['ssh_key']:
             key['value'] = key['value'].rstrip('\n')
     except KeyError:
         pass
@@ -338,19 +347,22 @@ def get_params_from_input(inData, args):# {{{
             logging.debug('    got optional value for  {:13s}: {}'.format(conf_item, value))
 
     # replace the iss string:
-    iTE = args.issTranslateExpression
-    if len(iTE) != 2:
-        log =  'FATAL: issTranslateExpression needs to consist of exactly two entries: ["what to replate", "with what"]'
-        log += 'Instead you provided "%s"' % iTE
-        logging.error (logmsg)
-        return ("failed", logmsg)
+    # iTE maps from [shortname] to [longname]:
+    # default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
+    #
+    iTE = args.issTranslateExpressionJSON
 
-    # in case user provides https?:// in iTE, we just remove it:
-    iTE[0] = re.sub('^https?://', '', iTE[0])
-    # then we also remove it in the actual value, too
-    params['iss'] = re.sub('^https?://', '', params['iss'])
-    params['iss'] = re.sub(iTE[0], iTE[1], params['iss'])
+    iss = params['iss']
+    iss = re.sub('^https?://', '', iss)
+    iss = iss.rstrip('/')
+    for key in iTE.keys():
+        # in case config provides https?:// in iTE, we just remove it:
+        iTE[key] = re.sub('^https?://', '', iTE[key])
+        if iTE[key] == iss:
+            iss_shortname = key
+            break
 
+    params['iss'] = iss_shortname
     return ("success", params)
 # }}}
 def dump_config_to_log(inData, params):# {{{
@@ -505,7 +517,7 @@ def register_user_for_service(externalId, serviceName):# {{{
         # uidNumber = resp_json['registryValues']['uidNumber']
         # return ('success', '', '"homeDir": "%s", "localUid": "%s", "uidNumber": "%s"' %\
         #         (homeDir, localUid, uidNumber))
-        return ('success', '', resp_json)
+        return ('success', 'User registered for service', resp_json)
 
     msg = "something went wrong registering {} for service {}".format(externalId, serviceName)
     msg += "\n   status code: " + str(resp.status_code)
@@ -634,13 +646,7 @@ def get_all_variables_from_list(parameterList, params):# {{{
             logging.info('{:23s}: {:23s}: {}'.format(entry_name, entry,  outData[entry_name]))
     return ("success", outData )
 # }}}
-
-# args are global
-args = parseOptions()
-
-def main():
-    # https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/marcus-test-10
-    # setup logging{{{
+def setup_logging(): # {{{
     import logging.config
     logging.config.dictConfig({
         'version': 1,
@@ -660,7 +666,13 @@ def main():
 
     logging.info('verbosity: %d' % args.verbose)# }}}
 
-    # get data from stdin from the FEUDAL side{{{
+# args are global
+args = parseOptions()
+
+def main():
+    setup_logging()
+
+    # get data from stdin from the FEUDAL side {{{
     inData  = get_jObject()
     inData  = generate_surName_givenName_from_name(inData)
     inData  = sanitize_newlines(inData)
