@@ -57,6 +57,7 @@ def parseOptions():# {{{
     parser.add_argument('--ldf_service',                   default='sshtest')
     parser.add_argument('--ldf_service_description',       default='None')
     parser.add_argument('--ldf_service_login_info_fmt',    default='None')
+    parser.add_argument('--ldf_remote_login_host',         default='None')
 
     parser.add_argument('--lowercase_entries'         , action="append", default=['eppn', 'preferred_username'])
     parser.add_argument('--ascii_encoded_entries'     , action="append", \
@@ -763,8 +764,11 @@ def main():
         c_uid     = '"UID Number": "%s"' % cred_part['registryValues']['uidNumber']
         c_eid     = '"ExternalID": "%s"' % outData['externalId']
         c_loginfo = '"Login Info": "%s"' % args.ldf_service_login_info_fmt.format(**outData)
+        c_ssh_host= '"ssh_host": "%s"'   % args.ldf_remote_login_host
+        c_ssh_user= '"ssh_user": "%s"'   % cred_part['registryValues']['localUid']
         
-        credentials = '{%s, %s, %s, %s, %s, %s}' % (c_service, c_user, c_eid, c_loginfo, c_home, c_uid)
+        credentials = '{%s, %s, %s, %s, %s, %s, %s, %s}' % (c_service, c_user, c_eid, c_loginfo, c_home, c_uid, 
+                c_ssh_user, c_ssh_host)
         # else:
         #     logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
         logging.info('user registered for service: %s - %s' % (state, message))
