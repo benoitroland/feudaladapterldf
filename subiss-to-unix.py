@@ -22,10 +22,12 @@ def parseOptions():# {{{
 
     path_of_executable = os.path.realpath(sys.argv[0])
     folder_of_executable = os.path.split(path_of_executable)[0]
+    full_name_of_executable = os.path.split(path_of_executable)[1]
+    name_of_executable = full_name_of_executable.rstrip('.py')
 
-    config_files = [os.environ['HOME']+'/.config/ldf-interface.conf',
-                    folder_of_executable + '/ldf-interface.conf',
-                    '/root/configs/ldf-interface.conf']
+    config_files = [os.environ['HOME']+'/.config/%sconf' % name_of_executable,
+                    folder_of_executable +'/%s.conf'     % name_of_executable,
+                    '/root/configs/%s.conf'              % name_of_executable]
 
     parser = configargparse.ArgumentParser(
             default_config_files = config_files,
