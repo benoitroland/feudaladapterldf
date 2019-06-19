@@ -8,3 +8,5 @@ ssh-key-retriever/ssh-key-retriever.json.conf
 ssh-key-retriever/ssh-key-retriever
 *GOPATH*
 luca
+__pycache__/
+*.pyc
