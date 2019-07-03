@@ -120,6 +120,9 @@ class User:
 
         self.entitlement = EduPersonEntitlement(self.data['userinfo']['eduperson_entitlement'])
 
+        self.service_groups = [UnixGroup(grp) for grp in [self.entitlement.group] + self.entitlement.subgroups]
+
+
     def ensure_exists(self):
         if self.service_user.exists():
             logging.debug('User for {sub}@{iss} already exists. Nothing to do.'.format(**self.data['userinfo']))
@@ -147,14 +150,12 @@ class User:
             return False
 
     def ensure_group_memberships(self):
-        service_groups = [UnixGroup(grp) for grp in [self.entitlement.group] + self.entitlement.subgroups]
-
-        for group in filter(lambda grp: not grp.exists(), service_groups):
+        for group in filter(lambda grp: not grp.exists(), self.service_groups):
             logging.info("Creating group {}".format(group.name))
             group.create()
 
-        self.service_user.mod(supplementary_groups=service_groups)
-        return [grp.name for grp in service_groups]
+        self.service_user.mod(supplementary_groups=self.service_groups)
+        return [grp.name for grp in self.service_groups]
 
     def ensure_credentials_active(self):
         # Currently, only SSH keys are supported
