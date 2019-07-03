@@ -167,6 +167,40 @@ class User:
             'username': self.service_user.name
         }
 
+class EduPersonEntitlement:
+    # This regex is not compatible with stdlib 're', we need 'regex'!
+    # (because of repeated captures, see https://bugs.python.org/issue7132)
+    re = regex.compile(
+        r'urn:' +
+           r'(?P<nid>[^:]+):(?P<delegated_namespace>[^:]+)' +     # Namespace-ID and delegated URN namespace
+           r'(:(?P<subnamespace>[^:]+))*?' +                      # Sub-namespaces
+        r':group:' +
+           r'(?P<group>[^:]+)' +                                  # Root group
+           r'(:(?P<subgroup>[^:]+))*?' +                          # Sub-groups
+           r'(:role=(?P<role>.+))?' +                             # Role of the user in the deepest group
+        r'#(?P<group_authority>.+)'                               # Authoritative soruce of the entitlement (URN)
+    )
+
+    def __init__(self, raw):
+        match = self.re.fullmatch(raw)
+
+        if not match:
+            raise Failure(message="Failed to parse entitlements attribute")
+
+        logging.debug("Parsing entitlement attribute: {}".format(match.capturesdict()))
+        try:
+            [self.namespace_id] = match.captures('nid')
+            [self.delegated_namespace] = match.captures('delegated_namespace')
+            self.subnamespaces = match.captures('subnamespace')
+
+            [self.group] = match.captures('group')
+            self.subgroups = match.captures('subgroup')
+            [self.role] = match.captures('role') or [None]
+
+            [self.group_authority] = match.captures('group_authority')
+        except ValueError:
+            raise Failure(message="Failed to parse entitlements attribute")
+
 
 ### User/Group management on the service
 class UnixUser:
@@ -306,43 +340,6 @@ class UnixGroup:
                 user[LIST_FIELD] = user[LIST_FIELD].split(',')
 
             return {user[ID_FIELD]: user for user in users}
-
-
-class EduPersonEntitlement:
-    # This regex is not compatible with stdlib 're', we need 'regex'!
-    # (because of repeated captures, see https://bugs.python.org/issue7132)
-    re = regex.compile(
-        r'(?P<_namespace>urn:' +                                  # The whole namespace
-           r'(?P<nid>[^:]+):(?P<delegated_namespace>[^:]+)' +     # Namespace-ID and delegated URN namespace
-           r'(?P<_subnamespaces>(:(?P<subnamespace>[^:]+))*?)' +  # Sub-namespaces
-        r')' +
-        r':(?P<_groups>group:' +                                  # All groups
-           r'(?P<group>[^:]+)' +                                  # Root group
-           r'(?P<_subgroups>(:(?P<subgroup>[^:]+))*?)' +          # Sub-groups
-           r'(:role=(?P<role>.+))?' +                             # Role of the user in the deepest group
-        r')' +
-        r'#(?P<group_authority>.+)'                               # Authoritative soruce of the entitlement (URN)
-    )
-
-    def __init__(self, raw):
-        match = self.re.fullmatch(raw)
-
-        if not match:
-            raise Failure(message="Failed to parse entitlements attribute")
-
-        logging.debug("Parsing entitlement attribute: {}".format(match.capturesdict()))
-        try:
-            [self.namespace_id] = match.captures('nid')
-            [self.delegated_namespace] = match.captures('delegated_namespace')
-            self.subnamespaces = match.captures('subnamespace')
-
-            [self.group] = match.captures('group')
-            self.subgroups = match.captures('subgroup')
-            [self.role] = match.captures('role') or [None]
-
-            [self.group_authority] = match.captures('group_authority')
-        except ValueError:
-            raise Failure(message="Failed to parse entitlements attribute")
 
 
 ### Data preprocessing
