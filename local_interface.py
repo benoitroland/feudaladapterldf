@@ -8,9 +8,10 @@ import sys
 import subprocess
 from subprocess import CalledProcessError
 from pathlib import Path
-
 import logging
 import json
+from configparser import ConfigParser
+
 import regex
 from unidecode import unidecode
 
@@ -386,11 +387,22 @@ def make_shadow_compatible(orig_word):
     return word
 
 
+### Globals
+CONFIG = ConfigParser()
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=os.environ.get("LOG", "INFO"),
         format='%(asctime)s [%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
     )
+
+    files = []
+    filename = os.environ.get("LDF_ADAPTER_CONFIG")
+    if filename:
+        files += [Path(filename)]
+    files += [Path('ldf_adapter.conf'), Path.home()/'.config'/'ldf_adapter.conf', Path('/')/'etc'/'ldf_adapter.conf']
+    CONFIG.read(files)
 
     data = json.load(sys.stdin)
     apply_answers(data)
