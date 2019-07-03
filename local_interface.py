@@ -11,7 +11,8 @@ from pathlib import Path
 
 import logging
 import json
-
+import regex
+from unidecode import unidecode
 
 ### Result types
 class Result:
@@ -82,7 +83,7 @@ def deploy(user):
         what_changed += 'User already existed'
 
     if new_groups:
-        what_changed += 'and was added to groups {}'.format(",".join(new_groups))
+        what_changed += ' and was added to groups {}'.format(",".join(new_groups))
 
     what_changed += '.'
 
@@ -117,6 +118,8 @@ class User:
             unique_id='{sub}@{iss}'.format(**self.data['userinfo']).replace(':', '')
         )
 
+        self.entitlement = EduPersonEntitlement(self.data['userinfo']['eduperson_entitlement'])
+
     def ensure_exists(self):
         if self.service_user.exists():
             logging.debug('User for {sub}@{iss} already exists. Nothing to do.'.format(**self.data['userinfo']))
@@ -144,8 +147,14 @@ class User:
             return False
 
     def ensure_group_memberships(self):
-        return []  # TODO
-        raise NotImplementedError
+        service_groups = [UnixGroup(grp) for grp in [self.entitlement.group] + self.entitlement.subgroups]
+
+        for group in filter(lambda grp: not grp.exists(), service_groups):
+            logging.info("Creating group {}".format(group.name))
+            group.create()
+
+        self.service_user.mod(supplementary_groups=service_groups)
+        return [grp.name for grp in service_groups]
 
     def ensure_credentials_active(self):
         # Currently, only SSH keys are supported
@@ -162,7 +171,7 @@ class User:
 ### User/Group management on the service
 class UnixUser:
     def __init__(self, name, unique_id):
-        self._name = name
+        self._name = make_shadow_compatible(name)
         self.unique_id = unique_id
 
     def exists(self):
@@ -191,9 +200,19 @@ class UnixUser:
             logging.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
             raise Failure(message='Cannot delete user')
 
-    def mod(self):
-        # usermod
-        raise NotImplementedError('Do we even need this function?')
+    def mod(self, supplementary_groups=None):
+        options = []
+        if supplementary_groups is not None:
+            logging.debug("Adding user {} to groups {}".format(self.name, [g.name for g in supplementary_groups]))
+            options += ['--groups', ",".join([g.name for g in supplementary_groups])]
+
+        try:
+            subprocess.run(['usermod'] + options + [self.name],
+                           capture_output=True, check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
+            logging.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
+            raise Failure(message='Cannot modify user')
 
 
     def install_ssh_keys(self, keys):
@@ -239,22 +258,91 @@ class UnixUser:
 
 class UnixGroup:
     def __init__(self, name):
-        self.name = name
+        self.name = make_shadow_compatible(name)
 
     def exists(self):
-        raise NotImplementedError
+        return bool(self.__group_entry)
 
-    def add(self):
-        # groupadd
-        raise NotImplementedError
+    def create(self):
+        try:
+            subprocess.run(['groupadd', self.name],
+                           capture_output=True, check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
+            logging.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
+            raise Failure(message='Cannot create user')
 
     def delete(self):
         # groupdel
-        raise NotImplementedError
+        raise NotImplementedError('Do we even need this function?')
 
     def mod(self):
         # groupmod
-        raise NotImplementedError
+        raise NotImplementedError('Do we even need this function?')
+
+    @property
+    def members(self):
+        return self.__group_entry.get('name', [])
+
+    @property
+    def __group_entry(self):
+        return UnixGroup.__all_group_entries().get(self.name, {})
+
+    def __all_group_entries():
+        GROUP_PATH = Path('/')/'etc'/'group'
+        GROUP_FIELDS = ['name', 'password', 'gid', 'members']
+        ID_FIELD = 'name'
+        LIST_FIELD = 'members'
+
+        try:
+            raw = GROUP_PATH.read_text()
+        except IOError as e:
+            logging.error(e)
+            raise Failure(message='Could not get information about existing users on system')
+        else:
+            users = [dict(zip(GROUP_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
+
+            for user in users:
+                user[LIST_FIELD] = user[LIST_FIELD].split(',')
+
+            return {user[ID_FIELD]: user for user in users}
+
+
+class EduPersonEntitlement:
+    # This regex is not compatible with stdlib 're', we need 'regex'!
+    # (because of repeated captures, see https://bugs.python.org/issue7132)
+    re = regex.compile(
+        r'(?P<_namespace>urn:' +                                  # The whole namespace
+           r'(?P<nid>[^:]+):(?P<delegated_namespace>[^:]+)' +     # Namespace-ID and delegated URN namespace
+           r'(?P<_subnamespaces>(:(?P<subnamespace>[^:]+))*?)' +  # Sub-namespaces
+        r')' +
+        r':(?P<_groups>group:' +                                  # All groups
+           r'(?P<group>[^:]+)' +                                  # Root group
+           r'(?P<_subgroups>(:(?P<subgroup>[^:]+))*?)' +          # Sub-groups
+           r'(:role=(?P<role>.+))?' +                             # Role of the user in the deepest group
+        r')' +
+        r'#(?P<group_authority>.+)'                               # Authoritative soruce of the entitlement (URN)
+    )
+
+    def __init__(self, raw):
+        match = self.re.fullmatch(raw)
+
+        if not match:
+            raise Failure(message="Failed to parse entitlements attribute")
+
+        logging.debug("Parsing entitlement attribute: {}".format(match.capturesdict()))
+        try:
+            [self.namespace_id] = match.captures('nid')
+            [self.delegated_namespace] = match.captures('delegated_namespace')
+            self.subnamespaces = match.captures('subnamespace')
+
+            [self.group] = match.captures('group')
+            self.subgroups = match.captures('subgroup')
+            [self.role] = match.captures('role') or [None]
+
+            [self.group_authority] = match.captures('group_authority')
+        except ValueError:
+            raise Failure(message="Failed to parse entitlements attribute")
 
 
 ### Data preprocessing
@@ -265,6 +353,39 @@ def apply_answers(data):
 
 def sanitize(data):
     pass
+
+def make_shadow_compatible(orig_word):
+    # Sinvoll Umlaute kodieren
+    word = orig_word.translate(str.maketrans({
+        'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
+        'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
+        'ß': 'ss',
+        '!': 'i', '$': 's',
+        '*': 'x', '@': 'a',
+    }))
+
+    # Downcase
+    word = word.lower()
+
+    # Unicode -> Ascii
+    word = unidecode(word)
+
+    # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
+    if regex.match(r'^[a-z_]', word):
+        word = word
+    else:
+        word = '_' + word
+
+    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
+    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
+    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
+    # aber nur *ganz* am Ende ...
+    word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
+
+    if word != orig_word:
+        logging.warning("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
+
+    return word
 
 
 if __name__ == "__main__":
