@@ -114,14 +114,14 @@ class User:
                 text='You have not set a global username preference. Please enter your preferred username.'
             )
 
-        self.service_user = UnixUser(
+        self.service_user = backend('user')(
             name=self.data['userinfo']['preferred_username'],
             unique_id='{sub}@{iss}'.format(**self.data['userinfo']).replace(':', '')
         )
 
         self.entitlement = EduPersonEntitlement(self.data['userinfo']['eduperson_entitlement'])
 
-        self.service_groups = [UnixGroup(grp) for grp in [self.entitlement.group] + self.entitlement.subgroups]
+        self.service_groups = [backend('group')(grp) for grp in [self.entitlement.group] + self.entitlement.subgroups]
 
 
     def ensure_exists(self):
@@ -344,6 +344,58 @@ class UnixGroup:
             return {user[ID_FIELD]: user for user in users}
 
 
+class BwIdmUser:
+    def __init__(self, name, unique_id):
+        raise NotImplementedError
+
+    def exists(self):
+        raise NotImplementedError
+
+    def name_taken(self):
+        raise NotImplementedError
+
+    def create(self):
+        raise NotImplementedError
+
+    def delete(self):
+        raise NotImplementedError
+
+    def mod(self, supplementary_groups=None):
+        raise NotImplementedError
+
+    def install_ssh_keys(self, keys):
+        raise NotImplementedError
+
+    def uninstall_ssh_keys(self, keys):
+        raise NotImplementedError
+
+    @property
+    def name(self):
+        raise NotImplementedError
+
+class BwIdmGroup:
+    def __init__(self, name):
+        raise NotImplementedError
+
+    def exists(self):
+        raise NotImplementedError
+
+    def create(self):
+        raise NotImplementedError
+
+    def delete(self):
+        # groupdel
+        raise NotImplementedError('Do we even need this function?')
+
+    def mod(self):
+        # groupmod
+        raise NotImplementedError('Do we even need this function?')
+
+    @property
+    def members(self):
+        raise NotImplementedError
+
+
 ### Data preprocessing
 def apply_answers(data):
     for question, answer in data.get('answers', {}).items():
@@ -389,6 +441,18 @@ def make_shadow_compatible(orig_word):
 
 ### Globals
 CONFIG = ConfigParser()
+BACKENDS = {
+    'local_unix': (UnixUser, UnixGroup),
+    'bwidm': (BwIdmUser, BwIdmGroup),
+}
+def backend(what):
+    conf = BACKENDS[CONFIG['ldf_adapter']['backend']]
+    if what == 'user':
+        return conf[0]
+    elif what == 'group':
+        return conf[1]
+    else:
+        raise ValueError
 
 
 if __name__ == "__main__":
