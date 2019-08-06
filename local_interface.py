@@ -74,6 +74,9 @@ def raise_question(*args, **kwarsg):
 
 ### Core logic
 def main(state_target, user):
+    if not user.data.assurance.is_accepted():
+        raise Rejection(message="Your assurance level is insufficient to access this resource")
+
     if state_target == 'deployed':
         return user.deploy()
     elif state_target == 'not_deployed':
@@ -658,6 +661,10 @@ class UserInfo(collections.Mapping):
 
         return grp
 
+    @property
+    @lru_cache(maxsize=None)
+    def assurance(self, allow_question=True):
+        return EduPersonAssurance(self.userinfo['eduperson_assurance'])
 
     def value_or_ask(self, value, answer_name, question_text, allow_question):
         return (self.answers.get(answer_name)
@@ -744,6 +751,37 @@ class EduPersonEntitlement:
                 'subgroups': ''.join([',{}'.format(grp) for grp in self.subgroups]),
                 'role': ' role={}'.format(self.role) if self.role else ''
         }}))
+
+class EduPersonAssurance:
+    def __init__(self, level):
+        self.level = level
+
+    def is_accepted(self):
+        try:
+            accepted_levels = [lvl.strip() for lvl in CONFIG['assurance']['accepted_levels'].split(',')]
+        except KeyError:
+            accepted_levels = None
+
+        accepted_level_regex = regex.compile(CONFIG['assurance'].get('accepted_level_regex', '.*'))
+
+        accepted = True
+
+        if not self.level:
+            logger.warning("No assurance level provided. Rejecting.")
+            accepted = False
+
+        if accepted_levels is not None and self.level not in accepted_levels:
+            logger.warning("Assurance level '{}' is not one of {}. Rejecting.".format(self.level, accepted_levels))
+            accepted = False
+
+        if not accepted_level_regex.match(self.level):
+            logger.warning("Assurance level '{}' does not match {}. Rejecting.".format(self.level, accepted_level_regex))
+            accepted = False
+
+        return accepted
+
+    def __str__(self):
+        return ('<EduPersonAssurance level={}>'.format(self.level))
 
 
 ### Utils
