@@ -75,49 +75,49 @@ def raise_question(*args, **kwarsg):
 ### Core logic
 def main(state_target, user):
     if state_target == 'deployed':
-        return deploy(user)
+        return user.deploy()
     elif state_target == 'not_deployed':
-        return undeploy(user)
+        return user.undeploy()
     else:
         raise Failure(message="[BUG] Invalid target state: {}".format(state_target))
-
-def deploy(user):
-    was_created = user.ensure_exists()
-    new_groups = user.ensure_group_memberships()
-    new_credentials = user.ensure_credentials_active()
-
-    what_changed = ''
-    if was_created:
-        what_changed += 'User was created'
-    else:
-        what_changed += 'User already existed'
-
-    if new_groups:
-        what_changed += ' and was added to groups {}'.format(",".join(new_groups))
-
-    what_changed += '.'
-
-    if new_credentials:
-        what_changed += ' Credentials {} were activated.'.format(",".join(new_credentials))
-
-    return Deployed(credentials=user.credentials, message=what_changed)
-
-def undeploy(user):
-    was_removed = user.ensure_dosent_exist()
-
-    what_changed = ''
-    if was_removed:
-        what_changed += 'User was removed.'
-    else:
-        what_changed += 'User didn\'t exist.'
-
-    return NotDeployed(message=what_changed)
 
 class User:
     def __init__(self, data):
         self.data = data
         self.service_user = backend('user')(data)
         self.service_groups = [backend('group')(grp) for grp in data.groups]
+
+    def deploy(self):
+        was_created = self.ensure_exists()
+        new_groups = self.ensure_group_memberships()
+        new_credentials = self.ensure_credentials_active()
+
+        what_changed = ''
+        if was_created:
+            what_changed += 'User was created'
+        else:
+            what_changed += 'User already existed'
+
+        if new_groups:
+            what_changed += ' and was added to groups {}'.format(",".join(new_groups))
+
+        what_changed += '.'
+
+        if new_credentials:
+            what_changed += ' Credentials {} were activated.'.format(",".join(new_credentials))
+
+        return Deployed(credentials=self.credentials, message=what_changed)
+
+    def undeploy(self):
+        was_removed = self.ensure_dosent_exist()
+
+        what_changed = ''
+        if was_removed:
+            what_changed += 'User was removed.'
+        else:
+            what_changed += 'User didn\'t exist.'
+
+        return NotDeployed(message=what_changed)
 
     def ensure_exists(self):
         if self.service_user.exists():
@@ -165,11 +165,45 @@ class User:
     @property
     def credentials(self):
         return {
-            'username': self.service_user.name
+            **self.service_user.credentials,
+            **CONFIG['backend.{}.login_info'.format(CONFIG['ldf_adapter']['backend'])]
         }
 
 
 ### User/Group management on the service
+def make_shadow_compatible(orig_word):
+    # Sinvoll Umlaute kodieren
+    word = orig_word.translate(str.maketrans({
+        'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
+        'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
+        'ß': 'ss',
+        '!': 'i', '$': 's',
+        '*': 'x', '@': '_at_',
+    }))
+
+    # Downcase
+    word = word.lower()
+
+    # Unicode -> Ascii
+    word = unidecode(word)
+
+    # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
+    if regex.match(r'^[a-z_]', word):
+        word = word
+    else:
+        word = '_' + word
+
+    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
+    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
+    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
+    # aber nur *ganz* am Ende ...
+    word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
+
+    if word != orig_word:
+        logger.warning("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
+
+    return word
+
 class UnixUser:
     def __init__(self, userinfo):
         self._name = make_shadow_compatible(userinfo.username)
@@ -239,8 +273,10 @@ class UnixUser:
 
 
     @property
-    def name(self):
-        return self.__passwd_entry.get('login', self._name)
+    def credentials(self):
+        return {
+            'login_name': self.__passwd_entry.get('login', self._name)
+        }
 
     @property
     def __passwd_entry(self):
@@ -320,6 +356,7 @@ class BwIdmUser:
 
     def __init__(self, userinfo):
         self.info = userinfo
+        self.credentials = {}
 
     def exists(self):
         return self._exists() and self._is_active()
@@ -376,9 +413,11 @@ class BwIdmUser:
             }
         })
 
-        BWIDM.get('external-reg', 'register',
-                  'externalId', self.info.unique_id,
-                  'ssn', CONFIG['backend.bwidm.ldf_service']['name'])
+        rsp = BWIDM.get('external-reg', 'register',
+                        'externalId', self.info.unique_id,
+                        'ssn', CONFIG['backend.bwidm.service']['name'])
+
+        self.credentials['login_name'] = rsp.json()['registryValues']['localUid']
 
     def delete(self):
         BWIDM.get('external-user', 'deactivate', 'externalId', self.info.unique_id)
@@ -445,10 +484,6 @@ class BwIdmUser:
         rsp = BWIDM.get('external-user', 'find', 'externalId', self.info.unique_id, **kwargs)
         return rsp.json() if json else rsp.content
 
-    @property
-    def name(self):
-        return self.info.username
-
 class BwIdmGroup:
     def __init__(self, name):
         self.name = name
@@ -457,7 +492,7 @@ class BwIdmGroup:
         return b'no such group' not in BWIDM.get('group-admin', 'find', 'name', self.name, fail=False).content
 
     def create(self):
-        BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.ldf_service']['name'], self.name)
+        BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.service']['name'], self.name)
 
     def delete(self):
         # groupdel
@@ -510,42 +545,7 @@ class BwIdmConnection:
         return rsp
 
 
-
 ### Data preprocessing
-def make_shadow_compatible(orig_word):
-    # Sinvoll Umlaute kodieren
-    word = orig_word.translate(str.maketrans({
-        'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
-        'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
-        'ß': 'ss',
-        '!': 'i', '$': 's',
-        '*': 'x', '@': '_at_',
-    }))
-
-    # Downcase
-    word = word.lower()
-
-    # Unicode -> Ascii
-    word = unidecode(word)
-
-    # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
-    if regex.match(r'^[a-z_]', word):
-        word = word
-    else:
-        word = '_' + word
-
-    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
-    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
-    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
-    # aber nur *ganz* am Ende ...
-    word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
-
-    if word != orig_word:
-        logger.warning("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
-
-    return word
-
-
 class UserInfo(collections.Mapping):
     def __init__(self, data):
         self.userinfo = data['user']['userinfo']
@@ -584,12 +584,11 @@ class UserInfo(collections.Mapping):
     @property
     @lru_cache(maxsize=None)
     def username(self, allow_question=True):
-        return (self.answers.get('username')
-                or self.userinfo.get('preferred_username')
-                or (allow_question and raise_question(
-                    name='username',
-                    text='You have not set a global username preference. Please enter your preferred username.'
-                )))
+        return self.value_or_ask(
+            self.userinfo.get('preferred_username'), 'username',
+            'You have not set a global username preference. Please enter your preferred username.',
+            allow_question
+        )
 
     @property
     @lru_cache(maxsize=None)
@@ -658,6 +657,15 @@ class UserInfo(collections.Mapping):
             logger.warning("Group name '{}' changed to '{}' for BWIDM compatibilty".format(orig_grp, grp))
 
         return grp
+
+
+    def value_or_ask(self, value, answer_name, question_text, allow_question):
+        return (self.answers.get(answer_name)
+                or value
+                or (allow_question and raise_question(
+                    name=answer_name,
+                    text=question_text
+                )))
 
 
     def __str__(self):
@@ -742,12 +750,12 @@ class EduPersonEntitlement:
 def dictdiff(old, new):
     def _dictdiff(old, new):
         for k in new:
-            if isinstance(new[k], dict) and isinstance(old[k], dict):
+            if isinstance(new.get(k), dict) and isinstance(old.get(k), dict):
                 subdiff = dict(_dictdiff(old[k], new[k]))
                 if subdiff:
                     yield (k, subdiff)
-            elif old[k] != new[k]:
-                yield (k, (old[k], new[k]))
+            elif old.get(k) != new.get(k):
+                yield (k, (old.get(k), new.get(k)))
 
     return dict(_dictdiff(old, new))
 
@@ -774,6 +782,7 @@ def dictmerge(lhs, rhs, verbose=False):
         log_dictdiff(dictdiff(lhs, res))
 
     return res
+
 
 ### Globals
 logger.basicConfig(
