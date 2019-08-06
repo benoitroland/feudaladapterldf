@@ -1,812 +1,870 @@
 #!/usr/bin/env python3
-# pylint # {{{
-# vim: tw=100 foldmethod=marker
-# pylint: disable=bad-continuation, invalid-name, superfluous-parens
-# pylint: disable=bad-whitespace, mixed-indentation
-# pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation
-# pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
-# }}}
+#
+# Author: Joshua Bachmeier <joshua.bachmeier@student.kit.edu>
+#
 
-import sys
 import os
+import sys
+import subprocess
+from subprocess import CalledProcessError
+from pathlib import Path
+import logging as logger
 import json
-import logging
-import re
-import unicodedata
+from configparser import ConfigParser
+import collections
+from functools import lru_cache, reduce
+import copy
+
+import regex
+from unidecode import unidecode
 import requests
-import configargparse
-import simplejson
+from urllib.parse import urljoin
 
-def remove_quotes(data):# {{{
-    return data.lstrip('"').lstrip("'").rstrip('"').rstrip("'")
-# }}}
-def to_ascii(s):# {{{
-    '''Tansliterate umlauts to the non-dottet version'''
-    return unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode()
-# }}}
-def parseOptions():# {{{
-    '''Parse the commandline options'''
 
-    path_of_executable = os.path.realpath(sys.argv[0])
-    folder_of_executable = os.path.split(path_of_executable)[0]
+### Result types
+class Result:
+    def __init__(self, state, message):
+        self.state = state
+        self.message = message
 
-    config_files = [os.environ['HOME']+'/.config/ldf-interface.conf',
-                    folder_of_executable + '/ldf-interface.conf',
-                    '/root/configs/ldf-interface.conf']
+    @property
+    def attributes(self):
+        return self.__dict__
 
-    parser = configargparse.ArgumentParser(
-            default_config_files = config_files,
-            description='''ldf-interface''')
-    parser.add('-c', '--my-config', is_config_file=True, help='config file path')
-    parser.add_argument('--verbose', '-v',
-            action="count", default=0,
-            help='Verbosity')
-    parser.add_argument('--force_registration', 
-            action="store_true", default=False,
-            help='Force re-registration')
-    parser.add_argument('--fake', '-f',
-            action="store_true", default=False,
-            help='Use fake input data')
-    parser.add_argument('--fake_remove', '-fr',
-            action="store_true", default=False,
-            help='Use fake input data')
-    parser.add_argument('--logfile',     '-l',             default='ldf-interface.log')
-    parser.add_argument('--loglevel',                      default='warning')
-    parser.add_argument('--rest_user',   '-u',             help='username for LDF rest interface', required=True)
-    parser.add_argument('--rest_passwd', '-p',             help='passwdname for LDF rest interface', required=True)
-    parser.add_argument('--ldf_service',                   default='sshtest')
-    parser.add_argument('--ldf_service_description',       default='None')
-    parser.add_argument('--ldf_service_login_info_fmt',    default='None')
-    parser.add_argument('--ldf_remote_login_host',         default='None')
 
-    parser.add_argument('--lowercase_entries'         , action="append", default=['eppn', 'preferred_username'])
-    parser.add_argument('--ascii_encoded_entries'     , action="append", \
-                                     default=['eppn', 'preferred_username'])
+## Sucessful
+class Success(Result):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-    # options for parsing incoming data:
-    parser.add_argument('--state_target'         , action="append")
-    # parser.add_argument('--user'                 , action="append")
-    parser.add_argument('--name'                 , action="append")
-    parser.add_argument('--surName'              , action="append")
-    parser.add_argument('--givenName'            , action="append")
-    parser.add_argument('--iss'                  , action="append")
-    parser.add_argument('--sub'                  , action="append")
-    parser.add_argument('--ssh_key'             , action="append")
-    parser.add_argument('--groups'               , action="append")
-    parser.add_argument('--questionnaire'        , action="append")
-    parser.add_argument('--email'                , action="append")
-    parser.add_argument('--preferred_username'   , action="append")
-    parser.add_argument('--eduPersonEntitlement' , action="append")
-    parser.add_argument('--mandatory_parameters' , action="append")
-    parser.add_argument('--optional_parameters'  , action="append")
-    parser.add_argument('--deploy_parameters'    , action="append")
-    parser.add_argument('--remove_parameters'    , action="append")
+class Deployed(Success):
+    def __init__(self, credentials, **kwargs):
+        super().__init__(state='deployed', **kwargs)
+        self.credentials = credentials
 
-    parser.add_argument('--primaryGroupIdFmt'    , action="append")
-    parser.add_argument('--bwidmOrgIdFmt'        , action="append")
-    parser.add_argument('--sshKeyFmt'            , action="append")
-    parser.add_argument('--emailFmt'             , action="append")
-    parser.add_argument('--surNameFmt'           , action="append")
-    parser.add_argument('--givenNameFmt'         , action="append")
+class NotDeployed(Success):
+    def __init__(self, **kwargs):
+        super().__init__(state='not_deployed', **kwargs)
 
-    parser.add_argument('--externalIdFmt'        , action="append")
-    parser.add_argument('--eppnFmt'              , action="append")
-    parser.add_argument('--noveltyFmt'           , action="append")
-    parser.add_argument('--preferred_usernameFmt', action="append")
 
-    parser.add_argument('--base_url'             , default="https://bwidm-test.scc.kit.edu/rest/")
-    parser.add_argument('--verify_tls'           , default=True    , action="store_false" , help='disable verify')
-    parser.add_argument('--issTranslateExpression', 
-            default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
-            
-    args = parser.parse_args()
+## Exceptional (Error or Questionnaire)
+class ExceptionalResult(Result, Exception):
+    pass
 
-    # consistently remove all quotes from all input parameters:
-    for arg in vars(args):
-        typeOfArg = type(getattr(args, arg))
-        # print ("\narg: %s -- %s"%(arg, typeOfArg))
-        # print ("  before: %s: %s" %(arg, getattr(args, arg)))
-        if isinstance (getattr(args, arg),  str):
-            setattr(args, arg, remove_quotes(getattr(args, arg)))
-            # print ("  after:  %s: %s\n\n\n" %(arg, getattr(args, arg)))
-        elif isinstance(getattr(args, arg),  list):
-            newlist = []
-            for entry in getattr(args, arg):
-                entry =  remove_quotes(entry)
-                newlist.append(entry)
-            setattr(args, arg, newlist)
-            # print ("  after:  %s: %s\n\n\n" %(arg, getattr(args, arg)))
+class Failure(ExceptionalResult):
+    def __init__(self, **kwargs):
+        super().__init__(state='failed', **kwargs)
 
-    # sanitise parameters
-    args.base_url = args.base_url.rstrip('/"')
-    args.base_url = args.base_url.lstrip('"')
+class Rejection(ExceptionalResult):
+    def __init__(self, **kwargs):
+        super().__init__(state='rejected', **kwargs)
 
-    # ensure translation will work as JSON
-    try:
-        args.issTranslateExpressionJSON = json.loads(args.issTranslateExpression)
-        try:
-            for key in args.issTranslateExpressionJSON.keys():
-                args.issTranslateExpressionJSON[key] = remove_quotes(args.issTranslateExpressionJSON[key])
-        except:
-            logging.error('FATAL: issTranslateExpression needs to be a one line json object that lists keys and values: \n')
-            logging.error('{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2", "test": "https://test.com"}')
-            logging.error('Instead you provided "%s"\n' % str(args.issTranslateExpression))
-            raise
-    except:
-        logging.error('FATAL: issTranslateExpression needs to consist of a one line json object that lists keys and values: \n')
-        logging.error('{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2", "test": "https://test.com"}')
-        logging.error('Instead you provided "%s"' % str(args.issTranslateExpression))
-        raise
+class Questionnaire(ExceptionalResult):
+    def __init__(self, questions, **kwargs):
+         super().__init__(state='questionnaire', message='There are unanswered questions.', **kwargs)
+         self.questionnaire = questions
 
-    # if args.verbose > 1:
-        # logging.debug(parser.format_values())
-    return args
-# }}}
-def get_jObject():# {{{
-    data = ""
-    if args.fake:# {{{
-    # jObject 
-        jObject = json.loads(str('''{
-        "state_target": "deployed",
-        "user": {
-            "email": "marcus.hardt@kit.edu",
-            "userinfo": {
-                "eduPersonEntitlement": [
-                    "urn:test:hdf:group:root#unity.helmholtz-data-federation.de",
-                    "urn:test:hdf:group:root:myExampleColab#unity.helmholtz-data-federation.de",
-                    "urn:test:hdf:group:root:GsiUserGroup#unity.helmholtz-data-federation.de"
-                ],
-                "email": "marcus.hardt@kit.edu",
-                "email_verified": "true",
-                "groups": [
-                    "/myExampleColab",
-                    "/"
-                ],
-                "name": "Marcus Hardt",
-                "preferred_username": "marcus",
-                "ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013user_info_ie_unity",
-                "sub": "61230996-664f-4422-9caa-76cf086f0d6c",
-                "iss": "https://unity.helmholtz-data-federation.de/oauth2"
-            },
-            "credentials": {
-                "ssh_key": [
-                    {
-                        "name": "test",
-                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu_from_creds"
-                    },
-                    {
-                        "name": "unity_key",
-                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013_unity_key_from_creds"
-                    }
-                ]
-            }
-        },
-        "questionnaire": null
-    }'''
-    
-    ))
-        return jObject# }}}
-    if args.fake_remove:# {{{
-    # jObject 
-        jObject = json.loads(str(''' {
-        "state_target": "not_deployed",
-        "user": {
-            "email": "nico.schlitter@kit.edu",
-            "userinfo": {
-                "eduPersonEntitlement": [
-                    "urn:test:hdf:group:root#unity.helmholtz-data-federation.de",
-                    "urn:test:hdf:group:root:myExampleColab#unity.helmholtz-data-federation.de",
-                    "urn:test:hdf:group:root:GsiUserGroup#unity.helmholtz-data-federation.de"
-                ],
-                "email": "marcus.hardt@kit.edu",
-                "email_verified": "true",
-                "groups": [
-                    "/myExampleColab",
-                    "/"
-                ],
-                "name": "Marcus Hardt",
-                "preferred_username": "marcus",
-                "ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013",
-                "sub": "61230996-664f-4422-9caa-76cf086f0d6c",
-                "iss": "https://unity.helmholtz-data-federation.de/oauth2"
-            },
-            "credentials": {
-                "ssh_key": [
-                    {
-                        "name": "test",
-                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCxthv26lo8qfyojAtNclWtHZsqoj0BNIL7CvaqzN/b1IMyS/R2V46Mgd7dR3u4vF1N4aIdaY0rqy6rhODMRT7bW7Cj1CYzDBBUhZzGlKl5Z2oqd+DD6tVket7FjETcp3eNibSDctYN/ezZi60p+6U3WgR+7WUyX0/scHLdzW5FVjlKTViJ2fbG/oso6fHGv3u4l0mCr+f+/JCGfbz7RzIY61UQqLeOSGYLLY0+W7eYZHyiQH4nCDGwf1uxnjidoQmHBCcQwxeyb4a0EE73du+lw+PisYEkFPjJInVfeozR3JTXM5ayNIJi2Sz+sj5BCCmACLR4i09qckP2vJxBHjwz qn7750@login-l.sdil.kit.edu"
-                    },
-                    {
-                        "name": "unity_key",
-                        "value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC4vjkJr6H6eXKE9+dj4epCrcSUQRFih1603/SjJKIA3cpWt0O5TC4qJCQwOcvFXdjCu0Y1YUKrUlmV0D9fezbqNrSEZ30gT5YLhawUT6LukMTKfNLxa5wM7jzAlmhJ4obadTE5G5qpAGz5SbgHRfPdTlctpqmmFeyN/Rw4lgzoJ8+zHFyp2VPB7rCaUdsS+48lkVhYtlIDBogdRLAZp8MpSeHZFjHfpq+XDhHXdKnEtETV2+IQfMxRBj6Bpw7wwWpIkSQuf4VDHTAhb6+KjcBg/TBc46CekKzF6gtKImZZNVIzEXuAW2prHmQRh72+oQFMqhVcnRmDOWGwBEvXzT0R marcus@tuna2013"
-                    }
-                ]
-            }
-        },
-        "questionnaire": null
-    }
+class Question(Questionnaire):
+    def __init__(self, name, text, **kwargs):
+         super().__init__(questions={name: text}, **kwargs)
 
-       }'''))
-        return jObject# }}}
-    # if len(sys.argv) == 2:
-    #     data = sys.argv[1]
-    # else:
-    data = sys.stdin.read()
-    Json = data
-    # Json = str(data)+ '=' * (4 - len(data) % 4)
-    try:
-        jObject = json.loads(str(Json))
-        # logging.debug('json decoding worked fine')
-    except json.decoder.JSONDecodeError as e:
-        logging.error('cannot decode your json: %s' % str(e))
-        logging.error('this is your json: "%s"' % str((Json)))
-        exit (13)
-    except Exception as e:
-        try:
-            jObject = json.loads(str(Json))
-            logging.debug('json decoding worked fine in 4th attempt')
-        except:
-            logging.error('There is no way out of this hell: %s' % str(e))
-            logging.error('this is your json: "%s"' % str((Json)))
-            exit (14)
+def raise_question(*args, **kwarsg):
+    raise Question(*args, **kwargs)
 
-    return jObject
-# }}}
-def find_variable_by_name_in_json(inData, search_list, variable_name):# {{{
-    '''seach inData for list and return its value on the first found list item'''
-    # logging.debug('search list: {}'.format(str(search_list)))
-    if search_list is None:
-        # logging.debug ("Defaulting to finding the value by the name itself: %s"%variable_name)
 
-        search_list = [variable_name]
-    for entry in search_list:
-        if entry == 'key': # old and should be deprecated
-            value = inData['key'].get('key')
-        if entry == 'ssh_key': # there may be ssh_keys in credentials and in userinfo
-                               # we prefer those of credentials:
-            value = inData['user']['credentials'].get('ssh_key')
+### Core logic
+def main(state_target, user):
+    if not user.data.assurance.is_accepted():
+        raise Rejection(message="Your assurance level is insufficient to access this resource")
+
+    if state_target == 'deployed':
+        return user.deploy()
+    elif state_target == 'not_deployed':
+        return user.undeploy()
+    else:
+        raise Failure(message="[BUG] Invalid target state: {}".format(state_target))
+
+class User:
+    def __init__(self, data):
+        self.data = data
+        self.service_user = backend('user')(data)
+        self.service_groups = [backend('group')(grp) for grp in data.groups]
+
+    def deploy(self):
+        was_created = self.ensure_exists()
+        new_groups = self.ensure_group_memberships()
+        new_credentials = self.ensure_credentials_active()
+
+        what_changed = ''
+        if was_created:
+            what_changed += 'User was created'
         else:
-            value = inData.get(entry)
-        if value is not None:
-            # logging.info('found {} in inData: {}'.format(entry, value))
-            return value
-        
-        value = inData['user'].get(entry)
-        if value is not None:
-            # logging.info('found {} in inData["user"]: {}'.format(entry, value))
-            return value
+            what_changed += 'User already existed'
 
-        value = inData['user']['userinfo'].get(entry)
-        if value is not None:
-            # logging.info('found {} in inData["user"]["userinfo"]: {}'.format(entry, value))
-            return value
-    return None
-# }}}
-def generate_surName_givenName_from_name(data):# {{{
-    try:
-        fullName = data['user']['userinfo']['name']
-    except AttributeError:
-        logging.debug('Cannot find a "name" claim in userinfo. No surName and givenName can be derived')
-    (givenName, surName) = fullName.split(' ')
-    if args.verbose>1:
-        logging.info('Converted >>%s<< to surName: "%s" givenName "%s"' % (fullName, surName, givenName))
-    # And store it so it will be found by later software:
-    data['user']['surName']   = surName
-    data['user']['givenName'] = givenName
-    return data
-    # }}}
-def sanitize_newlines (data):#{{{
-    # remove newlines from ssh keys:
+        if new_groups:
+            what_changed += ' and was added to groups {}'.format(",".join(new_groups))
 
-    # unity key:
-    try:
-        data['user']['userinfo']['ssh_key'] = data['user']['userinfo']['ssh_key'].rstrip('\n')
-    except KeyError:
-        pass
-    # feudal key:
-    try:
-        for key in data['user']['credentials']['ssh_key']:
-            key['value'] = key['value'].rstrip('\n')
-    except KeyError:
-        pass
-    return data
-#}}}
-def get_params_from_input(inData, args):# {{{
-    '''processes the inData json structure to find all configured mandatory_parameters and
-    optional_parameters'''
-    params = {}
-    for conf_item in args.mandatory_parameters:
-        if args.verbose>2:
-            logging.debug('getting value for {}'.format(conf_item))
+        what_changed += '.'
+
+        if new_credentials:
+            what_changed += ' Credentials {} were activated.'.format(",".join(new_credentials))
+
+        return Deployed(credentials=self.credentials, message=what_changed)
+
+    def undeploy(self):
+        was_removed = self.ensure_dosent_exist()
+
+        what_changed = ''
+        if was_removed:
+            what_changed += 'User was removed.'
+        else:
+            what_changed += 'User didn\'t exist.'
+
+        return NotDeployed(message=what_changed)
+
+    def ensure_exists(self):
+        if self.service_user.exists():
+            logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
+            created = False
+
+        elif self.service_user.name_taken():
+            raise Question(
+                name='username',
+                text='Username {} already taken on this service. Please enter another one.'.format(
+                    self.service_user.name
+                )
+            )
+        else:
+            logger.info('Creating user {username} for {unique_id}'.format(**self.data))
+            self.service_user.create()
+            created = True
+
+        self.service_user.update()
+        return created
+
+    def ensure_dosent_exist(self):
+        if self.service_user.exists():
+            logger.info('Deleting user {username} of {unique_id}'.format(**self.data))
+            self.service_user.uninstall_ssh_keys()
+            self.service_user.delete()
+            return True
+        else:
+            logger.debug('No user for {unique_id} did exist. Nothing to do.'.format(**self.data))
+            return False
+
+    def ensure_group_memberships(self):
+        for group in filter(lambda grp: not grp.exists(), self.service_groups):
+            logger.info("Creating group {}".format(group.name))
+            group.create()
+
+        self.service_user.mod(supplementary_groups=self.service_groups)
+        return [grp.name for grp in self.service_groups]
+
+    def ensure_credentials_active(self):
+        # Currently, only SSH keys are supported
+        self.service_user.install_ssh_keys([key['value'] for key in self.data.ssh_keys])
+        return ["SSH key {name}/{id}".format(**key) for key in self.data.ssh_keys]
+
+    @property
+    def credentials(self):
+        return {
+            **self.service_user.credentials,
+            **CONFIG['backend.{}.login_info'.format(CONFIG['ldf_adapter']['backend'])]
+        }
+
+
+### User/Group management on the service
+def make_shadow_compatible(orig_word):
+    # Sinvoll Umlaute kodieren
+    word = orig_word.translate(str.maketrans({
+        'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
+        'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
+        'ß': 'ss',
+        '!': 'i', '$': 's',
+        '*': 'x', '@': '_at_',
+    }))
+
+    # Downcase
+    word = word.lower()
+
+    # Unicode -> Ascii
+    word = unidecode(word)
+
+    # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
+    if regex.match(r'^[a-z_]', word):
+        word = word
+    else:
+        word = '_' + word
+
+    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
+    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
+    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
+    # aber nur *ganz* am Ende ...
+    word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
+
+    if word != orig_word:
+        logger.warning("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
+
+    return word
+
+class UnixUser:
+    def __init__(self, userinfo):
+        self._name = make_shadow_compatible(userinfo.username)
+        self.unique_id = userinfo.unique_id
+
+    def exists(self):
+        return bool(self.__passwd_entry)
+
+    def name_taken(self):
+        return self.name in [entry['login'] for entry in UnixUser.__all_passwd_entries().values()]
+
+    def create(self):
         try:
-            value = find_variable_by_name_in_json(inData, getattr(args, conf_item), conf_item)
-        except AttributeError:
-            logmsg = "Fatal: the parameter '%s' is not supported by this interface program." % conf_item
-            logmsg += "Please add it in the 'parseOptions' function"
-            logging.error (logmsg)
-            return ("failed", logmsg)
-        if value is None:
-            logmsg = 'Fatal: A mandatory config value was not found in input, while processing "%s"'%conf_item
-            logging.error (logmsg)
-            return ("failed", logmsg)
-        params[conf_item] = value
-        if args.verbose>1:
-            logging.debug('    got mandatory value for {:13s}: {}'.format(conf_item, value))
+            subprocess.run(['useradd', '--comment', self.unique_id, self.name],
+                           capture_output=True, check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
+            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
+            raise Failure(message='Cannot create user')
 
-    for conf_item in args.optional_parameters:
-        if args.verbose>2:
-            logging.debug('getting value for {}'.format(conf_item))
-        try:
-            value = find_variable_by_name_in_json(inData, getattr(args, conf_item), conf_item)
-        except AttributeError:
-            logmsg =  "Fatal: a specified parameter is not supported by this interface program."
-            logmsg += "Please add it in the 'parseOptions' function"
-            logging.error (logmsg)
-            return ("failed", logmsg)
-        params[conf_item] = value
-        if args.verbose>1:
-            logging.debug('    got optional value for  {:13s}: {}'.format(conf_item, value))
-
-    # replace the iss string:
-    # iTE maps from [shortname] to [longname]:
-    # default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
-    #
-    iTE = args.issTranslateExpressionJSON
-
-    iss = params['iss']
-    iss = re.sub('^https?://', '', iss)
-    iss = iss.rstrip('/')
-    for key in iTE.keys():
-        # in case config provides https?:// in iTE, we just remove it:
-        iTE[key] = re.sub('^https?://', '', iTE[key])
-        if iTE[key] == iss:
-            iss_shortname = key
-            break
-
-    params['iss'] = iss_shortname
-    return ("success", params)
-# }}}
-def dump_config_to_log(inData, params):# {{{
-    if args.verbose>3:
-        logging.debug ('Incoming state_target:   {}'.format(params['state_target']))
-        # logging.debug ('Incoming user Object:    {}'.format(user))
-        logging.debug ('Incoming usersub@iss:    {}@{}'.format(params['sub'],params['iss']))
-        logging.debug ('  preferred_username:    {}'.format(params['preferred_username']))
-        logging.debug ('Incoming questionnaire:  {}'.format(params['questionnaire']))
-        logging.debug ('Incoming oidc_email:     {}'.format(params['email']))
-        logging.debug ('Incoming oidc_groups:    {}'.format(params['groups']))
-        # logging.debug ('Incoming key:            {}'.format(key))
-
-        logging.debug ('config rest: rest_user:  {}'.format(args.rest_user))
-        logging.debug ('config rest: rest_passwd:{}'.format(args.rest_passwd))
-# }}}
-def user_exists(externalId):# {{{
-    externalId = remove_quotes(externalId)
-    url = args.base_url + '/external-user/find/externalId/' + str(externalId)
-    resp = requests.get (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd))
-
-    if resp.status_code != 200:
-        #print("\nthere was a problem in communication with the server.")
-        #print("the server said: %s (%s)" \
-        #        % (resp.status_code, resp.reason))
-        #print ("")
+    def update(self):
         pass
-    if resp.status_code == 403:
-        return False
-    try:
-        resp_json=resp.json()
-    except Exception as e:
-        # print ("\nJSONDecodeError: {0}".format(e))
-        # print ("terminating")
-        logmsg = 'Error: ' + str(e) + '\nserver said: '
-        logmsg += resp.text
-        logging.error (logmsg)
-        return False
-    
-    # if args.verbose>2:
-    #     logging.debug("\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
 
-    if externalId == resp_json['externalId']:
-        return True
-    
-    return False
-# }}}
-def create_initial_user(externalId):# {{{
-    externalId = remove_quotes(externalId)
-    url = args.base_url + '/external-user/create'
-    headers ={'Content-Type': 'application/json'}
-    data = json.dumps({'externalId':externalId})
+    def delete(self):
+        name = self.__passwd_entry['login']
 
-    resp = requests.post (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd),\
-            headers = headers, data = data)
-
-    if resp.status_code == 200:
-        resp_json=resp.json()
-        if args.verbose:
-            logging.info('update successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
-        if resp_json['result'] != 'success':
-            logging.warning('update successful, but no "result=success" received; Check with REST admin')
-        if args.verbose>1:
-            logging.debug("\n\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
-        return ("success", "")
-    logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
-
-    logging.warning("\nthere was an unexpected status.")
-    logging.warning("the server said: %s (%s)" % (resp.status_code, resp.reason))
-    
-    if resp.status_code == 405:
-        logging.info("Got 405... User probably already exists")
-        return ("success", "")
-    
-    return ("failed", "There was an unexpected status. the server said: %s (%s)" % (resp.status_code, resp.reason))
-
-# }}}
-def update_user(data): # {{{
-
-    url = args.base_url + '/external-user/update'
-    headers ={'Content-Type': 'application/json'}
-    # logging.info('will update the user, using this data: %s' %\
-    #                 json.dumps(data, sort_keys=True, indent=4, separators=(',', ': ')))
-    # print ('''{{"externalId": "{externalId}"}}'''.format(**data))
-
-    # sanitise sshKey:
-    postData = \
-'''{{"externalId":"{externalId}",
-"eppn":"{eppn}",
-"email":"{email}",
-"genericStore": {{
-    "ssh_key":"{sshKey}"
-    }},
-"surName":"{surName}",
-"givenName":"{givenName}",
-"primaryGroup":{{
-    "id":"{primaryGroupId}"
-    }},
-"attributeStore": {{
-    "urn:oid:0.9.2342.19200300.100.1.1":"{preferred_username}",
-    "http://bwidm.de/bwidmOrgId":"{bwidmOrgId}"
-    }}
-}}'''.format(**data)
-
-    try:
-        postData_json=json.loads(postData)
-    except json.decoder.JSONDecodeError as e:
-        logging.error('FATAL: your json is invalid')
-        logging.error(str(e))
-        logging.error('For reference, this is your json:\n'+postData)
-        return ("failed", "Invalid json, check server log")
-
-    json_data = json.dumps(postData_json)
-    if args.verbose>1:
-        logging.debug('postData_json %s\n'%\
-            json.dumps(postData_json, sort_keys=True, indent=4, separators=(',', ': ')))
-
-    resp = requests.post (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd),\
-            headers = headers, data = json_data)
-
-    if resp.status_code == 200:
-        resp_json = resp.json()
-        if args.verbose:
-            logging.info('update successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
-        if resp_json['result'] != 'success':
-            logging.warning('update successful, but no "result=success" received; Check with REST admin')
-        return ("success", "")
-    try:
-        logmsg = 'Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json())
-    except:
-        logmsg = 'Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.text)
-    logging.debug(logmsg)
-    return ("failed", logmsg)
-# }}}
-def register_user_for_service(externalId, serviceName):# {{{
-    url = args.base_url + '/external-reg/register/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
-    logging.debug('registering with this url: %s' % str(url))
-    resp = requests.get (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd))
-    
-    if resp.status_code == 200:
-        resp_json = resp.json()
-        if args.verbose:
-            logging.info('registration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
         try:
-            if resp_json['result'] != 'success':
-                logging.warning('registration successful, but no "result=success" received; Check with REST admin')
-        except KeyError:
+            subprocess.run(['userdel', name],
+                           capture_output=True, check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
+            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
+            raise Failure(message='Cannot delete user')
+
+    def mod(self, supplementary_groups=None):
+        options = []
+        if supplementary_groups is not None:
+            logger.debug("Adding user {} to groups {}".format(self.name, [g.name for g in supplementary_groups]))
+            options += ['--groups', ",".join([g.name for g in supplementary_groups])]
+
+        try:
+            subprocess.run(['usermod'] + options + [self.name],
+                           capture_output=True, check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
+            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
+            raise Failure(message='Cannot modify user')
+
+
+    def install_ssh_keys(self, keys):
+        try:
+            self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
+            self.__authorized_keys.write_text("\n".join(keys))
+        except IOError as e:
+            logger.error(e)
+            raise Failure(message='Could not write new ssh keys')
+
+    def uninstall_ssh_keys(self):
+        try:
+            self.__authorized_keys.unlink()
+        except FileNotFoundError:
             pass
 
-        # homeDir   = resp_json['registryValues']['homeDir']
-        # localUid  = resp_json['registryValues']['localUid']
-        # uidNumber = resp_json['registryValues']['uidNumber']
-        # return ('success', '', '"homeDir": "%s", "localUid": "%s", "uidNumber": "%s"' %\
-        #         (homeDir, localUid, uidNumber))
-        return ('success', 'User registered for service', resp_json)
+    @property
+    def __authorized_keys(self):
+        return Path(self.__passwd_entry['home'])/'.ssh'/'authorized_keys'
 
-    msg = "something went wrong registering {} for service {}".format(externalId, serviceName)
-    msg += "\n   status code: " + str(resp.status_code)
-    logging.error(msg)
-    logmsg = msg
-    try:
-        msg = resp.json()
-    except json.decoder.JSONDecodeError:
-        msg = resp.text
-    logging.error(msg)
-    logmsg += '\n' + msg
-    return ("failed", logmsg, '')
-# }}}
-def deregister_user_from_service(externalId, serviceName):# {{{
-    url = args.base_url + '/external-reg/deregister/externalId/' + str(externalId) + '/ssn/' + str(serviceName)
-    logging.debug('deregistering with this url: %s' % str(url))
-    resp = requests.get (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd))
-    
-    if resp.status_code == 200:
-        resp_json = resp.json()
-        if args.verbose:
-            logging.info('deregistration successful: %s' % str(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': '))))
-        if resp_json['result'] != 'success':
-            logging.warning('deregistration successful, but no "result=success" received; Check with REST admin')
-        return ("success", "Deregistration successful")
-    if resp.status_code == 204:
-        logging.info('deregistration apparently successful, but got no result')
-        return ("success", "Deregistration successful (despite empty result from LDF)")
 
-    msg = "something went wrong deregistering: {} from service {}".format(externalId, serviceName)
-    logging.error(msg)
-    logmsg = msg
-    msg = "code: %d" %resp.status_code
-    logging.error(msg)
-    logmsg += '\n' + msg
-    try:
-        msg = resp.json()
-    except json.decoder.JSONDecodeError:
-        msg = resp.text
-    except simplejson.errors.JSONDecodeError:
-        msg = resp.text
-    logging.error(msg)
-    logmsg += '\n' + msg
-    return ("failed", logmsg)
-# }}}
-def assert_all_variables_defined_in_format(entry, params):# {{{
-    ''' make sure the format string "entry" can be filled using data in params'''
+    @property
+    def credentials(self):
+        return {
+            'login_name': self.__passwd_entry.get('login', self._name)
+        }
 
-    unformatted_variables = re.findall('{[a-zA-Z0-9.-/_]*}', entry)
-    if args.verbose > 2:
-        logging.debug("entry: '%s'" % entry)
-        logging.debug("unformatted_variables: '%s'" % (unformatted_variables))
-    for unformatted_variable in unformatted_variables:
-        variable = re.sub('[{}]', '', unformatted_variable)
-        if args.verbose > 2:
-            logging.debug("Check if '%s' is properly defined: '%s'" % (entry, params[variable]))
+    @property
+    def __passwd_entry(self):
+        return UnixUser.__all_passwd_entries().get(self.unique_id, {})
+
+    def __all_passwd_entries():
+        PASSWD_PATH = Path('/')/'etc'/'passwd'
+        PASSWD_FIELDS = ['login', 'pw', 'uid', 'gid', 'gecos', 'home', 'shell']
+        ID_FIELD = 'gecos'
+
         try:
-            if params[variable] is None or params[variable] == "None" or params[variable] == "null" or params[variable] == "":
-                if variable in args.mandatory_parameters:
-                    logging.error ("Error: Mandatory variable: {} is undefined!".format(variable))
-                    return False
-                if args.verbose>1:
-                    logging.info("Optional variable: {} is undefined!".format(variable))
-                return False 
-        except KeyError:
-            logging.error ('Error: Variable unknown: "{}" while parsing {}'.format(variable, entry))
-            return False
-    return True
-# }}}
-def get_all_variables_from_list(parameterList, params):# {{{
-    '''Return all values requested by parameterList, if they're found in Params
-       Also make sure that the lowercase entries are lowercase and that the ascii encoded entries are
-       properly encoded'''
-
-    entry   = ''
-    outData = {}
-    # print ("\n\nparameterlist; >>%s<<" % parameterList)
-    for entry_name in parameterList:
-        # ''' first get the entry name, and try to obtain the format string for it'''
-        # print ("\n\nentry_name: >>%s<<"%entry_name)
-        try:
-            entry_value = getattr(args, entry_name+'Fmt')
-        except AttributeError:
-            logmsg = 'FATAL: "%s" is not a supported parameter. This needs to be fixed in the code in "parseOptions"' % entry_name
-            logging.error (logmsg)
-            return ("failed", logmsg)
-        try: # Make sure we can iterate over entry_value
-            iter(entry_value)
-        except TypeError:
-            logmsg = 'FATAL: there is no format string for "%sFmt". You need to define it in your config.' % entry_name
-            logging.error (logmsg)
-            return ("failed", logmsg)
-        # print ("\n\nentry_value: >>%s<<"%entry_value)
-        for entry in entry_value:
-            # ''' For each entry in the list of possible formats, try it out and break, once the first one worked'''
-            # make sure that none of the fields used in entry are undefined, "None" or "":
-            if args.verbose > 2:
-                logging.info('\n')
-                logging.info('%s: trying: %s ' % (entry_name, entry))
-
-            if not assert_all_variables_defined_in_format(entry, params):
-                if args.verbose > 2:
-                    logging.info('   did not work, next')
-                continue
-                
-            # Then use the format
-            outData[entry_name] = entry.format(**params)
-            if args.verbose > 2:
-                logging.info('   worked: %s' % outData[entry_name])
-            # print ("\n\n entry: >>%s<<   \nformatted: >>%s<<" % (entry, entry.format(**params)))
-            # logging.debug("params: "+json.dumps(params, sort_keys=True, indent=4, separators=(',', ': ')))
-            break
-        if outData.get(entry_name) is None:
-            logmsg = "FATAL: Could not obtain values for %s" % entry_name
-            logging.error (logmsg)
-            return ("failed", logmsg)
-
-        # make sure encoding is right
-        if entry_name in args.lowercase_entries:
-            outData[entry_name] = outData[entry_name].lower()
-
-        if entry_name in args.ascii_encoded_entries:
-            outData[entry_name] = to_ascii(outData[entry_name])
-
-        if args.verbose>1 and args.verbose <= 2:
-            logging.info('{:23s}: {:23s}: {}'.format(entry_name, entry,  outData[entry_name]))
-    return ("success", outData )
-# }}}
-def setup_logging(): # {{{
-    import logging.config
-    logging.config.dictConfig({
-        'version': 1,
-        'disable_existing_loggers': True,
-    })
-    logformat = "{%(asctime)s %(filename)s:%(funcName)s:%(lineno)d} %(levelname)s - %(message)s"
-    loglevel = logging.getLevelName(args.loglevel.upper())
-    logging.basicConfig(level=loglevel, format=logformat, filename=args.logfile)
-    logging.debug('\n\n\nfum_ldf-interface v.0.0.1')
-
-    if args.verbose > 3:
-        import http.client as http_client
-        http_client.HTTPConnection.debuglevel = 1
-        logging.basicConfig()
-        # logging.getLogger().setLevel(logging.ERROR)
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    logging.info('verbosity: %d' % args.verbose)# }}}
-
-# args are global
-args = parseOptions()
-
-def main():
-    setup_logging()
-
-    # get data from stdin from the FEUDAL side {{{
-    inData  = get_jObject()
-    inData  = generate_surName_givenName_from_name(inData)
-    inData  = sanitize_newlines(inData)
-    (state, params)  = get_params_from_input(inData, args)
-    if state != "success":
-        return ("failed", params, '')
-
-    (state, info_data) = get_all_variables_from_list(['externalId', 'email', 'eppn'], params)
-    logging.debug('Got request to for externalId: {externalId}\n    requested status: %s\n    email: {email}\n    eppn:{eppn})'.format(**info_data) % inData['state_target'])
-
-    if args.verbose>1:
-        logging.debug("inData: "+json.dumps(inData, sort_keys=True, indent=4, separators=(',', ': ')))
-    if args.verbose>1:
-        logging.debug("params: "+json.dumps(params, sort_keys=True, indent=4, separators=(',', ': ')))
-# }}}
-
-    desiredState = inData['state_target'] # one of "deployed" "removed" "rejected" "failed"
-
-
-    # FIXME: Use these calls to verify user status:
-    # curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-user/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
-    # curl --insecure --basic -u https://bwidm-test.scc.kit.edu/rest/external-reg/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
-    if desiredState == 'deployed':# {{{
-        # Derive all the variables required for LDAP Facade:
-        (state, outData) = get_all_variables_from_list(args.deploy_parameters, params)
-        if args.verbose>1:
-            logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
-        if state != "success":
-            logging.error('Failed to initialise deployment variables for user: {externalId} ({email} - {eppn})'.format(**info_data))
-            return("failed", outData, '')
-
-        # And go create the user
-        # fake some input data
-        if args.fake or args.fake_remove:
-            outData['externalId'] = 'marcus-test-10'
-            outData['preferred_username'] = 'marcus-test-10'
-
-        # save state, whether user existed
-        user_existed_before = user_exists (outData['externalId'])
-
-        # create initial user{{{
-        if not user_existed_before:
-            logging.info('User didn\'t exist. Will create')
-            (state, message) = create_initial_user(outData['externalId'])
-            if state != "success":
-                logmsg = 'Failed to create the initial user: {externalId}  ({email} - {eppn})'.format(**info_data)
-                if args.verbose > 0:
-                    logmsg += 'FATAL: Failed to create an initial user with this data:\n%s' %\
-                            json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
-                logging.error(logmsg)
-                if args.verbose:
-                    message = message + '\n' + logmsg
-                return (desiredState,message, '')
-
-            logging.info('Initial user created')
+            raw = PASSWD_PATH.read_text()
+        except IOError as e:
+            logger.error(e)
+            raise Failure(message='Could not get information about existing users on system')
         else:
-            logging.info('Skipping initial creation of user, since he existed already')
-        # }}}
-        # update the user{{{
-        logging.info('Will update user now')
-        (state, message) = update_user(outData)
-        if state != "success":
-            logmsg = 'Failed to create the full user: {externalId}  ({email} - {eppn})'.format(**info_data)
-            if args.verbose > 0:
-                logmsg += 'FATAL: Failed to create the full user with this data:\n%s' %\
-                        json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
-            logging.error(logmsg)
-            if args.verbose:
-                message = message + '\n' + logmsg
-        if state != "success":
-            return ('failed', message, '')
-        # return (desiredState, message, '')
-        logging.info("user created / updated successfully")
-        # }}}
+            users = [dict(zip(PASSWD_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
+            return {user[ID_FIELD]: user for user in users}
 
-        # register user for service{{{
-        # if not user_existed_before or args.force_registration:
-        logging.info('registering user: {externalId}  ({email} - {eppn})'.format(**info_data))
-        (state, message, cred_part) = register_user_for_service(outData['externalId'], args.ldf_service)
-        if state != "success":
-            return ('failed', message, '')
+class UnixGroup:
+    def __init__(self, name):
+        self.name = make_shadow_compatible(name)
 
-        # Create the message to show the user:
-        c_service = '"Service":"%s"'     % args.ldf_service_description
-        # c_user  = '"Username": "%s_%s"'% (outData['bwidmOrgId'], outData['preferred_username'])
-        c_user    = '"Username": "%s"'   % cred_part['registryValues']['localUid']
-        c_home    = '"Home Dir": "%s"'   % cred_part['registryValues']['homeDir']
-        c_uid     = '"UID Number": "%s"' % cred_part['registryValues']['uidNumber']
-        c_eid     = '"ExternalID": "%s"' % outData['externalId']
-        c_loginfo = '"Login Info": "%s"' % args.ldf_service_login_info_fmt.format(**outData)
-        c_ssh_host= '"ssh_host": "%s"'   % args.ldf_remote_login_host
-        c_ssh_user= '"ssh_user": "%s"'   % cred_part['registryValues']['localUid']
-        
-        credentials = '{%s, %s, %s, %s, %s, %s, %s, %s}' % (c_service, c_user, c_eid, c_loginfo, c_home, c_uid, 
-                c_ssh_user, c_ssh_host)
-        # else:
-        #     logging.info('skipping registration of user, since he existed already; Note: This is a hack and needs to be fixed')
-        logging.info('user registered for service: %s - %s' % (state, message))
-        return (desiredState, message, credentials)
-    # }}}}}}
-    elif desiredState == 'not_deployed':    # undeploy user{{{
-        (state, outData) = get_all_variables_from_list(args.remove_parameters, params)
-        if args.verbose>2:
-            logging.debug("outdata: "+json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': ')))
-        if state != "success":
-            return ("failed", outData, '')
+    def exists(self):
+        return bool(self.__group_entry)
 
-        # fake userdata
-        if args.fake or args.fake_remove:
-            outData['externalId'] = 'marcus-test-10'
-            outData['preferred_username'] = 'marcus-test-10'
+    def create(self):
+        try:
+            subprocess.run(['groupadd', self.name],
+                           capture_output=True, check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
+            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
+            raise Failure(message='Cannot create user')
 
-        # do the actual undeployment
-        logging.info('deregistering user from service')
-        (state, message) = deregister_user_from_service(outData['externalId'],  args.ldf_service)
-        if state != "success":
-            logmsg = 'Failed to undeploy user: {externalId}  ({email} - {eppn})'.format(**info_data)
-            if args.verbose > 0:
-                logmsg += 'FATAL: Failded undeployment with this data:\n%s' %\
-                        json.dumps(outData, sort_keys=True, indent=4, separators=(',', ': '))
-            return ("failed", message+logmsg, '')
-        credentials = '{"undeployment": "successful"}'
-        logging.info('deregistration successful')
-        return (desiredState, message, credentials)
-    return ('failed', 'undefined desired state_target', '')
-# }}}
+    def delete(self):
+        # groupdel
+        raise NotImplementedError('Do we even need this function?')
+
+    def mod(self):
+        # groupmod
+        raise NotImplementedError('Do we even need this function?')
+
+    @property
+    def members(self):
+        return self.__group_entry.get('members', [])
+
+    @property
+    def __group_entry(self):
+        return UnixGroup.__all_group_entries().get(self.name, {})
+
+    def __all_group_entries():
+        GROUP_PATH = Path('/')/'etc'/'group'
+        GROUP_FIELDS = ['name', 'password', 'gid', 'members']
+        ID_FIELD = 'name'
+        LIST_FIELD = 'members'
+
+        try:
+            raw = GROUP_PATH.read_text()
+        except IOError as e:
+            logger.error(e)
+            raise Failure(message='Could not get information about existing users on system')
+        else:
+            users = [dict(zip(GROUP_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
+
+            for user in users:
+                user[LIST_FIELD] = user[LIST_FIELD].split(',')
+
+            return {user[ID_FIELD]: user for user in users}
+
+
+class BwIdmUser:
+    ATTR_USERNAME = 'urn:oid:0.9.2342.19200300.100.1.1'
+    ATTR_ORG_ID = 'http://bwidm.de/bwidmOrgId'
+    VALUE_USER_ACTIVE = 'ACTIVE'
+    VALUE_USER_INACTIVE = 'ON_HOLD'
+
+    def __init__(self, userinfo):
+        self.info = userinfo
+        self.credentials = {}
+
+    def exists(self):
+        return self._exists() and self._is_active()
+
+    def _exists(self):
+        exists = b'no such user' not in self.reg_info(json=False, fail=False)
+        logger.debug('User {} {} on service BWIDM'.format(
+            self.info.unique_id, 'exists' if exists else "doesn't exist"
+        ))
+        return exists
+
+    def _is_active(self):
+        status = self.reg_info()['userStatus']
+        logger.debug('User {} is {} on service BWIDM'.format(
+            self.info.unique_id, status
+        ))
+        return status == self.VALUE_USER_ACTIVE
+
+    def name_taken(self):
+        users_with_name = BWIDM.get(
+            'external-user', 'find',
+            'attribute', self.ATTR_USERNAME, self.info.username
+        ).json()
+
+        other_users_with_name = [user for user in users_with_name if user['externalId'] != self.info.unique_id]
+        if len(other_users_with_name) < len(users_with_name):
+            logger.debug("Username '{}' is reserved for us".format(self.info.username))
+
+        return bool(other_users_with_name)
+
+    def create(self):
+        if self._exists() and not self._is_active():
+            logger.info("Activating user {unique_id}".format(**self.info))
+            BWIDM.get('external-user', 'activate', 'externalId', self.info.unique_id)
+        else:
+            logger.info("Creating user {unique_id}".format(**self.info))
+            BWIDM.post('external-user', 'create', json={
+                'externalId': self.info.unique_id
+            })
+
+    def update(self):
+        self.external_user_update({
+            'externalId': self.info.unique_id,
+            'eppn': self.info.unique_id,
+            'email': self.info.email,
+            'givenName': self.info.given_name,
+            'surName': self.info.family_name,
+            'primaryGroup': {
+                'id': CONFIG['backend.bwidm'].getint('primary_group_id')
+            },
+            'attributeStore': {
+                self.ATTR_USERNAME: self.info.username,
+                self.ATTR_ORG_ID: CONFIG['backend.bwidm']['org_id'],
+            }
+        })
+
+        rsp = BWIDM.get('external-reg', 'register',
+                        'externalId', self.info.unique_id,
+                        'ssn', CONFIG['backend.bwidm.service']['name'])
+
+        self.credentials['login_name'] = rsp.json()['registryValues']['localUid']
+
+    def delete(self):
+        BWIDM.get('external-user', 'deactivate', 'externalId', self.info.unique_id)
+
+    def mod(self, supplementary_groups=None):
+        reg_info = self.reg_info()
+
+        if supplementary_groups is not None:
+            current_groups = (grp for grp in reg_info['secondaryGroups'])
+            new_groups = (grp.reg_info(short=True) for grp in supplementary_groups)
+
+            # Remove user from groups he should not be a member of
+            to_be_removed_from = [g for g in current_groups
+                                  if g['id'] not in (ng['id'] for ng in new_groups)]
+
+            # Only add user to groups she is not already a member of
+            to_be_added_to = [g for g in new_groups
+                              if g['id'] not in (cg['id'] for cg in current_groups)]
+
+            if to_be_removed_from:
+                logger.info('Remove user {} from groups {}'.format(
+                    self.info.username, ",".join(g['name'] for g in to_be_removed_from)))
+            for grp in to_be_removed_from:
+                BWIDM.get('group-admin', 'remove', 'groupId', grp['id'], 'userId', reg_info['id'])
+
+            if to_be_added_to:
+                logger.info('Add user {} to groups {}'.format(
+                    self.info.username, ",".join(g['name'] for g in to_be_added_to)))
+            for grp in to_be_added_to:
+                BWIDM.get('group-admin', 'add', 'groupId', grp['id'], 'userId', reg_info['id'])
+
+    def install_ssh_keys(self, keys):
+        self.external_user_update({
+            'externalId': self.info.unique_id,
+            'genericStore': {
+                **self.reg_info()['genericStore'],
+                'ssh_key': json.dumps(self.info.ssh_keys)
+            }
+        })
+
+    def uninstall_ssh_keys(self):
+        self.external_user_update({
+            'externalId': self.info.unique_id,
+            'genericStore': {'ssh_key': None}
+        })
+
+    # {..., k: val, ...} means `state[k] = val`
+    # {..., k: None, ...} means `del state[k]` or `state[k]=None`
+    # {..., k: {}, ...} means no change to k
+    # {..., k: val={...}, ...} means `state[k]=merge state[k] with val`
+    #
+    # This is applied recursivly.
+    def external_user_update(self, state_updates):
+        current_state = self.reg_info()
+        new_state = dictmerge(current_state, state_updates, verbose=True)
+
+        for k in list(new_state):
+            if new_state[k] is None:
+                new_state[k] = {}
+
+        BWIDM.post('external-user', 'update', json=new_state)
+
+    def reg_info(self, json=True, **kwargs):
+        rsp = BWIDM.get('external-user', 'find', 'externalId', self.info.unique_id, **kwargs)
+        return rsp.json() if json else rsp.content
+
+class BwIdmGroup:
+    def __init__(self, name):
+        self.name = name
+
+    def exists(self):
+        return b'no such group' not in BWIDM.get('group-admin', 'find', 'name', self.name, fail=False).content
+
+    def create(self):
+        BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.service']['name'], self.name)
+
+    def delete(self):
+        # groupdel
+        raise NotImplementedError('Do we even need this function?')
+
+    def mod(self):
+        # groupmod
+        raise NotImplementedError('Do we even need this function?')
+
+    def reg_info(self, json=True, short=False, **kwargs):
+        rsp = BWIDM.get('group-admin', 'find' if short else 'find-detail', 'name', self.name, **kwargs)
+        return rsp.json() if json else rsp.content
+
+    @property
+    def members(self):
+        raise NotImplementedError('Do we even need this function?')
+
+class BwIdmConnection:
+    def __init__(self, config=None):
+        self.session = requests.Session()
+        if config:
+            self.session.auth = (
+                config['backend.bwidm.auth']['http_user'],
+                config['backend.bwidm.auth']['http_pass']
+            )
+
+    def get(self, *url_fragments, **kwargs):
+        return self._request('GET', url_fragments, **kwargs)
+
+    def post(self, *url_fragments, **kwargs):
+        return self._request('POST', url_fragments, **kwargs)
+
+    def _request(self, method, url_fragments, **kwargs):
+        fail = kwargs.pop('fail', True)
+
+        url_fragments = map(str, url_fragments)
+        url_fragments = map(lambda frag: requests.utils.quote(frag, safe=''), url_fragments)
+        url = reduce(lambda acc, frag: urljoin(acc, frag) if acc.endswith('/') else urljoin(acc+'/', frag),
+                     url_fragments,
+                     CONFIG['backend.bwidm']['url'])
+
+        req = requests.Request(method, url, **kwargs)
+        rsp = self.session.send(self.session.prepare_request(req))
+
+        if fail:
+            if not rsp.ok:
+                logger.error("Server responded with: {}".format(rsp.content.decode('utf-8')))
+            rsp.raise_for_status()
+
+        return rsp
+
+
+### Data preprocessing
+class UserInfo(collections.Mapping):
+    def __init__(self, data):
+        self.userinfo = data['user']['userinfo']
+        self.answers = data.get('answers', {})
+        self.credentials = data['user'].get('credentials', {})
+
+    @property
+    @lru_cache(maxsize=None)
+    def unique_id(self, allow_question=True):
+        return '{sub}@{iss}'.format(
+            sub=self._sub_masked_for_bwidm_eppn(),
+            iss=self._iss_masked_for_bwidm_eppn()
+        )
+
+    def _sub_masked_for_bwidm_eppn(self):
+        sub = regex.sub('[^a-zA-Z0-9_!#$%&*+/=?{|}~^.-]', '-', self.userinfo['sub'])
+
+        if sub != self.userinfo['sub']:
+            logger.warning("Subject '{}' changed to '{}' for BWIDM compatibilty".format(
+                self.userinfo['sub'], sub))
+
+        return sub
+
+    def _iss_masked_for_bwidm_eppn(self):
+        stripped_iss = regex.sub('^https?://', '', self.userinfo['iss'])
+        iss = regex.sub('[^a-zA-Z0-9.-]', '-', stripped_iss)
+
+        # We don't consider stripping the http[s]-prefix a change, since we always do that anyway,
+        # and there shouldn't be two different issuers `http://example.org' and `https://example.org'.
+        if iss != stripped_iss:
+            logger.warning("Issuer '{}' changed to '{}' for BWIDM compatibilty".format(
+                stripped_iss, iss))
+
+        return iss
+
+    @property
+    @lru_cache(maxsize=None)
+    def username(self, allow_question=True):
+        return self.value_or_ask(
+            self.userinfo.get('preferred_username'), 'username',
+            'You have not set a global username preference. Please enter your preferred username.',
+            allow_question
+        )
+
+    @property
+    @lru_cache(maxsize=None)
+    def email(self, allow_question=True):
+        return self.userinfo['email']
+
+    @property
+    @lru_cache(maxsize=None)
+    def given_name(self, allow_question=True):
+        return (self.userinfo.get('given_name')
+                or ' '.join(self.userinfo['name'].split(' ')[:-1]))
+
+    @property
+    @lru_cache(maxsize=None)
+    def family_name(self, allow_question=True):
+        return (self.userinfo.get('family_name')
+                or self.userinfo.get('sn')
+                or self.userinfo['name'].split(' ')[-1])
+
+    @property
+    @lru_cache(maxsize=None)
+    def full_name(self, allow_question=True):
+        return (self.userinfo.get('name')
+                or ' '.join(filter(None, [given_name, family_name])))
+
+    @property
+    @lru_cache(maxsize=None)
+    def ssh_keys(self, allow_question=True):
+        return self.credentials.get('ssh_key', [])
+
+    @property
+    @lru_cache(maxsize=None)
+    def entitlement(self, allow_question=True):
+        return EduPersonEntitlement(self.userinfo['eduperson_entitlement'])
+
+    @property
+    @lru_cache(maxsize=None)
+    def groups(self, allow_question=True):
+        return [self._group_masked_for_bwidm(grp) for grp in [self.entitlement.group] + self.entitlement.subgroups]
+
+    def _group_masked_for_bwidm(self, orig_grp):
+        grp = orig_grp
+
+        # First char has to be [a-z]
+        grp = regex.sub('^[A-Z]', lambda m: m.group(0).lower(), grp)
+        grp = regex.sub('^[-_]*', '', grp)
+        grp = regex.sub('^0', 'zero_', grp)
+        grp = regex.sub('^1', 'one_', grp)
+        grp = regex.sub('^2', 'two_', grp)
+        grp = regex.sub('^3', 'three_', grp)
+        grp = regex.sub('^4', 'four_', grp)
+        grp = regex.sub('^5', 'five_', grp)
+        grp = regex.sub('^6', 'six_', grp)
+        grp = regex.sub('^7', 'seven_', grp)
+        grp = regex.sub('^8', 'eight_', grp)
+        grp = regex.sub('^9', 'nine_', grp)
+        grp = regex.sub('^[^a-z]', 'bwidm_\0', grp)
+
+        # camelCase to snake_case
+        grp = regex.sub('([a-z])([A-Z])', lambda m: '{}_{}'.format(m.group(1), m.group(2).lower()), grp)
+
+        # Catch remaining chars
+        grp = regex.sub('[^a-z0-9-_]', '-', grp)
+
+        if grp != orig_grp:
+            logger.warning("Group name '{}' changed to '{}' for BWIDM compatibilty".format(orig_grp, grp))
+
+        return grp
+
+    @property
+    @lru_cache(maxsize=None)
+    def assurance(self, allow_question=True):
+        return EduPersonAssurance(self.userinfo['eduperson_assurance'])
+
+    def value_or_ask(self, value, answer_name, question_text, allow_question):
+        return (self.answers.get(answer_name)
+                or value
+                or (allow_question and raise_question(
+                    name=answer_name,
+                    text=question_text
+                )))
+
+
+    def __str__(self):
+        attrs = ("{} = {}".format(k, getattr(UserInfo, k).fget(self, allow_question=False)) for k in iter(self))
+
+        return "<UserInfo\n{}\n>".format("\n".join("\t{}".format(attr) for attr in attrs))
+
+    def __getitem__(self, key):
+        return getattr(self, key, lambda: (_ for _ in ()).throw(KeyError(key)))
+
+    def __iter__(self):
+        return (k for k in dir(UserInfo) if type(getattr(UserInfo, k)) is property)
+
+    def __len__(self, allow_questions=True):
+        sum(1 for _ in filter(lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo)))
+
+    def __hash__(self):
+        return id(self) # Good enough for lru_cache
+
+class EduPersonEntitlement:
+    # This regex is not compatible with stdlib 're', we need 'regex'!
+    # (because of repeated captures, see https://bugs.python.org/issue7132)
+    re = regex.compile(
+        r'urn:' +
+           r'(?P<nid>[^:]+):(?P<delegated_namespace>[^:]+)' +     # Namespace-ID and delegated URN namespace
+           r'(:(?P<subnamespace>[^:]+))*?' +                      # Sub-namespaces
+        r':group:' +
+           r'(?P<group>[^:]+)' +                                  # Root group
+           r'(:(?P<subgroup>[^:]+))*?' +                          # Sub-groups
+           r'(:role=(?P<role>.+))?' +                             # Role of the user in the deepest group
+        r'#(?P<group_authority>.+)'                               # Authoritative soruce of the entitlement (URN)
+    )
+
+    def __init__(self, raw):
+        match = self.re.fullmatch(raw)
+
+        if not match:
+            raise Failure(message="Failed to parse entitlements attribute")
+
+        logger.debug("Parsing entitlement attribute: {}".format(match.capturesdict()))
+        try:
+            [self.namespace_id] = match.captures('nid')
+            [self.delegated_namespace] = match.captures('delegated_namespace')
+            self.subnamespaces = match.captures('subnamespace')
+
+            [self.group] = match.captures('group')
+            self.subgroups = match.captures('subgroup')
+            [self.role] = match.captures('role') or [None]
+
+            [self.group_authority] = match.captures('group_authority')
+        except ValueError:
+            raise Failure(message="Failed to parse entitlements attribute")
+
+    def __repr__(self):
+        return ((
+            'urn:{namespace_id}:{delegated_namespace}{subnamespaces}' +
+            ':group:{group}{subgroups}{role}' +
+            '#{group_authority}'
+        ).format(**{
+            **self.__dict__, **{
+                'subnamespaces': ''.join([':{}'.format(ns) for ns in self.subnamespaces]),
+                'subgroups': ''.join([':{}'.format(grp) for grp in self.subgroups]),
+                'role': ':role={}'.format(self.role) if self.role else ''
+        }}))
+
+    def __str__(self):
+        return ((
+            '<EduPersonEntitlement' +
+            ' namespace={namespace_id}:{delegated_namespace}{subnamespaces}' +
+            ' group={group}{subgroups}' +
+            '{role}' +
+            ' auth={group_authority}>'
+        ).format(**{
+            **self.__dict__, **{
+                'subnamespaces': ''.join([',{}'.format(ns) for ns in self.subnamespaces]),
+                'subgroups': ''.join([',{}'.format(grp) for grp in self.subgroups]),
+                'role': ' role={}'.format(self.role) if self.role else ''
+        }}))
+
+class EduPersonAssurance:
+    def __init__(self, level):
+        self.level = level
+
+    def is_accepted(self):
+        try:
+            accepted_levels = [lvl.strip() for lvl in CONFIG['assurance']['accepted_levels'].split(',')]
+        except KeyError:
+            accepted_levels = None
+
+        accepted_level_regex = regex.compile(CONFIG['assurance'].get('accepted_level_regex', '.*'))
+
+        accepted = True
+
+        if not self.level:
+            logger.warning("No assurance level provided. Rejecting.")
+            accepted = False
+
+        if accepted_levels is not None and self.level not in accepted_levels:
+            logger.warning("Assurance level '{}' is not one of {}. Rejecting.".format(self.level, accepted_levels))
+            accepted = False
+
+        if not accepted_level_regex.match(self.level):
+            logger.warning("Assurance level '{}' does not match {}. Rejecting.".format(self.level, accepted_level_regex))
+            accepted = False
+
+        return accepted
+
+    def __str__(self):
+        return ('<EduPersonAssurance level={}>'.format(self.level))
+
+
+### Utils
+def dictdiff(old, new):
+    def _dictdiff(old, new):
+        for k in new:
+            if isinstance(new.get(k), dict) and isinstance(old.get(k), dict):
+                subdiff = dict(_dictdiff(old[k], new[k]))
+                if subdiff:
+                    yield (k, subdiff)
+            elif old.get(k) != new.get(k):
+                yield (k, (old.get(k), new.get(k)))
+
+    return dict(_dictdiff(old, new))
+
+def log_dictdiff(diff, prefix=''):
+    for k,v in diff.items():
+        if isinstance(v, dict):
+            log_dictdiff(v, "{}/".format(k))
+        else:
+            (old, new) = v
+            if old:
+                logger.info("Updating {}{} from '{}' to '{}'".format(prefix, k, old, new))
+            else:
+                logger.info("Setting {}{} to '{}'".format(prefix, k, new))
+
+def dictmerge(lhs, rhs, verbose=False):
+    res = copy.deepcopy(lhs)
+    for k in rhs:
+        if isinstance(rhs[k], dict) and k in res and isinstance(res[k], dict):
+            res[k] = dictmerge(res[k], rhs[k])
+        else:
+            res[k] = rhs[k]
+
+    if verbose:
+        log_dictdiff(dictdiff(lhs, res))
+
+    return res
+
+
+### Globals
+logger.basicConfig(
+    level=os.environ.get("LOG", "INFO"),
+    format='%(asctime)s [%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
+)
+
+CONFIG = ConfigParser()
+files = []
+filename = os.environ.get("LDF_ADAPTER_CONFIG")
+if filename:
+    files += [Path(filename)]
+files += [Path('ldf_adapter.conf'), Path.home()/'.config'/'ldf_adapter.conf', Path('/')/'etc'/'ldf_adapter.conf']
+CONFIG.read(files)
+
+BWIDM = BwIdmConnection(CONFIG)
+
+BACKENDS = {
+    'local_unix': (UnixUser, UnixGroup),
+    'bwidm': (BwIdmUser, BwIdmGroup),
+}
+def backend(what):
+    conf = BACKENDS[CONFIG['ldf_adapter']['backend']]
+    if what == 'user':
+        return conf[0]
+    elif what == 'group':
+        return conf[1]
+    else:
+        raise ValueError
+
 
 if __name__ == "__main__":
-    (state, message, credentials) = main()
-    logging.debug('state: %s' % state)
-    if credentials != "":
-        return_json = '{"state": "%s", "message": "%s", "credentials": %s}' % (state, message, credentials)
+    data = json.load(sys.stdin)
+    info = UserInfo(data)
+    logger.debug("Using {}".format(info))
+
+    logger.debug("Attempting to reach state '{state_target}' for user '{full_name}'".format(**data, **info))
+
+    try:
+        result = main(data['state_target'], User(info)).attributes
+    except ExceptionalResult as result:
+        result = result.attributes
+        logger.debug("Reached state '{state}': {message}".format(**result))
+        json.dump(result, sys.stdout)
     else:
-        return_json = '{"state": "%s", "message": %s}' % (state, json.dumps(message))
-    logging.debug('return_json: >>%s<<' % return_json)
-    print (return_json)
+        logger.debug("Reached state '{state}': {message}".format(**result))
+        json.dump(result, sys.stdout)
