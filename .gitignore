@@ -10,3 +10,5 @@ ssh-key-retriever/ssh-key-retriever
 luca
 __pycache__/
 *.pyc
+*.egg-info
+/dist
