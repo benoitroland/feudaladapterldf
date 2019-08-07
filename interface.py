@@ -23,7 +23,18 @@ from urllib.parse import urljoin
 
 ### Result types
 class Result:
+    """A Result returned by the adapter to the feudalClient.
+
+    Serialized to JSON as the final act of this script.
+    """
+
     def __init__(self, state, message):
+        """Called by subclasses, usually not directly.
+
+        Arguments:
+        state -- The state that was reached. One of 'deployed', 'not_deployed', 'failure' and 'rejected' (see subclasses below).
+        message -- Displayed to the user in the feudalClient webinterface.
+        """
         self.state = state
         self.message = message
 
@@ -34,46 +45,100 @@ class Result:
 
 ## Sucessful
 class Success(Result):
+    """Indicates a successful result (i.e. user was deployed or undeployed)."""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
 class Deployed(Success):
+    """Indicates that the user was successfully deployed to the service."""
     def __init__(self, credentials, **kwargs):
+        """Initialises this Result with a state of 'deployed'.
+
+        Arguments:
+        credentials -- A dictionary displayed to the user in the feudalClient webinterface.
+        **kwargs -- Any additional keyword arguments are passed to Success.__init__
+        """
         super().__init__(state='deployed', **kwargs)
         self.credentials = credentials
 
 class NotDeployed(Success):
+    """Indicates that the user was successfully undeployed from the service."""
     def __init__(self, **kwargs):
         super().__init__(state='not_deployed', **kwargs)
 
 
 ## Exceptional (Error or Questionnaire)
 class ExceptionalResult(Result, Exception):
+    """Raise a subclass of this to abort and directly return this Result to the feudalClient"""
     pass
 
 class Failure(ExceptionalResult):
+    """Indicates a failure in attempting to deploy/undeploy the user.
+
+    The previous state should be retained, but might also be inconsistent
+    """
     def __init__(self, **kwargs):
         super().__init__(state='failed', **kwargs)
 
 class Rejection(ExceptionalResult):
+    """Indicates that the user is not allowed to access the requested resource.
+
+    A reason for this might be an insufficient assurance level.
+    """
     def __init__(self, **kwargs):
         super().__init__(state='rejected', **kwargs)
 
 class Questionnaire(ExceptionalResult):
+    """Additional information is needed to reach the desired state.
+
+    Usually, this is raised during deployment to get additional
+    information.  The feudalClient then calls this script again with
+    an additional object under the key 'answers' in the
+    input dictionary. This can be accessed from within the UserInfo
+    class (see below).
+
+    Can be used to ask multiple questions at once.
+
+    Arguments:
+    questions -- A Dictionary of `{name: text, ...}` questions. The text is the question
+                 displayed to the user in the feudalClient webinterface. The answer
+                 submitted by the user can then be found under the key `name` in the
+                 answers dictionary.
+    **kwargs -- Any additional keyword arguments ar passed to ExceptionalResult.__init__
+    """
     def __init__(self, questions, **kwargs):
          super().__init__(state='questionnaire', message='There are unanswered questions.', **kwargs)
          self.questionnaire = questions
 
 class Question(Questionnaire):
+    """Convenience class to ask a single question."""
     def __init__(self, name, text, **kwargs):
-         super().__init__(questions={name: text}, **kwargs)
+        """See Questionaire.__init__ for details.
+
+        Arguments:
+        name -- The name of the question
+        text -- Displayed to the user
+        **kwargs -- Any additional keyword arguments are passed to Questionaire.__init__
+        """
+        super().__init__(questions={name: text}, **kwargs)
 
 def raise_question(*args, **kwarsg):
+    """Convenice function needed in places where an expression is required.
+
+    E.g: `userinfo.get_value() or raise Question(...)` is not valid,
+    but `userinfo.get_value() or raise_question(...)` is.
+    """
     raise Question(*args, **kwargs)
 
 
 ### Core logic
 def main(state_target, user):
+    """Attempt to put the user into the desired state on the configured service.
+
+    Arguments:
+    state_target -- The desired state. One of 'deployed' and 'not_deployed'.
+    user -- The user to be deployed/undeployed (type: User)
+    """
     if not user.data.assurance.is_accepted():
         raise Rejection(message="Your assurance level is insufficient to access this resource")
 
@@ -85,12 +150,34 @@ def main(state_target, user):
         raise Failure(message="[BUG] Invalid target state: {}".format(state_target))
 
 class User:
+    """Represents a user, abstracting from the concrete service.
+
+    An abstract User is backed by a service_user and is associated with a set of groups (backed by
+    service_groups).
+
+    A user is usually identified on the service not by a username but by `self.data.unique_id` (see
+    __init__ for details).
+    """
     def __init__(self, data):
+        """
+        Arguments:
+        data -- Information about the user (type: UserInfo)
+
+        Relevant config:
+        ldf_adapter.backend -- The name of the backend. See function the `backend` for possible values
+        """
         self.data = data
         self.service_user = backend('user')(data)
         self.service_groups = [backend('group')(grp) for grp in data.groups]
 
     def deploy(self):
+        """Deploy the user.
+
+        Ensure that the user exists, is a member in the right groups (and only in those groups)
+        and has the correct credentials installed.
+
+        Return a Deployed result, with a message describing what was done.
+        """
         was_created = self.ensure_exists()
         new_groups = self.ensure_group_memberships()
         new_credentials = self.ensure_credentials_active()
@@ -112,6 +199,10 @@ class User:
         return Deployed(credentials=self.credentials, message=what_changed)
 
     def undeploy(self):
+        """Ensure that the user dosen't exist.
+
+        Return a NotDeployed result with a message saying if the user previously existed.
+        """
         was_removed = self.ensure_dosent_exist()
 
         what_changed = ''
@@ -123,6 +214,16 @@ class User:
         return NotDeployed(message=what_changed)
 
     def ensure_exists(self):
+        """Ensure that the user exists on the service.
+
+        If the username is already taken on the service, raise a questionaire for a new one. See
+        UserInfo.username for details.
+
+        Also ensure that all info about the user is up to date on the service. This is done
+        independently of creating the user, so that the user is updated even if they already existed.
+
+        Return True, if the user didn't exist before.
+        """
         if self.service_user.exists():
             logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
             created = False
@@ -143,6 +244,12 @@ class User:
         return created
 
     def ensure_dosent_exist(self):
+        """Ensure that the user doesn't exist.
+
+        Before deleting them, uninstall all SSH keys, to be sure that they are really gone.
+
+        Return True, if the user existed before.
+        """
         if self.service_user.exists():
             logger.info('Deleting user {username} of {unique_id}'.format(**self.data))
             self.service_user.uninstall_ssh_keys()
@@ -153,6 +260,12 @@ class User:
             return False
 
     def ensure_group_memberships(self):
+        """Ensure that the user is a member of all the groups in self.service_groups.
+
+        Create the groups on the service, if necessary.
+
+        Return the names of all groups the user is now a member of.
+        """
         for group in filter(lambda grp: not grp.exists(), self.service_groups):
             logger.info("Creating group {}".format(group.name))
             group.create()
@@ -161,12 +274,26 @@ class User:
         return [grp.name for grp in self.service_groups]
 
     def ensure_credentials_active(self):
-        # Currently, only SSH keys are supported
+        """Install all SSH Keys on the service.
+
+        Return a list of the names/ids of all the keys now active.
+        """
         self.service_user.install_ssh_keys([key['value'] for key in self.data.ssh_keys])
-        return ["SSH key {name}/{id}".format(**key) for key in self.data.ssh_keys]
+        return ["ssh_key:{name}/{id}".format(**key) for key in self.data.ssh_keys]
 
     @property
     def credentials(self):
+        """The Credentials displayed to the user.
+
+        Simply merges all the credentials provided by the service_user with those configured for
+        the backend in the config file.
+
+        See Deployed.__init__ for details on how this value is used.
+
+        Relevant config:
+        ldf_adapter.backend -- The backend to be used
+        backend.{}.login_info -- Everything in this section is merged into the credentials dictionary.
+        """
         return {
             **self.service_user.credentials,
             **CONFIG['backend.{}.login_info'.format(CONFIG['ldf_adapter']['backend'])]
