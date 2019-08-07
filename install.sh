@@ -12,5 +12,5 @@ test -d pyve || {
 . pyve/bin/activate
 pip install --upgrade pip
 
-pip install configargparse requests simplejson
+pip install -r devel-requirements.txt
 #export PATH=`pwd`/pyve/bin:PATH
