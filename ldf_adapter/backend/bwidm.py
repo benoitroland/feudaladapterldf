@@ -1,3 +1,9 @@
+"""
+BWIDM backend.
+
+See https://git.scc.kit.edu/simon/reg-app.
+"""
+
 import logging
 import json
 from functools import reduce
@@ -11,6 +17,7 @@ from .. import utils
 logger = logging.getLogger(__name__)
 
 class BwIdmConnection:
+    """Connection to the BWIDM API."""
     def __init__(self, config=None):
         self.session = requests.Session()
         if config:
@@ -26,6 +33,14 @@ class BwIdmConnection:
         return self._request('POST', url_fragments, **kwargs)
 
     def _request(self, method, url_fragments, **kwargs):
+        """
+        Arguments:
+        method -- HTTP Method (type: str)
+        url_fragments -- The components of the URL. Each is url-encoded separately and then they are
+                         joined with '/'
+        fail=True -- Raise exception on non-200 HTTP status
+        **kwargs -- Passed to `requests.Request.__init__`
+        """
         fail = kwargs.pop('fail', True)
 
         url_fragments = map(str, url_fragments)
@@ -57,6 +72,9 @@ class User:
         self.credentials = {}
 
     def exists(self):
+        """
+        Inactive users ('ON_HOLD') are treated as nonexistent.
+        """
         return self._exists() and self._is_active()
 
     def _exists(self):
@@ -74,6 +92,10 @@ class User:
         return status == self.VALUE_USER_ACTIVE
 
     def name_taken(self):
+        """
+        If there is a user for our unique_id with our username, treat the name as available. This
+        might happen if the our user is ON_HOLD on the service.
+        """
         users_with_name = BWIDM.get(
             'external-user', 'find',
             'attribute', self.ATTR_USERNAME, self.info.username
@@ -86,6 +108,7 @@ class User:
         return bool(other_users_with_name)
 
     def create(self):
+        """Create or activate user."""
         if self._exists() and not self._is_active():
             logger.info("Activating user {unique_id}".format(**self.info))
             BWIDM.get('external-user', 'activate', 'externalId', self.info.unique_id)
@@ -118,6 +141,7 @@ class User:
         self.credentials['login_name'] = rsp.json()['registryValues']['localUid']
 
     def delete(self):
+        """Only deactivate, don't delete (deletion is not supported by BWIDM)."""
         BWIDM.get('external-user', 'deactivate', 'externalId', self.info.unique_id)
 
     def mod(self, supplementary_groups=None):
@@ -157,18 +181,26 @@ class User:
         })
 
     def uninstall_ssh_keys(self):
+        """Uninstall any SSH keys stored in BWIDM."""
         self.external_user_update({
             'externalId': self.info.unique_id,
             'genericStore': {'ssh_key': None}
         })
 
-    # {..., k: val, ...} means `state[k] = val`
-    # {..., k: None, ...} means `del state[k]` or `state[k]=None`
-    # {..., k: {}, ...} means no change to k
-    # {..., k: val={...}, ...} means `state[k]=merge state[k] with val`
-    #
-    # This is applied recursivly.
     def external_user_update(self, state_updates):
+        """Apply new attributes to the user, performing sensible merging of dicts.
+
+        BWIDM is a bit weird about this, due to technical restrictions in the Java-Software stack.
+
+        This comes down to:
+        {..., k: val, ...} means `state[k] = val`
+        {..., k: None, ...} means `del state[k]` or `state[k]=None`
+        {..., k: {}, ...} means no change to k
+        {..., k: val={...}, ...} means `state[k]=merge state[k] with val`
+
+        This is applied recursivly.
+
+        """
         current_state = self.reg_info()
         new_state = utils.dictmerge(current_state, state_updates)
         utils.log_dictdiff(utils.dictdiff(current_state, new_state),

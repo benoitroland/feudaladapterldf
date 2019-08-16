@@ -1,3 +1,7 @@
+"""
+Manages a user and groups via standard UNIX shadow-utils(8).
+"""
+
 import subprocess
 from subprocess import CalledProcessError
 from pathlib import Path
@@ -11,13 +15,10 @@ from ..results import Failure
 logger = logging.getLogger(__name__)
 
 class User:
-    """Manages a user via standard UNIX shadow-utils(8)."""
-
     def __init__(self, userinfo):
         """
         Arguments:
-        userinfo -- Info about the User (type: UserInfo). Only the attributes `username` (which is
-                    passed through `make_shadow_compatible`), `unique_id` and `ssh_keys` are used.
+        userinfo -- Only the attributes `username` (which is passed through `make_shadow_compatible`), `unique_id` and `ssh_keys` are used.
         """
         self.name = make_shadow_compatible(userinfo.username)
         self.unique_id = userinfo.unique_id
@@ -75,6 +76,7 @@ class User:
             raise Failure(message='Could not write new ssh keys')
 
     def uninstall_ssh_keys(self):
+        """Remove any SSH keys stored in the users .authorized_keys file."""
         try:
             self.__authorized_keys.unlink()
         except FileNotFoundError:
@@ -161,10 +163,14 @@ class Group:
 
 
 def make_shadow_compatible(orig_word):
-    """Ensure that orig_word is a valid user/group name for standard shadow-utils.
+    """Ensure that orig_word is a valid user/group name for standard shadow utils.
 
     While this could in theory be achived by simply substituting all non-allowed chars with a valid
-    one, we try to translitare sensibly, so that usernames look nicer and to avoid collisions.
+    one, we try to translitare sensibly, so that usernames look nicer and to avoid collisions. See
+    inline comments for further details.
+
+    Any change made to the word is logged with level WARNING.
+
     """
     # Sinvoll Umlaute kodieren
     word = orig_word.translate(str.maketrans({

@@ -183,7 +183,32 @@ class User:
 
 ### Data preprocessing
 class UserInfo(Mapping):
+    """Information about the user.
+
+    This serves as a wrapper around the plain userinfo-dict passed to us by FEUDAL, exposing only
+    the required information. Provides reconstruction of attributes in case of missing information
+    in the userinfo-dict (if possible), homogenisation of the values by mapping them (non-
+    bijectively!) to reduced character ranges, without lobotomizing the original input to much, as
+    this risks collisions.
+
+    E.g., everything returned by this is compatible with BWIDM, but not necessarily with UNIX
+    shadow-utils(7), as the latter has very strict requiremnts which probably one does not want to
+    apply to all services. This, if your backend has stricter requirements, you need to perform
+    further homogenisation on your own.
+
+    Any change made to values is logged with level WARNING.
+
+    The values are exposed as properties, calculated lazily only when needed (they are cached
+    however).  Any instance can also be used as a dict, i.e. `userinfo.foo == userinfo['foo']`.
+
+    All properties (when called as a function) take an optional boolean `allow_question`, indicating
+    whether it should be allowed to raise a `Questionaire` if needed.
+    """
     def __init__(self, data):
+        """
+        Arguments:
+        data -- Input as recieved by FEUDAL
+        """
         self.userinfo = data['user']['userinfo']
         self.answers = data.get('answers', {})
         self.credentials = data['user'].get('credentials', {})
@@ -191,12 +216,28 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def unique_id(self, allow_question=True):
+        """Globally and uniquely identifies the user.
+
+        At least almost. Due to homogenisations, there might be collisions. E.g. the following users
+        are all indistinguishable:
+
+        klammer(affe)@https://example.org/oauth-2
+        klammer(affe)@https://example.org/oauth/2
+        klammer-affe-@https://example.org/oauth-2
+        klammer(affe)@http://example.org-oauth-2
+        klammer-affe-@example.org-oauth-2
+        """
         return '{sub}@{iss}'.format(
             sub=self._sub_masked_for_bwidm_eppn(),
             iss=self._iss_masked_for_bwidm_eppn()
         )
 
     def _sub_masked_for_bwidm_eppn(self):
+        """Replace invalid characters with a dash ('-').
+
+        Usually subjects are only numbers and ascii-chars separeted by dashes, so this should not be
+        much of a problem.
+        """
         sub = regex.sub('[^a-zA-Z0-9_!#$%&*+/=?{|}~^.-]', '-', self.userinfo['sub'])
 
         if sub != self.userinfo['sub']:
@@ -206,6 +247,12 @@ class UserInfo(Mapping):
         return sub
 
     def _iss_masked_for_bwidm_eppn(self):
+        """Strip URI-scheme, transliterate to ASCII and replace invalid characters with a dash ('-').
+
+        Usually there is only one issuer per FQDN (which is mostly left untouched, apart from
+        transliteration, since most FQDNS consist only of alphanumerics, dashes and dots), so this
+        should not be much of a problem.
+        """
         stripped_iss = regex.sub('^https?://', '', self.userinfo['iss'])
         iss = unidecode(stripped_iss)
         iss = regex.sub('[^a-zA-Z0-9.-]', '-', stripped_iss)
@@ -221,6 +268,7 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def username(self, allow_question=True):
+        """Return the user's preferred username, or ask for one if none was provided."""
         return self.value_or_ask(
             self.userinfo.get('preferred_username'), 'username',
             'You have not set a global username preference. Please enter your preferred username.',
@@ -230,17 +278,20 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def email(self, allow_question=True):
+        """Return the user's E-Mail Address."""
         return self.userinfo['email']
 
     @property
     @lru_cache(maxsize=None)
     def given_name(self, allow_question=True):
+        """Return the user's given name. If none is provided, try to extract it from the full name."""
         return (self.userinfo.get('given_name')
                 or ' '.join(self.userinfo['name'].split(' ')[:-1]))
 
     @property
     @lru_cache(maxsize=None)
     def family_name(self, allow_question=True):
+        """Return the user's family name. If none is provided, try to extract it from the full name."""
         return (self.userinfo.get('family_name')
                 or self.userinfo.get('sn')
                 or self.userinfo['name'].split(' ')[-1])
@@ -248,25 +299,33 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def full_name(self, allow_question=True):
+        """Return the user's full name. If none is provided, try to assemple it from the first and given name."""
         return (self.userinfo.get('name')
                 or ' '.join(filter(None, [given_name, family_name])))
 
     @property
     @lru_cache(maxsize=None)
     def ssh_keys(self, allow_question=True):
+        """Return the user's SSH keys."""
         return self.credentials.get('ssh_key', [])
 
     @property
     @lru_cache(maxsize=None)
     def entitlement(self, allow_question=True):
+        """Return the parsed entitlement attribute of the user. See `EduPersonEntitlement` for details."""
         return EduPersonEntitlement(self.userinfo['eduperson_entitlement'])
 
     @property
     @lru_cache(maxsize=None)
     def groups(self, allow_question=True):
+        """Return the homogenised names of the groups the user should be a member of.
+
+        These are extracted from the entitlement. Any additional 'group'-keys in the input are ignored.
+        """
         return [self._group_masked_for_bwidm(grp) for grp in [self.entitlement.group] + self.entitlement.subgroups]
 
     def _group_masked_for_bwidm(self, orig_grp):
+        """Convert camelCase to snake_case, fixup beginning of name and replace invalid chars with a dash ('-')"""
         grp = orig_grp
 
         # First char has to be [a-z]
@@ -298,9 +357,11 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def assurance(self, allow_question=True):
+        """Return the assurance level of the user. See `EduPersonAssurance` for details"""
         return EduPersonAssurance(self.userinfo['eduperson_assurance'])
 
     def value_or_ask(self, value, answer_name, question_text, allow_question):
+        """Return the submitted answer, the default value or raise a questionaire."""
         return (self.answers.get(answer_name)
                 or value
                 or (allow_question and raise_question(
@@ -327,6 +388,11 @@ class UserInfo(Mapping):
         return id(self) # Good enough for lru_cache
 
 class EduPersonEntitlement:
+    """EduPerson Entitlement attribute (de-)serialisation.
+
+    As specified in: https://aarc-project.eu/guidelines/aarc-g002/
+    """
+
     # This regex is not compatible with stdlib 're', we need 'regex'!
     # (because of repeated captures, see https://bugs.python.org/issue7132)
     re = regex.compile(
@@ -341,6 +407,7 @@ class EduPersonEntitlement:
     )
 
     def __init__(self, raw):
+        """Parse a raw EduPerson entitlement string in the AARC-G002 format."""
         match = self.re.fullmatch(raw)
 
         if not match:
@@ -361,6 +428,11 @@ class EduPersonEntitlement:
             raise Failure(message="Failed to parse entitlements attribute")
 
     def __repr__(self):
+        """Serialize the entitlement to the AARC-G002 format.
+
+        This is the inverse to `__init__` and thus `ent_str == repr(EduPersonEntitlement(ent_str))`
+        holds for any valid entitlement.
+        """
         return ((
             'urn:{namespace_id}:{delegated_namespace}{subnamespaces}' +
             ':group:{group}{subgroups}{role}' +
@@ -373,6 +445,7 @@ class EduPersonEntitlement:
         }}))
 
     def __str__(self):
+        """Return the entitlement in human-readable string form."""
         return ((
             '<EduPersonEntitlement' +
             ' namespace={namespace_id}:{delegated_namespace}{subnamespaces}' +
@@ -387,10 +460,31 @@ class EduPersonEntitlement:
         }}))
 
 class EduPersonAssurance:
+    """EduPerson assurance management.
+
+    This is currently only a dummy implementation, verifying the assurance level against a
+    preconfigured set of assurances.
+    """
     def __init__(self, level):
+        """
+        Arguments:
+        level -- The raw assurance level
+        """
         self.level = level
 
     def is_accepted(self):
+        """Return whether the assurance level should be accepted.
+
+        The level has to be included in the list of accepted levels (if provided) AND be matched by
+        the level regex (if provided).  A level of `None` is always rejected.  If the list of
+        accepted levels is provided but empty, no level is accepted.
+
+        Unacceptable levels are logged at level WARNING.
+
+        Relevant config:
+        assurance.accepted_levles -- A comma-separated list of accepted levels (type: list)
+        assurance.accepted_level_regex -- A `regex`-compatible regex matching the accepted levels (type: str)
+        """
         try:
             accepted_levels = [lvl.strip() for lvl in CONFIG['assurance']['accepted_levels'].split(',')]
         except KeyError:
