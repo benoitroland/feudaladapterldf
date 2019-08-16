@@ -5,6 +5,7 @@ from collections import Mapping
 from functools import lru_cache
 
 import regex
+from unidecode import unidecode
 
 from . import backend
 from .config import CONFIG
@@ -206,6 +207,7 @@ class UserInfo(Mapping):
 
     def _iss_masked_for_bwidm_eppn(self):
         stripped_iss = regex.sub('^https?://', '', self.userinfo['iss'])
+        iss = unidecode(stripped_iss)
         iss = regex.sub('[^a-zA-Z0-9.-]', '-', stripped_iss)
 
         # We don't consider stripping the http[s]-prefix a change, since we always do that anyway,
