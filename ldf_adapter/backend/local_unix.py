@@ -17,10 +17,11 @@ class User:
         """
         Arguments:
         userinfo -- Info about the User (type: UserInfo). Only the attributes `username` (which is
-                    passed through `make_shadow_compatible`) and `unique_id` are used.
+                    passed through `make_shadow_compatible`), `unique_id` and `ssh_keys` are used.
         """
         self.name = make_shadow_compatible(userinfo.username)
         self.unique_id = userinfo.unique_id
+        self.ssh_keys = [key['value'] for key in userinfo.ssh_keys]
 
     def exists(self):
         return bool(self.__passwd_entry)
@@ -65,11 +66,10 @@ class User:
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
             raise Failure(message='Cannot modify user')
 
-
-    def install_ssh_keys(self, keys):
+    def install_ssh_keys(self):
         try:
             self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
-            self.__authorized_keys.write_text("\n".join(keys))
+            self.__authorized_keys.write_text("\n".join(self.ssh_keys))
         except IOError as e:
             logger.error(e)
             raise Failure(message='Could not write new ssh keys')
@@ -83,7 +83,6 @@ class User:
     @property
     def __authorized_keys(self):
         return Path(self.__passwd_entry['home'])/'.ssh'/'authorized_keys'
-
 
     @property
     def credentials(self):

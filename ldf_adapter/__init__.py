@@ -158,8 +158,8 @@ class User:
 
         Return a list of the names/ids of all the keys now active.
         """
-        self.service_user.install_ssh_keys([key['value'] for key in self.data.ssh_keys])
-        return ["ssh_key:{name}/{id}".format(**key) for key in self.data.ssh_keys]
+        self.service_user.install_ssh_keys()
+        return ["ssh:{name}/{id}".format(**key) for key in self.data.ssh_keys]
 
     @property
     def credentials(self):

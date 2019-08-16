@@ -147,7 +147,7 @@ class User:
             for grp in to_be_added_to:
                 BWIDM.get('group-admin', 'add', 'groupId', grp['id'], 'userId', reg_info['id'])
 
-    def install_ssh_keys(self, keys):
+    def install_ssh_keys(self):
         self.external_user_update({
             'externalId': self.info.unique_id,
             'genericStore': {
