@@ -1,7 +1,86 @@
-# fum-ldf-interface
+# FEUDAL Client Adapter
 
-This code implements the adaptor for FEUDAL to communicate to hte LDAP
-facede.
+This code implements the adapter for FEUDAL to communicate with various services, called "backends".
+
+Distributed with the adapter are backends for [BWIDM](ldf_adapter/backend/bwidm.py) and [UNIX](ldf_adapter/backend/local_unix.py).
+
+## Usage
+### Installation
+- Install [feudalClient](https://git.scc.kit.edu/feudal/feudalClient)
+- Build package: `./setup.py sdist`
+- Install package: `pip install dist/ldf_adapter-$version.tar.gz`
+- Edit the FEUDAL Client config file (e.g. `~/.config/feudal/client.json`) to include:
+   ```js
+   {
+       "services": {
+           "suppe": {
+               "name": "Der ADAPTER",
+               "description": "Er ist sehr gut",
+               "command": "ldf_adapter"
+           }
+       },
+   }
+   ```
+
+### Configuration
+See [config.py:reload](ldf_adapter/config.py) for a list of config file locations.
+
+The config file contains both the generic config, as well as for specific backends.
+
+An example config file explaining the options can be found in [ldf_adapter.conf](ldf_adapter.conf)
+
+### Running
+Lastly, simply start the FEUDAL client:
+
+```sh
+feudalClient -c ~/.config/feudal/client.json
+```
+
+### Further help
+If you encounter problem, you can find information about the behaviour of the adapter and the backends in the rather verbose inline doc. Just take a look at the inline doc. The [ldf_adapter Module](ldf_adapter/__init__.py) is probably a good starting point, or the [backend Module](ldf_adapter/backend).
+
+## Development
+For Documentation, just take a look at the inline doc.
+
+To get started, run `pip install -r devel-requirements.txt` (you probably want to do this inside a virtualenv).
+
+Then, set the command of the service in feudalClients `client.json` to the full path to [interface.py](interface.py) inside your cloned repo.
+
+For debugging, run the feudalClient with:
+
+```sh
+LOG=DEBUG feudalClient -c ~/.config/feudal/client.json --debug-scripts
+```
+
+### Backends
+Backends are simply python modules. There is an [example backend](ldf_adapter/backend/example.py) explaining what the module needs to implement.
+To create a new backend named `my_backend`:
+
+```sh
+cd ldf_adapter/backend
+cp example.py my_backend.py
+```
+
+And fill out the methods in the classes in `my_backend.py` (don't rename the classes!).
+
+Then, you can activate the module using
+
+```conf
+[ldf_adapter]
+backend = my_backend
+
+[ldf_adapter.my_backend]
+foo = bar
+# Configuration for your backend goes here
+
+[ldf_adapter.my_backend.login_info]
+login_host = example.org
+login_help = To login, ask your mama for help.
+# Here goes a bunch of arbitrary static information to be included in the credentials section
+# in the feudalClient webinterface
+```
+
+in [ldf_adapter.conf](ldf_adapter.conf).
 
 
 # LDF REST Interface
@@ -16,7 +95,6 @@ ENDP="https://bwidm-test.scc.kit.edu/rest"
 ```
 
 ## Create user
- <!--{{{-->
 ```
 curl --basic -u $USER:$PASS \
     -H "Content-Type: application/json" \
@@ -31,10 +109,8 @@ anstellen. Die externalId stellt immer das prim??re
 Identifizierungsmerkmal dar. Sie ist nicht ??nderbar.
 
 ```
- <!--}}}-->
 
 ## Update user
-<!-- {{{-->
 Use this call to update the user object and to rewrite the generic store in the LDF.
 
 ```
@@ -72,10 +148,8 @@ curl --basic -u $USER:$PASS
     $ENDP/external-user/update
 ```
 
-<!-- }}}-->
 
 ## register user for service
- <!--{{{-->
 ```
 curl --basic -u $USER:$PASS\
     $ENDP/external-reg/register/externalId/test0002/ssn/sshtest
@@ -95,17 +169,14 @@ Dabei ist es notwendig, dass die vom Dienst geforderten Attribute gesetzt sind. 
 ** http://bwidm.de/bwidmOrgId (soll "hdf", bzw. konfigurierbar sein)
 
 Der Anmeldename des Benutzers setzt sich nachher aus orgId und UserId zusammen. Also z.B. hdf_test0002
- <!--}}}-->
 
 ## Find user by unix user name
- <!--{{{-->
 ```
 curl --basic -u $USER:$PASS $ENDP/external-user/find/attribute/urn:oid:0.9.2342.19200300.100.1.1/marcus
 ```
 
 Will return multiple entries for different externalId . This is because multiple externalId can be
 mapped to the same unix account.
- <!--{{{ Example output-->
 ### Example output
 ```
 [
@@ -175,11 +246,8 @@ mapped to the same unix account.
   }
 ]
 ```
- <!--}}}-->
- <!--}}}-->
 
 ## Find user by external id
- <!--{{{ -->
 
 ```
 curl --basic -u $USER:$PASS $ENDP/external-user/find/externalId/hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf
@@ -219,7 +287,6 @@ curl --basic -u $USER:$PASS $ENDP/external-user/find/externalId/hdf_61230996-664
   "externalId": "hdf_61230996-664f-4422-9caa-76cf086f0d6c@unity-hdf"
 }
 ```
- <!--}}}-->
 
 ## Group Management:
 In all shortness:
