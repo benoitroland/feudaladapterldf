@@ -3,6 +3,7 @@ name = 'ldf_adapter'
 import logging
 from collections import Mapping
 from functools import lru_cache
+from datetime import timedelta
 
 import regex
 from unidecode import unidecode
@@ -43,14 +44,47 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
-        profile = CONFIG['assurance'].get('profile', '*')
+        ass = CONFIG['assurance']
 
-        if not ((profile != 'cappuccino' or (self.data.assurance.profile
-                                             and self.data.assurance.profile.is_cappuchino))
-                and (profile != 'espresso' or  (self.data.assurance.profile
-                                                and self.data.assurance.profile.is_espresso))
-                and profile in ['cappuccino', 'espresso', '*']):
-            raise Rejection(message="Your assurance profile '{}' is insufficient to access this resource: At least '{}' required".format(self.data.assurance.profile, profile))
+        profile = ass.get('profile', '*')
+        if (profile == 'cappuccino' and not (self.data.assurance.profile and self.data.assurance.profile.is_cappuchino)) \
+           or (profile == 'espresso' and not (self.data.assurance.profile and self.data.assurance.profile.is_espresso)) \
+           or profile not in ['cappuccino', 'espresso', '*']:
+            raise Rejection(message=("Your assurance profile '{}' is insufficient to access this resource: "
+                                     + "At least '{}' required").format(
+                                         self.data.assurance.profile, profile))
+
+        uid_uniqueness = ass.get('uid_uniqueness', '*')
+        if uid_uniqueness == 'unique' and not self.data.assurance.identifier_uniqueness.uid_is_unique:
+            raise Rejection(message="Your UID is not unique enough [missing required value 'ID/unique']")
+
+        eppn_uniqueness = ass.get('eppn_uniqueness', '*')
+        if eppn_uniqueness == 'no-reassign' and self.data.assurance.identifier_uniqueness.eppn_is_reassignable:
+            raise Rejection(message="Your EPPN must be non-reassignable [missing required value 'ID/eppn-unique-no-reassign']")
+        if eppn_uniqueness == 'reassign-1y' \
+           and self.data.assurance.identifier_uniqueness.eppn_uniqueness_reassign_period > timedelta(days=365):
+            raise Rejection(message=("Your EPPN must be reassignable only after 1-year inactivity "
+                                     + "[missing required value 'ID/eppn-unique-reassign-1y']"))
+
+        id_ass = ass.get('identity_assurance', '*')
+        if (id_ass == 'low' and not self.data.assurance.identity_assurance.is_low) \
+           or (id_ass == 'medium' and not self.data.assurance.identity_assurance.is_medium) \
+           or (id_ass == 'high' and not self.data.assurance.identity_assurance.is_high) \
+           or id_ass not in ['low', 'high', 'medium', '*']:
+            raise Rejection(message=("Your Identity assurance level 'IAP/{}' is insufficient to access this resource: "
+                                     + "At least 'IAP/{}' required").format(
+                                         self.data.assurance.identity_assurance.level_str, id_ass))
+
+        attr_fresh = ass.get('attribute_freshness', '*')
+        if attr_fresh == '1m' and self.data.assurance.attribute_assurance.user_departure_latency > timedelta(days=31):
+            raise Rejection(message=("Your attributes do not guarantee enough freshness [missing required value 'ATP/ePA-1m']"))
+        if attr_fresh == '1d' and self.data.assurance.attribute_assurance.user_departure_latency > timedelta(days=1):
+            raise Rejection(message=("Your attributes do not guarantee enough freshness [missing required value 'ATP/ePA-1d']"))
+
+        if ass.getboolean('local_enterprise_identity', 'False') and not self.data.assurance.identity_assurance.local_enterprise:
+            raise Rejection(message=("Your identity assurance does not qualify you "
+                                     + "to access the Home Organisation's internal administrative systems "
+                                     + "[missing required value 'IAP/local-enterprise']"))
 
         if target == 'deployed':
             return self.deploy()
@@ -360,6 +394,9 @@ class UserInfo(Mapping):
 
         # camelCase to snake_case
         grp = regex.sub('([a-z])([A-Z])', lambda m: '{}_{}'.format(m.group(1), m.group(2).lower()), grp)
+
+        # Lowercase all
+        grp = regex.sub('[A-Z]', lambda m: m.group(0).lower(), grp)
 
         # Catch remaining chars
         grp = regex.sub('[^a-z0-9-_]', '-', grp)

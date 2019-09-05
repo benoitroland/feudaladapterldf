@@ -104,6 +104,14 @@ class IdentifierUniqueness:
             self.eppn_uniqueness_levels = {1,2}
             self.eppn_uniqueness_reassign_period = timedelta(days=365)
 
+    @property
+    def uid_is_unique(self):
+        return {1,2,3,4} <= self.uid_uniqueness_levels
+
+    @property
+    def eppn_is_reassignable(self):
+        return 3 not in self.eppn_uniqueness_levels
+
 class IdentityAssurance:
     PREFIX =  PREFIX + '/IAP'
 
@@ -147,6 +155,10 @@ class IdentityAssurance:
     def is_high(self):
         return self.level >= 3
 
+    @property
+    def level_str(self):
+        return ['low', 'medium', 'high'][self.level]
+
 class AttributeAssurance:
     PREFIX = PREFIX + '/ATP'
 
@@ -165,7 +177,7 @@ class AttributeAssurance:
 
         if '1d' in values:
             if not '1m' in values:
-                raise ValueError("Attribute assurance 'ePa-1m' found, but not 'ePa-1d'")
+                raise ValueError("Attribute assurance 'ePA-1m' found, but not 'ePA-1d'")
 
             self.user_departure_latency = timedelta(days=1)
 
