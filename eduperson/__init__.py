@@ -4,7 +4,11 @@ import logging
 
 import regex
 
+from . import assurance
+
 logger = logging.getLogger(__name__)
+
+Assurance = assurance.Assurance
 
 class Entitlement:
     """EduPerson Entitlement attribute (de-)serialisation.
@@ -84,76 +88,3 @@ class Entitlement:
     def full_namespace(self):
         return [self.delegated_namespace] + self.subnamespaces
 
-class Assurance:
-    """EduPerson assurance management.
-
-    This is currently only a dummy implementation, verifying the assurance level against a
-    preconfigured set of assurances.
-    """
-    accepted_levels = []
-
-    @classmethod
-    def accept(self, level):
-        """Accept the given level from now on.
-
-        Arguments:
-        level -- The acceptable level (type: Regex/str)
-        """
-        if self.accepted_levels is not None:
-            self.accepted_levels += [level]
-
-    @classmethod
-    def accept_all(self):
-        """Blindly accept all levels."""
-        self.accepted_levels = None
-
-    @classmethod
-    def reject_all(self):
-        """Reject all levels.
-
-        This resets all calls to `accept`.
-        """
-        self.accepted_levels = []
-
-
-    def __init__(self, level):
-        """
-        Arguments:
-        level -- The raw assurance level
-        """
-        self.level = level
-
-    def is_accepted(self):
-        """Return whether the assurance level should be accepted.
-
-        The level has to be one of those previously configured with `Assurance.accept(lvl)`.
-
-        Unacceptable levels are logged at level WARNING.
-        """
-        logging.debug("Checking {} against {}".format(self.level, self.accepted_levels))
-        if self.accepted_levels is None:
-            logger.info("Blindly accepting assurance level '{}'".format(self.level))
-            return True
-        else:
-            for accepted_level in self.accepted_levels:
-                logging.debug("Checking {} against {}".format(self.level, accepted_level))
-                if isinstance(accepted_level, regex.regex.Pattern):
-                    logging.debug("{} {}".format(self.level, type(self.level)))
-                    if accepted_level.match(self.level):
-                        return True
-                else:
-                    if accepted_level == self.level:
-                        return True
-            else:
-                logger.warning("No assurance level provided. Rejecting.")
-                return False
-
-            logger.warning("Assurance level '{}' is not one of {}. Rejecting.".format(
-                self.level, self.accepted_levels))
-            return False
-
-        # All checks passed
-        return True
-
-    def __str__(self):
-        return ('<Assurance level={}>'.format(self.level))

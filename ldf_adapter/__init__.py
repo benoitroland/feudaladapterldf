@@ -15,9 +15,6 @@ from .results import Deployed, NotDeployed, Rejection, Failure, Question
 
 logger = logging.getLogger(__name__)
 
-for lvl in [lvl.strip() for lvl in CONFIG['assurance']['accepted_levels'].split(',')]:
-    eduperson.Assurance.accept(regex.compile(lvl))
-
 class User:
     """Represents a user, abstracting from the concrete service.
 
@@ -46,8 +43,14 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
-        if not self.data.assurance.is_accepted():
-            raise Rejection(message="Your assurance level is insufficient to access this resource")
+        profile = CONFIG['assurance'].get('profile', '*')
+
+        if not ((profile != 'cappuccino' or (self.data.assurance.profile
+                                             and self.data.assurance.profile.is_cappuchino))
+                and (profile != 'espresso' or  (self.data.assurance.profile
+                                                and self.data.assurance.profile.is_espresso))
+                and profile in ['cappuccino', 'espresso', '*']):
+            raise Rejection(message="Your assurance profile '{}' is insufficient to access this resource: At least '{}' required".format(self.data.assurance.profile, profile))
 
         if target == 'deployed':
             return self.deploy()
