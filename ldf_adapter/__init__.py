@@ -7,6 +7,8 @@ from functools import lru_cache
 import regex
 from unidecode import unidecode
 
+import eduperson
+
 from . import backend
 from .config import CONFIG
 from .results import Deployed, NotDeployed, Rejection, Failure, Question
@@ -41,8 +43,14 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
-        if not self.data.assurance.is_accepted():
-            raise Rejection(message="Your assurance level is insufficient to access this resource")
+        profile = CONFIG['assurance'].get('profile', '*')
+
+        if not ((profile != 'cappuccino' or (self.data.assurance.profile
+                                             and self.data.assurance.profile.is_cappuchino))
+                and (profile != 'espresso' or  (self.data.assurance.profile
+                                                and self.data.assurance.profile.is_espresso))
+                and profile in ['cappuccino', 'espresso', '*']):
+            raise Rejection(message="Your assurance profile '{}' is insufficient to access this resource: At least '{}' required".format(self.data.assurance.profile, profile))
 
         if target == 'deployed':
             return self.deploy()
@@ -181,7 +189,6 @@ class User:
         }
 
 
-### Data preprocessing
 class UserInfo(Mapping):
     """Information about the user.
 
@@ -312,8 +319,8 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def entitlement(self, allow_question=True):
-        """Return the parsed entitlement attribute of the user. See `EduPersonEntitlement` for details."""
-        return EduPersonEntitlement(self.userinfo['eduperson_entitlement'])
+        """Return the parsed entitlement attribute of the user. See `eduperson.Entitlement` for details."""
+        return eduperson.Entitlement(self.userinfo['eduperson_entitlement'])
 
     @property
     @lru_cache(maxsize=None)
@@ -357,8 +364,8 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def assurance(self, allow_question=True):
-        """Return the assurance level of the user. See `EduPersonAssurance` for details"""
-        return EduPersonAssurance(self.userinfo['eduperson_assurance'])
+        """Return the assurance levels of the user. See `eduperson.Assurance` for details"""
+        return eduperson.Assurance(self.userinfo['eduperson_assurance'])
 
     def value_or_ask(self, value, answer_name, question_text, allow_question):
         """Return the submitted answer, the default value or raise a questionaire."""
@@ -386,128 +393,3 @@ class UserInfo(Mapping):
 
     def __hash__(self):
         return id(self) # Good enough for lru_cache
-
-class EduPersonEntitlement:
-    """EduPerson Entitlement attribute (de-)serialisation.
-
-    As specified in: https://aarc-project.eu/guidelines/aarc-g002/
-    """
-
-    # This regex is not compatible with stdlib 're', we need 'regex'!
-    # (because of repeated captures, see https://bugs.python.org/issue7132)
-    re = regex.compile(
-        r'urn:' +
-           r'(?P<nid>[^:]+):(?P<delegated_namespace>[^:]+)' +     # Namespace-ID and delegated URN namespace
-           r'(:(?P<subnamespace>[^:]+))*?' +                      # Sub-namespaces
-        r':group:' +
-           r'(?P<group>[^:]+)' +                                  # Root group
-           r'(:(?P<subgroup>[^:]+))*?' +                          # Sub-groups
-           r'(:role=(?P<role>.+))?' +                             # Role of the user in the deepest group
-        r'#(?P<group_authority>.+)'                               # Authoritative soruce of the entitlement (URN)
-    )
-
-    def __init__(self, raw):
-        """Parse a raw EduPerson entitlement string in the AARC-G002 format."""
-        match = self.re.fullmatch(raw)
-
-        if not match:
-            raise Failure(message="Failed to parse entitlements attribute")
-
-        logger.debug("Parsing entitlement attribute: {}".format(match.capturesdict()))
-        try:
-            [self.namespace_id] = match.captures('nid')
-            [self.delegated_namespace] = match.captures('delegated_namespace')
-            self.subnamespaces = match.captures('subnamespace')
-
-            [self.group] = match.captures('group')
-            self.subgroups = match.captures('subgroup')
-            [self.role] = match.captures('role') or [None]
-
-            [self.group_authority] = match.captures('group_authority')
-        except ValueError:
-            raise Failure(message="Failed to parse entitlements attribute")
-
-    def __repr__(self):
-        """Serialize the entitlement to the AARC-G002 format.
-
-        This is the inverse to `__init__` and thus `ent_str == repr(EduPersonEntitlement(ent_str))`
-        holds for any valid entitlement.
-        """
-        return ((
-            'urn:{namespace_id}:{delegated_namespace}{subnamespaces}' +
-            ':group:{group}{subgroups}{role}' +
-            '#{group_authority}'
-        ).format(**{
-            **self.__dict__, **{
-                'subnamespaces': ''.join([':{}'.format(ns) for ns in self.subnamespaces]),
-                'subgroups': ''.join([':{}'.format(grp) for grp in self.subgroups]),
-                'role': ':role={}'.format(self.role) if self.role else ''
-        }}))
-
-    def __str__(self):
-        """Return the entitlement in human-readable string form."""
-        return ((
-            '<EduPersonEntitlement' +
-            ' namespace={namespace_id}:{delegated_namespace}{subnamespaces}' +
-            ' group={group}{subgroups}' +
-            '{role}' +
-            ' auth={group_authority}>'
-        ).format(**{
-            **self.__dict__, **{
-                'subnamespaces': ''.join([',{}'.format(ns) for ns in self.subnamespaces]),
-                'subgroups': ''.join([',{}'.format(grp) for grp in self.subgroups]),
-                'role': ' role={}'.format(self.role) if self.role else ''
-        }}))
-
-class EduPersonAssurance:
-    """EduPerson assurance management.
-
-    This is currently only a dummy implementation, verifying the assurance level against a
-    preconfigured set of assurances.
-    """
-    def __init__(self, level):
-        """
-        Arguments:
-        level -- The raw assurance level
-        """
-        self.level = level
-
-    def is_accepted(self):
-        """Return whether the assurance level should be accepted.
-
-        The level has to be included in the list of accepted levels (if provided) AND be matched by
-        the level regex (if provided).  A level of `None` is always rejected.  If the list of
-        accepted levels is provided but empty, no level is accepted.
-
-        Unacceptable levels are logged at level WARNING.
-
-        Relevant config:
-        assurance.accepted_levles -- A comma-separated list of accepted levels (type: list)
-        assurance.accepted_level_regex -- A `regex`-compatible regex matching the accepted levels (type: str)
-        """
-        try:
-            accepted_levels = [lvl.strip() for lvl in CONFIG['assurance']['accepted_levels'].split(',')]
-        except KeyError:
-            accepted_levels = None
-
-        accepted_level_regex = regex.compile(CONFIG['assurance'].get('accepted_level_regex', '.*'))
-
-        accepted = True
-
-        if not self.level:
-            logger.warning("No assurance level provided. Rejecting.")
-            accepted = False
-
-        if accepted_levels is not None and self.level not in accepted_levels:
-            logger.warning("Assurance level '{}' is not one of {}. Rejecting.".format(self.level, accepted_levels))
-            accepted = False
-
-        if not accepted_level_regex.match(self.level):
-            logger.warning("Assurance level '{}' does not match {}. Rejecting.".format(self.level, accepted_level_regex))
-            accepted = False
-
-        return accepted
-
-    def __str__(self):
-        return ('<EduPersonAssurance level={}>'.format(self.level))
-
