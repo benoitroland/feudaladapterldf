@@ -320,7 +320,12 @@ class UserInfo(Mapping):
     @lru_cache(maxsize=None)
     def entitlement(self, allow_question=True):
         """Return the parsed entitlement attribute of the user. See `eduperson.Entitlement` for details."""
-        return eduperson.Entitlement(self.userinfo['eduperson_entitlement'])
+        attr = self.userinfo['eduperson_entitlement']
+        if not isinstance(attr, list):
+            attr = [attr]
+
+        return map(eduperson.Entitlement, attr)
+
 
     @property
     @lru_cache(maxsize=None)
@@ -329,13 +334,16 @@ class UserInfo(Mapping):
 
         These are extracted from the entitlement. Any additional 'group'-keys in the input are ignored.
         """
-        return [self._group_masked_for_bwidm(grp) for grp in [self.entitlement.group] + self.entitlement.subgroups]
+        return [self._group_masked_for_bwidm(grp)
+                for grp
+                in [ent.group for ent in self.entitlement] + [ent.subgroups for ent in self.entitlement]]
 
     def _group_masked_for_bwidm(self, orig_grp):
         """Convert camelCase to snake_case, fixup beginning of name and replace invalid chars with a dash ('-')"""
         grp = orig_grp
 
         # First char has to be [a-z]
+        logger.debug(grp)
         grp = regex.sub('^[A-Z]', lambda m: m.group(0).lower(), grp)
         grp = regex.sub('^[-_]*', '', grp)
         grp = regex.sub('^0', 'zero_', grp)
