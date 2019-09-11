@@ -429,7 +429,16 @@ def create_initial_user(externalId):# {{{
         if args.verbose>1:
             logging.debug("\n\n"+json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
         return ("success", "")
-    logging.debug('Obtained this return code: >>%s<<\n%s' % (resp.status_code, resp.json()))
+    elif resp.status_code == 401:
+        message = 'Error, unauthorized using REST interface at {}'.format(url)
+        logging.error(message)
+        return ("failed", message)
+    logging.debug('Obtained this return code: >>%s<<' % (resp.status_code))
+    logging.debug('Obtained this message: %s' % (resp.text))
+    try:
+        logging.debug('Obtained this json message: %s' % (resp.json()))
+    except JSONDecodeError:
+        pass # message already logged as text
 
     logging.warning("\nthere was an unexpected status.")
     logging.warning("the server said: %s (%s)" % (resp.status_code, resp.reason))
