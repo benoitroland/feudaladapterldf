@@ -15,7 +15,6 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://git.scc.kit.edu/feudal/feudal_adapter_ldf",
     packages=setuptools.find_packages(),
-    # packages=['ldf_adapter', 'interface.py',],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: No License ",
@@ -28,7 +27,7 @@ setuptools.setup(
     ],
     entry_points={
         'console_scripts': [
-            "ldf_adapter = ldf_adapter.interface:main"
+            "ldf_adapter = interface:main"
         ]
     }
 )
