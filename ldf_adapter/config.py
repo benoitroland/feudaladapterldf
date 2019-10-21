@@ -10,8 +10,8 @@ def reload():
     Config locations, by priority:
     $LDF_ADAPTER_CONFIG
     ./ldf_adapter.conf
-    ~/.config/ldf_adapter.conf
-    /etc/ldf_adapter.conf
+    ~/.config/feudal/ldf_adapter.conf
+    /etc/feudal/ldf_adapter.conf
     """
     files = []
 

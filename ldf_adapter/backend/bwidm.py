@@ -139,6 +139,7 @@ class User:
                         'ssn', CONFIG['backend.bwidm.service']['name'])
 
         self.credentials['login_name'] = rsp.json()['registryValues']['localUid']
+        self.credentials['ssh_user'] = rsp.json()['registryValues']['localUid']
 
     def delete(self):
         """Only deactivate, don't delete (deletion is not supported by BWIDM)."""
