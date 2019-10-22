@@ -121,7 +121,7 @@ class User:
     def update(self):
         self.external_user_update({
             'externalId': self.info.unique_id,
-            'eppn': self.info.unique_id,
+            'eppn': self.info.eppn,
             'email': self.info.email,
             'givenName': self.info.given_name,
             'surName': self.info.family_name,

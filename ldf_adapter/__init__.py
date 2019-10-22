@@ -273,6 +273,11 @@ class UserInfo(Mapping):
             iss=self._iss_masked_for_bwidm_eppn()
         )
 
+    @property
+    @lru_cache(maxsize=None)
+    def eppn(self):
+        return self.userinfo.get('eduperson_principal_name', self.unique_id)
+
     def _sub_masked_for_bwidm_eppn(self):
         """Replace invalid characters with a dash ('-').
 
