@@ -296,7 +296,7 @@ class UserInfo(Mapping):
         """
         stripped_iss = regex.sub('^https?://', '', self.userinfo['iss'])
         iss = unidecode(stripped_iss)
-        iss = regex.sub('[^a-zA-Z0-9.-]', '-', stripped_iss)
+        iss = regex.sub('[^a-zA-Z0-9.-]', '-', iss)
 
         # We don't consider stripping the http[s]-prefix a change, since we always do that anyway,
         # and there shouldn't be two different issuers `http://example.org' and `https://example.org'.
@@ -376,9 +376,16 @@ class UserInfo(Mapping):
         """Convert camelCase to snake_case, fixup beginning of name and replace invalid chars with a dash ('-')"""
         grp = orig_grp
 
+        # camelCase to snake_case
+        grp = regex.sub('([a-z])([A-Z])', lambda m: '{}_{}'.format(m.group(1), m.group(2).lower()), grp)
+
+        # Lowercase all
+        grp = regex.sub('[A-Z]', lambda m: m.group(0).lower(), grp)
+
+        # Catch remaining chars
+        grp = regex.sub('[^a-z0-9-_]', '-', grp)
+
         # First char has to be [a-z]
-        logger.debug(grp)
-        grp = regex.sub('^[A-Z]', lambda m: m.group(0).lower(), grp)
         grp = regex.sub('^[-_]*', '', grp)
         grp = regex.sub('^0', 'zero_', grp)
         grp = regex.sub('^1', 'one_', grp)
@@ -390,16 +397,6 @@ class UserInfo(Mapping):
         grp = regex.sub('^7', 'seven_', grp)
         grp = regex.sub('^8', 'eight_', grp)
         grp = regex.sub('^9', 'nine_', grp)
-        grp = regex.sub('^[^a-z]', 'bwidm_\0', grp)
-
-        # camelCase to snake_case
-        grp = regex.sub('([a-z])([A-Z])', lambda m: '{}_{}'.format(m.group(1), m.group(2).lower()), grp)
-
-        # Lowercase all
-        grp = regex.sub('[A-Z]', lambda m: m.group(0).lower(), grp)
-
-        # Catch remaining chars
-        grp = regex.sub('[^a-z0-9-_]', '-', grp)
 
         if grp != orig_grp:
             logger.warning("Group name '{}' changed to '{}' for BWIDM compatibilty".format(orig_grp, grp))
