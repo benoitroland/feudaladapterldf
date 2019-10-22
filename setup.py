@@ -29,5 +29,6 @@ setuptools.setup(
         'console_scripts': [
             "ldf_adapter = interface:main"
         ]
-    }
+    },
+    test_suite="tests"
 )

@@ -82,6 +82,14 @@ login_help = To login, ask your mama for help.
 
 in [ldf_adapter.conf](ldf_adapter.conf).
 
+### Unit Tests
+There are unit tests, located under [tests](tests) (The package structure in `tests` corresponds to
+that of the main package). To run the tests, just do:
+
+```sh
+./setup.py test
+```
+
 
 # LDF REST Interface
 The rest interface of the LDAP facade supports the calls documented here.
