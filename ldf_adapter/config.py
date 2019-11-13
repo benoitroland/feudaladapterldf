@@ -2,6 +2,7 @@ import os
 from configparser import ConfigParser
 from pathlib import Path
 
+
 CONFIG = ConfigParser()
 
 def reload():
@@ -22,10 +23,10 @@ def reload():
     files += [
         Path('ldf_adapter.conf'),
         Path.home()/'.config'/'ldf_adapter.conf',
-        Path('/')/'etc'/'ldf_adapter.conf'
+        Path('/')/'etc'/'feudal'/'ldf_adapter.conf'
     ]
 
-    CONFIG.read(files)
+    files_read = CONFIG.read(files)
 
 # Load config on import
 reload()

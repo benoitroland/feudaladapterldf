@@ -13,11 +13,13 @@ from ldf_adapter.results import ExceptionalResult
 
 def main():
     logging.basicConfig(
-        level=os.environ.get("LOG", "INFO")
-        #format='%(asctime)s [%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
+        level=os.environ.get("LOG", "INFO"),
+        format='%(asctime)s [%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
     )
 
     logger = logging.getLogger(__name__)
+
+    logger.info("Starting")
 
     data = json.load(sys.stdin)
 
