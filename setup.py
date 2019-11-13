@@ -27,7 +27,7 @@ setuptools.setup(
     ],
     entry_points={
         'console_scripts': [
-            "ldf_adapter = interface:main"
+            "ldf_adapter = ldf_adapter.interface:main"
         ]
     },
     test_suite="tests"
