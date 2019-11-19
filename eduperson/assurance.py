@@ -40,7 +40,7 @@ class Profile:
         return self.profile_str == 'esspresso'
 
     def is_cappuccino(self):
-        return self.profile_str == 'esspresso'
+        return self.profile_str == 'cappuccino'
 
     def __repr__(self):
         return self.PREFIX + '/' + self.profile_str
@@ -90,8 +90,8 @@ class IdentifierUniqueness:
             raise ValueError("Conflicting identifier uniqueness values '{}' and '{}' encountered".format(
                 'eppn-unique-reassign-1y', 'eppn-unique-no-reassign'))
 
-        self.uid_uniqueness_levels = {}
-        self.eppn_uniqueness_levels = {}
+        self.uid_uniqueness_levels = set()
+        self.eppn_uniqueness_levels = set()
         self.eppn_uniqueness_reassign_period = None
 
 
