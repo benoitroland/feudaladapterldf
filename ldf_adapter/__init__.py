@@ -369,7 +369,13 @@ class UserInfo(Mapping):
         if not isinstance(attr, list):
             attr = [attr]
 
-        return map(eduperson.Entitlement, attr)
+        def try_entitlement(attr):
+            try:
+                return eduperson.Entitlement(attr)
+            except(ValueError):
+                return None
+
+        return filter(lambda x: x, map(try_entitlement, attr))
 
 
     @property

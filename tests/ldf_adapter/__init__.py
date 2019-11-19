@@ -344,6 +344,46 @@ class UserInfoIntegration(TestCase):
         self.assertEqual(info.unique_id, "4cbcd471-1f51-4e54-97b8-2dd5177e25ec@kit.edu")
         self.assertEqual(info.eppn, "lo0018@kit.edu")
 
-    def test_kit_entitlements_valid(self):
-        info = UserInfo({'user': {'userinfo': self.input_kit}})
-        self.assertTrue(list(info.entitlement))
+    def test_ignore_excess_entitlement(self):
+        """https://git.scc.kit.edu/feudal/feudalAdapterLdf/issues/8"""
+
+        input_test = {
+            "eduperson_assurance": [
+                "https://refeds.org/assurance/IAP/medium",
+                "https://refeds.org/assurance/IAP/local-enterprise",
+                "https://refeds.org/assurance/ID/eppn-unique-no-reassign",
+                "https://refeds.org/assurance/ATP/ePA-1m",
+                "https://refeds.org/assurance/ATP/ePA-1d",
+                "https://refeds.org/assurance/ID/unique",
+                "https://refeds.org/assurance/profile/cappuccino",
+                "https://refeds.org/assurance/IAP/low"
+            ],
+            "eduperson_entitlement": [
+                "urn:mace:dir:entitlement:common-lib-terms",
+                "http://bwidm.de/entitlement/bwLSDF-SyncShare",
+                "urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de",
+                "urn:geant:h-df.de:group:MyExampleColab#login.helmholtz-data-federation.de",
+                "urn:geant:h-df.de:group:wlcg-test#login.helmholtz-data-federation.de",
+                "urn:geant:h-df.de:group:HDF#login.helmholtz-data-federation.de"
+            ],
+            "eduperson_scoped_affiliation": "member@kit.edu",
+            "email": "marcus.hardt@kit.edu",
+            "email_verified": "true",
+            "family_name": "Hardt",
+            "given_name": "Marcus",
+            "groups": [
+                "/wlcg-test",
+                "/IMK-TRO-EWCC",
+                "/MyExampleColab",
+                "/HDF",
+                "/"
+            ],
+            "iss": "https://login.helmholtz-data-federation.de/oauth2",
+            "name": "Marcus Hardt",
+            "preferred_username": "marcus",
+            "ssh_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAqA5FW6m3FbFhCOsRQBxKMRki5qJxoNhZdaeLXg6ym/ marcus@nemo2019\n",
+            "sub": "6c611e2a-2c1c-487f-9948-c058a36c8f0e"
+        }
+
+        info = UserInfo({'user': {'userinfo': input_test}})
+        self.assertEqual(len(list(info.entitlement)), 4)
