@@ -7,7 +7,7 @@ with open("README.md", "r") as me:
 
 setuptools.setup(
     name="ldf_adapter",
-    version="0.0.0",
+    version="0.1.0",
     author="Joshua Bachmeier",
     author_email="joshua.bachmeier@student.kit.edu",
     description="LDF Adapter to connect BWIDM and FEUDAL",
