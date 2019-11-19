@@ -5,6 +5,7 @@ from collections import Mapping
 from functools import lru_cache
 from datetime import timedelta
 from itertools import chain
+import urllib
 
 import regex
 from unidecode import unidecode
@@ -260,25 +261,40 @@ class UserInfo(Mapping):
     def unique_id(self, allow_question=True):
         """Globally and uniquely identifies the user.
 
+        This can be easily used to find out the identity of the user in the data source.
+
+        Percent-Encodes subject and issuer and concatenates them with an '@'
+
+        """
+        return '{sub}@{iss}'.format(
+            sub=self._sub_masked_for_bwidm_extid(),
+            iss=self._iss_masked_for_bwidm_extid()
+        )
+
+    def _sub_masked_for_bwidm_extid(self):
+        return urllib.parse.quote_plus(self.userinfo['sub'])
+
+    def _iss_masked_for_bwidm_extid(self):
+        return urllib.parse.quote_plus(self.userinfo['iss'])
+
+    @property
+    @lru_cache(maxsize=None)
+    def eppn(self):
+        """Uniquely identifies the user.
+
         At least almost. Due to homogenisations, there might be collisions. E.g. the following users
         are all indistinguishable:
 
-        klammer(affe)@https://example.org
         klammer(affe)@https://example.org/oauth-2
         klammer(affe)@https://example.org/oauth/2
         klammer-affe-@https://example.org/oauth-2
         klammer(affe)@http://example.org-oauth-2
         klammer-affe-@example.org-oauth-2
         """
-        return self.userinfo.get('eduperson_unique_id') or '{sub}@{iss}'.format(
+        return '{sub}@{iss}'.format(
             sub=self._sub_masked_for_bwidm_eppn(),
             iss=self._iss_masked_for_bwidm_eppn()
         )
-
-    @property
-    @lru_cache(maxsize=None)
-    def eppn(self):
-        return self.userinfo.get('eduperson_principal_name', self.unique_id)
 
     def _sub_masked_for_bwidm_eppn(self):
         """Replace invalid characters with a dash ('-').
@@ -287,8 +303,6 @@ class UserInfo(Mapping):
         much of a problem.
         """
         sub = self.userinfo['sub']
-
-        sub = regex.sub('-', '', sub) # Unity does this
 
         sub = regex.sub('[^a-zA-Z0-9_!#$%&*+/=?{|}~^.-]', '-', sub)
 
@@ -306,7 +320,6 @@ class UserInfo(Mapping):
         should not be much of a problem.
         """
         stripped_iss = regex.sub('^https?://', '', self.userinfo['iss'])
-        stripped_iss = regex.sub('/.*$', '', stripped_iss) # Unity does this
         iss = unidecode(stripped_iss)
         iss = regex.sub('[^a-zA-Z0-9.-]', '-', iss)
 
