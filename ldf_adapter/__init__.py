@@ -263,13 +263,14 @@ class UserInfo(Mapping):
         At least almost. Due to homogenisations, there might be collisions. E.g. the following users
         are all indistinguishable:
 
+        klammer(affe)@https://example.org
         klammer(affe)@https://example.org/oauth-2
         klammer(affe)@https://example.org/oauth/2
         klammer-affe-@https://example.org/oauth-2
         klammer(affe)@http://example.org-oauth-2
         klammer-affe-@example.org-oauth-2
         """
-        return '{sub}@{iss}'.format(
+        return self.userinfo.get('eduperson_unique_id') or '{sub}@{iss}'.format(
             sub=self._sub_masked_for_bwidm_eppn(),
             iss=self._iss_masked_for_bwidm_eppn()
         )
@@ -285,7 +286,11 @@ class UserInfo(Mapping):
         Usually subjects are only numbers and ascii-chars separeted by dashes, so this should not be
         much of a problem.
         """
-        sub = regex.sub('[^a-zA-Z0-9_!#$%&*+/=?{|}~^.-]', '-', self.userinfo['sub'])
+        sub = self.userinfo['sub']
+
+        sub = regex.sub('-', '', sub) # Unity does this
+
+        sub = regex.sub('[^a-zA-Z0-9_!#$%&*+/=?{|}~^.-]', '-', sub)
 
         if sub != self.userinfo['sub']:
             logger.warning("Subject '{}' changed to '{}' for BWIDM compatibilty".format(
@@ -301,6 +306,7 @@ class UserInfo(Mapping):
         should not be much of a problem.
         """
         stripped_iss = regex.sub('^https?://', '', self.userinfo['iss'])
+        stripped_iss = regex.sub('/.*$', '', stripped_iss) # Unity does this
         iss = unidecode(stripped_iss)
         iss = regex.sub('[^a-zA-Z0-9.-]', '-', iss)
 
