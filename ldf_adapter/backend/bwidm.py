@@ -149,8 +149,11 @@ class User:
         reg_info = self.reg_info()
 
         if supplementary_groups is not None:
-            current_groups = (grp for grp in reg_info['secondaryGroups'])
-            new_groups = (grp.reg_info(short=True) for grp in supplementary_groups)
+            current_groups = [grp for grp in reg_info['secondaryGroups']]
+            new_groups = [grp.reg_info(short=True) for grp in supplementary_groups]
+
+            logger.debug("Groups according to BWIDM: {}".format([g['name'] for g in current_groups]))
+            logger.debug("Groups according to FEUDAL: {}".format([g['name'] for g in new_groups]))
 
             # Remove user from groups he should not be a member of
             to_be_removed_from = [g for g in current_groups
