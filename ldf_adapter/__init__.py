@@ -4,6 +4,7 @@ import logging
 from collections import Mapping
 from functools import lru_cache
 from datetime import timedelta
+from itertools import chain
 
 import regex
 from unidecode import unidecode
@@ -155,7 +156,7 @@ class User:
             raise Question(
                 name='username',
                 text='Username {} already taken on this service. Please enter another one.'.format(
-                    self.service_user.name
+                    self.data.username
                 )
             )
         else:
@@ -347,7 +348,7 @@ class UserInfo(Mapping):
     def full_name(self, allow_question=True):
         """Return the user's full name. If none is provided, try to assemple it from the first and given name."""
         return (self.userinfo.get('name')
-                or ' '.join(filter(None, [given_name, family_name])))
+                or ' '.join(filter(None, [self.given_name, self.family_name])))
 
     @property
     @lru_cache(maxsize=None)
@@ -356,10 +357,9 @@ class UserInfo(Mapping):
         return self.credentials.get('ssh_key', [])
 
     @property
-    @lru_cache(maxsize=None)
     def entitlement(self, allow_question=True):
         """Return the parsed entitlement attribute of the user. See `eduperson.Entitlement` for details."""
-        attr = self.userinfo['eduperson_entitlement']
+        attr = self.userinfo.get('eduperson_entitlement', [])
         if not isinstance(attr, list):
             attr = [attr]
 
@@ -373,9 +373,10 @@ class UserInfo(Mapping):
 
         These are extracted from the entitlement. Any additional 'group'-keys in the input are ignored.
         """
-        return [self._group_masked_for_bwidm(grp)
-                for grp
-                in [ent.group for ent in self.entitlement] + [ent.subgroups for ent in self.entitlement]]
+        return set(filter(None, [self._group_masked_for_bwidm(grp)
+                                 for grp
+                                 in chain(self.userinfo.get('groups', []),
+                                          *[ent.subgroups + [ent.group] for ent in self.entitlement])]))
 
     def _group_masked_for_bwidm(self, orig_grp):
         """Convert camelCase to snake_case, fixup beginning of name and replace invalid chars with a dash ('-')"""
@@ -412,7 +413,7 @@ class UserInfo(Mapping):
     @lru_cache(maxsize=None)
     def assurance(self, allow_question=True):
         """Return the assurance levels of the user. See `eduperson.Assurance` for details"""
-        return eduperson.Assurance(self.userinfo['eduperson_assurance'])
+        return eduperson.Assurance(self.userinfo.get('eduperson_assurance', []))
 
     def value_or_ask(self, value, answer_name, question_text, allow_question):
         """Return the submitted answer, the default value or raise a questionaire."""
