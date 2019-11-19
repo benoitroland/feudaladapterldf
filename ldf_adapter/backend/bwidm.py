@@ -156,6 +156,9 @@ class User:
             logger.debug("Groups according to BWIDM: {}".format([g['name'] for g in current_groups]))
             logger.debug("Groups according to FEUDAL: {}".format([g['name'] for g in new_groups]))
 
+            logger.debug("Current groups: {}".format(current_groups))
+            logger.debug("New groups: {}".format(new_groups))
+
             # Remove user from groups he should not be a member of
             to_be_removed_from = [g for g in current_groups
                                   if g['id'] not in (ng['id'] for ng in new_groups)]
