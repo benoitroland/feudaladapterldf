@@ -149,24 +149,22 @@ class User:
 
         Return True, if the user didn't exist before.
         """
-        if self.service_user.exists():
-            logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
-            created = False
-
-        elif self.service_user.name_taken():
+        logger.debug('Ensuring user {unique_id} exits'.format(**self.data))
+        if self.service_user.name_taken():
             raise Question(
                 name='username',
                 text='Username {} already taken on this service. Please enter another one.'.format(
                     self.data.username
                 )
             )
+        elif self.service_user.exists():
+            logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
+            self.service_user.update()
+            return False
         else:
             logger.info('Creating user {username} for {unique_id}'.format(**self.data))
             self.service_user.create()
-            created = True
-
-        self.service_user.update()
-        return created
+            return True
 
     def ensure_dosent_exist(self):
         """Ensure that the user doesn't exist.

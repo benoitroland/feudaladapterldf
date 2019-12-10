@@ -105,6 +105,14 @@ class User:
         if len(other_users_with_name) < len(users_with_name):
             logger.debug("Username '{}' is reserved for us".format(self.info.username))
 
+        if other_users_with_name:
+            logger.error("Username '{}' is already used by {}".format(
+                self.info.username,
+                ", ".join(map(lambda u: u['externalId'], other_users_with_name))
+            ))
+        else:
+            logger.debug("Username '{}' is available".format(self.info.username))
+
         return bool(other_users_with_name)
 
     def create(self):
@@ -140,8 +148,9 @@ class User:
 
         self.credentials['ssh_user'] = rsp.json()['registryValues']['localUid']
         self.credentials['ssh_host'] = CONFIG['backend.bwidm.login_info'].get('ssh_host', 'undefined')
-        self.credentials['commandline'] = "ssh {}@{}".format(\
+        self.credentials['commandline'] = "ssh {}@{}".format(
             self.credentials['ssh_user'], self.credentials['ssh_host'])
+
     def delete(self):
         """Only deactivate, don't delete (deletion is not supported by BWIDM)."""
         BWIDM.get('external-user', 'deactivate', 'externalId', self.info.unique_id)
