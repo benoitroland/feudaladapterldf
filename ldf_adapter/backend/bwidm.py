@@ -146,7 +146,16 @@ class User:
                         'externalId', self.info.unique_id,
                         'ssn', CONFIG['backend.bwidm.service']['name'])
 
-        self.credentials['ssh_user'] = rsp.json()['registryValues']['localUid']
+        if rsp.status_code == 204:
+            rsp = BWIDM.get('external-reg', 'find',
+                            'externalId', self.info.unique_id)
+
+            reg = next(filter(lambda reg: reg['registryStatus'] == "ACTIVE", rsp.json()))
+        else:
+            reg = rsp.json()
+
+
+        self.credentials['ssh_user'] = reg['registryValues']['localUid']
         self.credentials['ssh_host'] = CONFIG['backend.bwidm.login_info'].get('ssh_host', 'undefined')
         self.credentials['commandline'] = "ssh {}@{}".format(
             self.credentials['ssh_user'], self.credentials['ssh_host'])
