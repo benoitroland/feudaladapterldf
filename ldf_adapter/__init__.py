@@ -83,7 +83,7 @@ class User:
         if attr_fresh == '1d' and self.data.assurance.attribute_assurance.user_departure_latency > timedelta(days=1):
             raise Rejection(message=("Your attributes do not guarantee enough freshness [missing required value 'ATP/ePA-1d']"))
 
-        if ass.getboolean('local_enterprise_identity', 'False') and not self.data.assurance.identity_assurance.local_enterprise:
+        if ass.getboolean('identity_qualifies_for_local_enterprise') and not self.data.assurance.identity_assurance.local_enterprise:
             raise Rejection(message=("Your identity assurance does not qualify you "
                                      + "to access the Home Organisation's internal administrative systems "
                                      + "[missing required value 'IAP/local-enterprise']"))
