@@ -157,14 +157,17 @@ class User:
                     self.data.username
                 )
             )
-        elif self.service_user.exists():
-            logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
-            self.service_user.update()
-            return False
-        else:
+
+        is_new_user = not self.service_user.exists()
+
+        if is_new_user:
             logger.info('Creating user {username} for {unique_id}'.format(**self.data))
             self.service_user.create()
-            return True
+        else:
+            logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
+
+        self.service_user.update()
+        return is_new_user
 
     def ensure_dosent_exist(self):
         """Ensure that the user doesn't exist.
