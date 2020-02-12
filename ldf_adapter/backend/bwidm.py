@@ -9,6 +9,9 @@ import json
 from functools import reduce
 
 import requests
+import requests_cache
+requests_cache.install_cache(include_get_headers=True, expire_after=2)
+
 from urllib.parse import urljoin
 
 from ..config import CONFIG
