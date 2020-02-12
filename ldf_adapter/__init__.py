@@ -49,7 +49,7 @@ class User:
         ass = CONFIG['assurance']
 
         profile = ass.get('profile', '*')
-        if (profile == 'cappuccino' and not (self.data.assurance.profile and self.data.assurance.profile.is_cappuchino)) \
+        if (profile == 'cappuccino' and not (self.data.assurance.profile and self.data.assurance.profile.is_cappuccino)) \
            or (profile == 'espresso' and not (self.data.assurance.profile and self.data.assurance.profile.is_espresso)) \
            or profile not in ['cappuccino', 'espresso', '*']:
             raise Rejection(message=("Your assurance profile '{}' is insufficient to access this resource: "
