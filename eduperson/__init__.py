@@ -4,11 +4,7 @@ import logging
 
 import regex
 
-from . import assurance
-
 logger = logging.getLogger(__name__)
-
-Assurance = assurance.Assurance
 
 class Entitlement:
     """EduPerson Entitlement attribute (de-)serialisation.

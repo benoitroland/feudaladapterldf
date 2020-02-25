@@ -39,6 +39,79 @@ class User:
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
+    def assurance_verifier(self):
+        ass = CONFIG['assurance']
+        prefix = ass['prefix']
+
+        tokens = regex.findall('&|\||\(|\)|[^\s()&|]+', ass['require'])
+
+        # We use a simple recursive descent parser to parse parenthesied expressions of strings,
+        # composed with '&' (konjunction) and '|' (disjunction). The usual precedence rules apply.
+        #
+        # Instead of building an AST, we build a tree of nested lambdas, which takes a collection of
+        # assurance claims and checks if they satisfy the configured expression
+
+        #  EXPR -> DISJ 'EOF'
+        def parse_expr(seq):
+            expr = parse_disjunction(seq)
+            if len(seq) > 0:
+                raise ValueError("Reached end of input while parsing")
+            return expr
+
+        #  DISJ -> KONJ DISJ2
+        def parse_disjunction(seq):
+            lhs = parse_konjunction(seq)
+            return parse_disjunction2(seq, lhs)
+
+        #  DISJ2 -> "" | "|" KONJ DISJ2
+        def parse_disjunction2(seq, lhs):
+            if len(seq) > 0 and seq[0] == '|':
+                seq.pop(0)
+                rhs = parse_konjunction(seq)
+                expr = lambda values: lhs(values) or rhs(values)
+                return parse_disjunction2(seq, expr)
+            else:
+                return lhs
+
+        #  KONJ -> PRIMARY KONJ2
+        def parse_konjunction(seq):
+            lhs = parse_primary(seq)
+            return parse_konjunction2(seq, lhs)
+
+        #  KONJ2 -> "" | "&" PRIMARY
+        def parse_konjunction2(seq, lhs):
+            if len(seq) > 0 and seq[0] == '&':
+                seq.pop(0)
+                rhs = parse_primary(seq)
+                expr = lambda values: lhs(values) and rhs(values)
+                return parse_konjunction2(seq, expr)
+            else:
+                return lhs
+
+        #  PRIMARY -> "(" DISJ ")" | ASSURANCE
+        def parse_primary(seq):
+            if len(seq) > 0 and seq[0] == '(':
+                seq.pop(0)
+                subexpr = parse_disjunction(seq)
+                if len(seq) > 0 and seq.pop(0) != ')':
+                    raise ValueError("Missing ')' while parsing")
+                return subexpr
+            else:
+                return parse_assurance(seq)
+
+        #  ASSURANCE -> str | "*" | "!"
+        def parse_assurance(seq):
+            value = seq.pop(0)
+            if value == '!':
+                return lambda values: len(values) > 0
+            elif value == '*':
+                return lambda values: True
+            else:
+                value = value if regex.match('https?://', value) else prefix + value
+                return lambda values: value in values
+
+        return parse_expr(tokens)
+
     def reach_state(self, target):
         """Attempt to put the user into the desired state on the configured service.
 
@@ -46,47 +119,9 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
-        ass = CONFIG['assurance']
 
-        profile = ass.get('profile', '*')
-        if (profile == 'cappuccino' and not (self.data.assurance.profile and self.data.assurance.profile.is_cappuccino)) \
-           or (profile == 'espresso' and not (self.data.assurance.profile and self.data.assurance.profile.is_espresso)) \
-           or profile not in ['cappuccino', 'espresso', '*']:
-            raise Rejection(message=("Your assurance profile '{}' is insufficient to access this resource: "
-                                     + "At least '{}' required").format(
-                                         self.data.assurance.profile, profile))
-
-        uid_uniqueness = ass.get('uid_uniqueness', '*')
-        if uid_uniqueness == 'unique' and not self.data.assurance.identifier_uniqueness.uid_is_unique:
-            raise Rejection(message="Your UID is not unique enough [missing required value 'ID/unique']")
-
-        eppn_uniqueness = ass.get('eppn_uniqueness', '*')
-        if eppn_uniqueness == 'no-reassign' and self.data.assurance.identifier_uniqueness.eppn_is_reassignable:
-            raise Rejection(message="Your EPPN must be non-reassignable [missing required value 'ID/eppn-unique-no-reassign']")
-        if eppn_uniqueness == 'reassign-1y' \
-           and self.data.assurance.identifier_uniqueness.eppn_uniqueness_reassign_period > timedelta(days=365):
-            raise Rejection(message=("Your EPPN must be reassignable only after 1-year inactivity "
-                                     + "[missing required value 'ID/eppn-unique-reassign-1y']"))
-
-        id_ass = ass.get('identity_assurance', '*')
-        if (id_ass == 'low' and not self.data.assurance.identity_assurance.is_low) \
-           or (id_ass == 'medium' and not self.data.assurance.identity_assurance.is_medium) \
-           or (id_ass == 'high' and not self.data.assurance.identity_assurance.is_high) \
-           or id_ass not in ['low', 'high', 'medium', '*']:
-            raise Rejection(message=("Your Identity assurance level 'IAP/{}' is insufficient to access this resource: "
-                                     + "At least 'IAP/{}' required").format(
-                                         self.data.assurance.identity_assurance.level_str, id_ass))
-
-        attr_fresh = ass.get('attribute_freshness', '*')
-        if attr_fresh == '1m' and self.data.assurance.attribute_assurance.user_departure_latency > timedelta(days=31):
-            raise Rejection(message=("Your attributes do not guarantee enough freshness [missing required value 'ATP/ePA-1m']"))
-        if attr_fresh == '1d' and self.data.assurance.attribute_assurance.user_departure_latency > timedelta(days=1):
-            raise Rejection(message=("Your attributes do not guarantee enough freshness [missing required value 'ATP/ePA-1d']"))
-
-        if ass.getboolean('identity_qualifies_for_local_enterprise') and not self.data.assurance.identity_assurance.local_enterprise:
-            raise Rejection(message=("Your identity assurance does not qualify you "
-                                     + "to access the Home Organisation's internal administrative systems "
-                                     + "[missing required value 'IAP/local-enterprise']"))
+        if not self.assurance_verifier()(self.data.assurance):
+            raise Rejection(message="Your assurance level is insufficient to access this resource")
 
         if target == 'deployed':
             return self.deploy()
@@ -438,8 +473,8 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def assurance(self, allow_question=True):
-        """Return the assurance levels of the user. See `eduperson.Assurance` for details"""
-        return eduperson.Assurance(self.userinfo.get('eduperson_assurance', []))
+        """Return the assurance levels of the user."""
+        return self.userinfo.get('eduperson_assurance', [])
 
     def value_or_ask(self, value, answer_name, question_text, allow_question):
         """Return the submitted answer, the default value or raise a questionaire."""
