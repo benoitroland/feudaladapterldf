@@ -1,23 +1,63 @@
-#!/usr/bin/env python2.7
-# pylint # {{{
-# vim: tw=100 foldmethod=marker
+#!/usr/bin/env python3
+# pylint 
+# vim: tw=100
 # pylint: disable=bad-continuation, invalid-name, superfluous-parens
 # pylint: disable=bad-whitespace, mixed-indentation
 # pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation
 # pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
-# }}}
 
 import sys
 import os
 import re
 import json
 import requests
-import configargparse
+import logging
+import argparse
+from pathlib import Path
+from configparser import ConfigParser
+from configparser import ExtendedInterpolation
+import urllib.parse as ul
 
-def remove_quotes(data):# {{{
+# CONFIG = ConfigParser()
+CONFIG = ConfigParser(interpolation=ExtendedInterpolation())
+CONFIG.optionxform = lambda option: option
+
+# Logging
+logformat='[%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
+logging.basicConfig(level=os.environ.get("LOG", "WARN"), format = logformat)
+logger = logging.getLogger(__name__)
+
+# Functions
+def load_config():
+    """Reload configuration from disk.
+
+    Config locations, by priority (all values are merged. The last one
+        overwrites earlier ones)
+    """
+    files = []
+    try:
+        files += [ Path(args.pathconf_file) ]
+    except:
+        pass
+
+    logger.info("reading config")
+
+    files += [
+        Path('./subiss-to-unix.conf')
+        Path.home()/'.config'/'subiss-to-unix.conf')
+        Path('/etc/subiss-to-unix.conf')
+    ]
+
+    for f in files:
+        if f.exists():
+            logger.info("Using this config file: {}".format(f))
+            CONFIG.read(f)
+            break
+
+def remove_quotes(data):
     return data.lstrip('"').lstrip("'").rstrip('"').rstrip("'")
-# }}}
-def parseOptions():# {{{
+
+def parseOptions():
     '''Parse the commandline options'''
 
     path_of_executable = os.path.realpath(sys.argv[0])
@@ -25,13 +65,7 @@ def parseOptions():# {{{
     full_name_of_executable = os.path.split(path_of_executable)[1]
     name_of_executable = full_name_of_executable.rstrip('.py')
 
-    config_files = [os.environ['HOME']+'/.config/%sconf' % name_of_executable,
-                    folder_of_executable +'/%s.conf'     % name_of_executable,
-                    '/root/configs/%s.conf'              % name_of_executable]
-
-    parser = configargparse.ArgumentParser(
-            default_config_files = config_files,
-            description='''ldf-interface''', ignore_unknown_config_file_keys=True)
+    parser = argparse.ArgumentParser()
 
     parser.add_argument('--rest_user',   '-u',             help='username for LDF rest interface')
     parser.add_argument('--rest_passwd', '-p',             help='passwdname for LDF rest interface')
@@ -41,6 +75,7 @@ def parseOptions():# {{{
     parser.add_argument('--verify_tls'           , default=True    , action="store_false" , help='disable verify')
     parser.add_argument('--issTranslateExpression', default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
     parser.add_argument(dest='sub_iss'  , help='Content of $REMOTE_USER. For testing use "test-offline" and "test-id"')
+    parser.add_argument('--verbose', '-v'        , default=False   , action="store_true" )
     args = parser.parse_args()
 
     # sanitize some args:
@@ -62,35 +97,33 @@ def parseOptions():# {{{
         raise
 
     return args
-# }}}
 
 args = parseOptions()
+load_config()
 
 if args.sub_iss == 'test-offline':
     sys.stdout.write('hdf_marcus\n')
     exit(0) 
 
+works = "6c611e2a-2c1c-487f-9948-c058a36c8f0e%40https%253A%252F%252Flogin.helmholtz-data-federation.de%252Foauth2"
 if args.sub_iss == 'test-id':
-    args.sub_iss = "ec0c370f-39a6-4c15-a94e-cf56367e2414@unity.helmholtz-data-federation.de/oauth2" 
-# print (args.sub_iss)
-externalId = remove_quotes(args.sub_iss)
-(sub, iss) = externalId.split('@')
-iss = re.sub('^https?://', '', iss)
-iss = iss.rstrip('/')
+    args.sub_iss = "6c611e2a-2c1c-487f-9948-c058a36c8f0e@https://login.helmholtz-data-federation.de/oauth2"
 
-# replace the iss string:
-iTE = args.issTranslateExpressionJSON
-# print ( json.dumps(iTE, sort_keys=True, indent=4, separators=(',', ': ')))
-for key in iTE.keys():
-    # in case user provides https?:// in iTE, we just remove it:
-    iTE[key] = re.sub('^https?://', '', iTE[key])
-    iss = re.sub("%s$"%iTE[key], key, iss)
+externalId = args.sub_iss
+(sub,iss) = args.sub_iss.split('@')
+externalId = ul.quote_plus(sub) + \
+            '@' + \
+            ul.quote_plus(iss)
 
-externalId = args.bwidmOrgId+"_"+sub+"@"+iss
+url = args.base_url + '/external-user/find/externalId/' + ul.quote_plus(str(externalId))
+rest_user = CONFIG['main'].get('rest_user', 'xxx')
+rest_pass = CONFIG['main'].get('rest_pass', 'xxx')
+base_url = CONFIG['main'].get('base_url', '')
 
-url = args.base_url + '/external-user/find/externalId/' + str(externalId)
+if args.verbose:
+    logger.debug(F"URL: {url}")
 
-resp = requests.get (url, verify=args.verify_tls, auth=(args.rest_user, args.rest_passwd))
+resp = requests.get (url, verify=args.verify_tls, auth=(rest_user, rest_pass))
 
 if resp.status_code != 200:
     sys.stderr.write('Error %d reading from remote: \n%s\n'% (resp.status_code, str(resp.text)))
@@ -108,7 +141,3 @@ except KeyError as e:
     sys.stderr.write(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
     sys.stderr.write('\n')
 
-
-# Requires:
-# python-2.7
-# python-configargparse
