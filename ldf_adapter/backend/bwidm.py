@@ -23,6 +23,7 @@ requests_cache_dir = '/tmp/feudalAdapterLDF_bwidm'
 if not os.path.isdir(requests_cache_dir):
    os.makedirs(requests_cache_dir)
 requests_cache.install_cache(requests_cache_dir+'/requests_cache.sqlite', include_get_headers=True, expire_after=2)
+# FIXME: REMOVE Cache dir!
 
 class BwIdmConnection:
     """Connection to the BWIDM API."""
