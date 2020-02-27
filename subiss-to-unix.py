@@ -43,8 +43,8 @@ def load_config():
     logger.info("reading config")
 
     files += [
-        Path('./subiss-to-unix.conf')
-        Path.home()/'.config'/'subiss-to-unix.conf')
+        Path('./subiss-to-unix.conf'),
+        Path(Path.home(),'.config','subiss-to-unix.conf'),
         Path('/etc/subiss-to-unix.conf')
     ]
 
