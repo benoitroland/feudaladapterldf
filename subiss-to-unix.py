@@ -76,6 +76,7 @@ def parseOptions():
     parser.add_argument('--issTranslateExpression', default='{"unity-hdf": "unity.helmholtz-data-federation.de/oauth2",  "kit": "https://oidc.scc.kit.edu/auth/realms/kit"}')
     parser.add_argument(dest='sub_iss'  , help='Content of $REMOTE_USER. For testing use "test-offline" and "test-id"')
     parser.add_argument('--verbose', '-v'        , default=False   , action="store_true" )
+    parser.add_argument('--debug',   '-d'        , default=False   , action="store_true" )
     args = parser.parse_args()
 
     # sanitize some args:
@@ -105,7 +106,6 @@ if args.sub_iss == 'test-offline':
     sys.stdout.write('hdf_marcus\n')
     exit(0) 
 
-works = "6c611e2a-2c1c-487f-9948-c058a36c8f0e%40https%253A%252F%252Flogin.helmholtz-data-federation.de%252Foauth2"
 if args.sub_iss == 'test-id':
     args.sub_iss = "6c611e2a-2c1c-487f-9948-c058a36c8f0e@https://login.helmholtz-data-federation.de/oauth2"
 
@@ -136,7 +136,14 @@ try:
 
     sys.stdout.write('%s_%s\n' % (bwIdmOrgId, username))
 except KeyError as e:
-    sys.stderr.write('Error interpreting remote json object: Key Error: %s not found\n' % str(e))
+    if args.verbose:
+        # sys.stderr.write('Error interpreting remote json object: Key Error: %s not found\n' % str(e))
+        sys.stderr.write('Error: I could not find the username in the database. Most likely the user is not registered for this service')
+        sys.stderr.write('This is the json data received\n')
+        sys.stderr.write(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
+        sys.stderr.write('\n')
+
+if args.debug:
     sys.stderr.write('This is the json data received\n')
     sys.stderr.write(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
     sys.stderr.write('\n')
