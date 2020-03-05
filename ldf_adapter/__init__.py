@@ -40,6 +40,22 @@ class User:
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
     def assurance_verifier(self):
+        """Produce a suitably function to check if a user is allowed.
+
+        Relevant config:
+        assurance.prefix -- The common prefix of all relative assurance claims
+        assurance.require -- The boolean expression to be parsed, according to the following
+          grammer: `E -> E "&" E | E "|" E | "(" E ")" | string`, where `&` binds stronger than `|`.
+          Strings are assurance claims interpreted absolute (if they start with `"http[s]://"`) or
+          relative to `assurance.prefix`. The strings "+" and "*" are interpreted specially: "+"
+          means "any assurance claim", while "*" means "any claim, or no claim at all". They thus
+          differ in their treatment of users without any claims.
+
+        Returns:
+        A function taking a set of assurance claims, interpreted absolute. The function returns
+        `True`, if the claims satisfy the configured expression (`"assurance.require"`), `False`
+        otherwise.
+        """
         ass = CONFIG['assurance']
         prefix = ass['prefix']
 
@@ -63,7 +79,8 @@ class User:
             lhs = parse_konjunction(seq)
             return parse_disjunction2(seq, lhs)
 
-        #  DISJ2 -> "" | "|" KONJ DISJ2
+        #  DISJ2 -> ""
+        #        -> "|" KONJ DISJ2
         def parse_disjunction2(seq, lhs):
             if len(seq) > 0 and seq[0] == '|':
                 seq.pop(0)
@@ -78,7 +95,8 @@ class User:
             lhs = parse_primary(seq)
             return parse_konjunction2(seq, lhs)
 
-        #  KONJ2 -> "" | "&" PRIMARY
+        #  KONJ2 -> ""
+        #        -> "&" PRIMARY
         def parse_konjunction2(seq, lhs):
             if len(seq) > 0 and seq[0] == '&':
                 seq.pop(0)
@@ -88,7 +106,8 @@ class User:
             else:
                 return lhs
 
-        #  PRIMARY -> "(" DISJ ")" | ASSURANCE
+        #  PRIMARY -> "(" DISJ ")"
+        #          -> ASSURANCE
         def parse_primary(seq):
             if len(seq) > 0 and seq[0] == '(':
                 seq.pop(0)
@@ -99,10 +118,12 @@ class User:
             else:
                 return parse_assurance(seq)
 
-        #  ASSURANCE -> str | "*" | "!"
+        #  ASSURANCE -> string
+        #            -> "*"
+        #            -> "+"
         def parse_assurance(seq):
             value = seq.pop(0)
-            if value == '!':
+            if value == '+':
                 return lambda values: len(values) > 0
             elif value == '*':
                 return lambda values: True
