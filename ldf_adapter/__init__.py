@@ -14,7 +14,7 @@ import eduperson
 
 from . import backend
 from .config import CONFIG
-from .results import Deployed, NotDeployed, Rejection, Failure, Question
+from .results import Deployed, NotDeployed, Rejection, Failure, Question, raise_question
 
 logger = logging.getLogger(__name__)
 
