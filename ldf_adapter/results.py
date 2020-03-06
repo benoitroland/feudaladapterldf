@@ -98,7 +98,7 @@ class Question(Questionnaire):
         """
         super().__init__(questions={name: text}, **kwargs)
 
-def raise_question(*args, **kwarsg):
+def raise_question(*args, **kwargs):
     """Convenice function needed in places where an expression is required.
 
     E.g: `userinfo.get_value() or raise Question(...)` is not valid,
