@@ -108,6 +108,16 @@ if args.sub_iss == 'test-offline':
 
 if args.sub_iss == 'test-id':
     args.sub_iss = "6c611e2a-2c1c-487f-9948-c058a36c8f0e@https://login.helmholtz-data-federation.de/oauth2"
+    sys.stderr.write("using test id: %s\n" % args.sub_iss)
+if args.sub_iss == 'test-marcus':
+    args.sub_iss = "6c611e2a-2c1c-487f-9948-c058a36c8f0e@https://login.helmholtz-data-federation.de/oauth2"
+    sys.stderr.write("using test id: %s\n" % args.sub_iss)
+if args.sub_iss == 'test-borja-old':
+    args.sub_iss = "d9f4d895-6051-4717-883e-4b2676ad0d0d@https://login.helmholtz-data-federation.de/oauth2"
+    sys.stderr.write("using test id: %s\n" % args.sub_iss)
+if args.sub_iss == 'test-borja-new':
+    args.sub_iss = "309ed509-c56a-4894-b163-5993bd08cbc2@https://login.helmholtz-data-federation.de/oauth2"
+    sys.stderr.write("using test id: %s\n" % args.sub_iss)
 
 externalId = args.sub_iss
 (sub,iss) = args.sub_iss.split('@')
@@ -138,7 +148,7 @@ try:
 except KeyError as e:
     if args.verbose:
         # sys.stderr.write('Error interpreting remote json object: Key Error: %s not found\n' % str(e))
-        sys.stderr.write('Error: I could not find the username in the database. Most likely the user is not registered for this service')
+        sys.stderr.write('Error: I could not find the username in the database. Most likely the user is not registered for this service\n')
         sys.stderr.write('This is the json data received\n')
         sys.stderr.write(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
         sys.stderr.write('\n')
