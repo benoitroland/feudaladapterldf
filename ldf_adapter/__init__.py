@@ -142,7 +142,10 @@ class User:
         """
 
         if not self.assurance_verifier()(self.data.assurance):
-            raise Rejection(message="Your assurance level is insufficient to access this resource")
+            if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
+                logger.warning("Assurance level is insufficient. Undeploying anyway.")
+            else:
+                raise Rejection(message="Your assurance level is insufficient to access this resource")
 
         if target == 'deployed':
             return self.deploy()
