@@ -129,6 +129,14 @@ class User:
             })
 
     def update(self):
+        def get_active_reg_info(ext_id):
+            rsp = BWIDM.get('external-reg', 'find',
+                            'externalId', ext_id)
+
+            return next(filter(lambda reg: reg['registryStatus'] == "ACTIVE", rsp.json()))
+
+        old_reg = get_active_reg_info(self.info.unique_id)
+
         self.external_user_update({
             'externalId': self.info.unique_id,
             'eppn': self.info.eppn,
@@ -144,18 +152,23 @@ class User:
             }
         })
 
-        rsp = BWIDM.get('external-reg', 'register',
-                        'externalId', self.info.unique_id,
-                        'ssn', CONFIG['backend.bwidm.service']['name'])
+        # We wait until the 'lastReconciled' timestamp changes, which means that our update was sucessfully deployed
+        reg = old_reg
+        while reg['lastReconcile'] == old_reg['lastReconcile']:
+            sleep(0.1)
+            logger.debug("Received registration reconciled at {}. That is not up-to-date. Checking again.".format(
+                reg['lastReconcile']))
 
-        if rsp.status_code == 204:
-            rsp = BWIDM.get('external-reg', 'find',
-                            'externalId', self.info.unique_id)
+            rsp = BWIDM.get('external-reg', 'register',
+                            'externalId', self.info.unique_id,
+                            'ssn', CONFIG['backend.bwidm.service']['name'])
 
-            reg = next(filter(lambda reg: reg['registryStatus'] == "ACTIVE", rsp.json()))
-        else:
-            reg = rsp.json()
+            if rsp.status_code == 204:
+                reg = get_active_reg_info(self.info.unique_id)
+            else:
+                reg = rsp.json()
 
+        logger.debug("Registration confirmed reconciled at {}. Looks like the update went through.".format(reg['lastReconcile']))
 
         self.credentials['ssh_user'] = reg['registryValues']['localUid']
         self.credentials['ssh_host'] = CONFIG['backend.bwidm.login_info'].get('ssh_host', 'undefined')
@@ -175,9 +188,6 @@ class User:
 
             logger.debug("Groups according to BWIDM: {}".format([g['name'] for g in current_groups]))
             logger.debug("Groups according to FEUDAL: {}".format([g['name'] for g in new_groups]))
-
-            logger.debug("Current groups: {}".format(current_groups))
-            logger.debug("New groups: {}".format(new_groups))
 
             # Remove user from groups he should not be a member of
             to_be_removed_from = [g for g in current_groups
