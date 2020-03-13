@@ -15,6 +15,7 @@ from urllib.parse import urljoin
 
 from ..config import CONFIG
 from .. import utils
+from time import sleep
 
 logger = logging.getLogger(__name__)
 
