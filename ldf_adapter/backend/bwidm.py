@@ -7,6 +7,7 @@ See https://git.scc.kit.edu/simon/reg-app.
 import logging
 import json
 from functools import reduce
+from time import sleep
 
 import requests
 import os
