@@ -457,11 +457,18 @@ class UserInfo(Mapping):
         """Return the homogenised names of the groups the user should be a member of.
 
         These are extracted from the entitlement. Any additional 'group'-keys in the input are ignored.
+
+        Group names are prefixed with the delegated namespace from the entitlement.
         """
-        return set(filter(None, [self._group_masked_for_bwidm(grp)
-                                 for grp
-                                 in chain(self.userinfo.get('groups', []),
-                                          *[ent.subgroups + [ent.group] for ent in self.entitlement])]))
+
+        return set(filter(
+            None,
+            ['{}_{}'.format(self._group_masked_for_bwidm(ns), self._group_masked_for_bwidm(grp))
+             for (ns, grp)
+             in chain.from_iterable(
+                 ((ent.delegated_namespace, grp) for grp in ent.all_groups)
+                 for ent in self.entitlement)]
+        ))
 
     def _group_masked_for_bwidm(self, orig_grp):
         """Convert camelCase to snake_case, fixup beginning of name and replace invalid chars with a dash ('-')"""
