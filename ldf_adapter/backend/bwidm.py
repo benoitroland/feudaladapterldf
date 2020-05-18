@@ -135,9 +135,10 @@ class User:
             rsp = BWIDM.get('external-reg', 'find',
                             'externalId', ext_id)
 
-            return next(filter(lambda reg: reg['registryStatus'] == "ACTIVE", rsp.json()))
-
-        old_reg = get_active_reg_info(self.info.unique_id)
+            try:
+                return next(filter(lambda reg: reg['registryStatus'] == "ACTIVE", rsp.json()))
+            except StopIteration:
+                return {'lastReconcile': None}
 
         self.external_user_update({
             'externalId': self.info.unique_id,
@@ -153,6 +154,8 @@ class User:
                 self.ATTR_ORG_ID: CONFIG['backend.bwidm']['org_id'],
             }
         })
+
+        old_reg = get_active_reg_info(self.info.unique_id)
 
         # We wait until the 'lastReconciled' timestamp changes, which means that our update was sucessfully deployed
         reg = old_reg
