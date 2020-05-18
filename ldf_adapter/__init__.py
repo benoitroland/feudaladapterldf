@@ -34,6 +34,8 @@ class User:
 
         Relevant config:
         ldf_adapter.backend -- The name of the backend. See function the `backend` for possible values
+        ldf_adapter.primary_group -- The primary group of the user. If empty, one from the
+          supplementary groups will be used. If there are multiple, a question will be raised.
         """
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
         self.service_user = backend.User(self.data)
@@ -162,6 +164,7 @@ class User:
 
         Return a Deployed result, with a message describing what was done.
         """
+        self.ensure_groups_exist()
         was_created = self.ensure_exists()
         new_groups = self.ensure_group_memberships()
         new_credentials = self.ensure_credentials_active()
@@ -244,17 +247,20 @@ class User:
             logger.debug('No user for {unique_id} did exist. Nothing to do.'.format(**self.data))
             return False
 
-    def ensure_group_memberships(self):
-        """Ensure that the user is a member of all the groups in self.service_groups.
+    def ensure_groups_exist(self):
+        """Ensure that all the necessary groups exist.
 
         Create the groups on the service, if necessary.
-
-        Return the names of all groups the user is now a member of.
         """
         for group in filter(lambda grp: not grp.exists(), self.service_groups):
             logger.info("Creating group {}".format(group.name))
             group.create()
 
+    def ensure_group_memberships(self):
+        """Ensure that the user is a member of all the groups in self.service_groups.
+
+        Return the names of all groups the user is now a member of.
+        """
         self.service_user.mod(supplementary_groups=self.service_groups)
         return [grp.name for grp in self.service_groups]
 
@@ -506,6 +512,21 @@ class UserInfo(Mapping):
     def assurance(self, allow_question=True):
         """Return the assurance levels of the user."""
         return self.userinfo.get('eduperson_assurance', [])
+
+    @property
+    @lru_cache(maxsize=None)
+    def primary_group(self, allow_questions=True):
+        config_group = CONFIG['ldf_adapter'].get("primary_group")
+        if config_group:
+            return config_group
+        elif len(self.groups) > 1:
+            return self.value_or_ask(
+                self.userinfo.get(0), "primary_group",
+                "You are a member of multiple groups. Please select your desired primary group.",
+                allow_questions, list(self.groups)
+            )
+        else:
+            raise Failure("No groups in userinfo and no global primary group configured")
 
     def value_or_ask(self, value, answer_name, question_text, allow_question, default=None):
         """Return the submitted answer, the default value or raise a questionaire."""

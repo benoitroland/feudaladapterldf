@@ -74,6 +74,7 @@ class User:
     def __init__(self, userinfo):
         self.info = userinfo
         self.credentials = {}
+        self.primary_group = Group(userinfo.primary_group)
 
     def exists(self):
         """
@@ -146,7 +147,7 @@ class User:
             'givenName': self.info.given_name,
             'surName': self.info.family_name,
             'primaryGroup': {
-                'id': CONFIG['backend.bwidm'].getint('primary_group_id')
+                'id': self.primary_group.reg_info()['id']
             },
             'attributeStore': {
                 self.ATTR_USERNAME: self.info.username,
