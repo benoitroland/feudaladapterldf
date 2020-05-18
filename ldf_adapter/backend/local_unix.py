@@ -32,6 +32,7 @@ class User:
 
     def create(self):
         try:
+            # TODO this should consider self.primary_group
             subprocess.run(['useradd', '--comment', self.unique_id, self.name],
                            capture_output=True, check=True)
         except CalledProcessError as e:

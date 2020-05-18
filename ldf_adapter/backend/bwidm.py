@@ -74,6 +74,7 @@ class User:
     def __init__(self, userinfo):
         self.info = userinfo
         self.credentials = {}
+        self.primary_group = Group(userinfo.primary_group)
 
     def exists(self):
         """
@@ -147,7 +148,7 @@ class User:
             'givenName': self.info.given_name,
             'surName': self.info.family_name,
             'primaryGroup': {
-                'id': CONFIG['backend.bwidm'].getint('primary_group_id')
+                'id': self.primary_group.reg_info()['id']
             },
             'attributeStore': {
                 self.ATTR_USERNAME: self.info.username,
@@ -267,7 +268,12 @@ class Group:
         return b'no such group' not in BWIDM.get('group-admin', 'find', 'name', self.name, fail=False).content
 
     def create(self):
-        BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.service']['name'], self.name)
+        rsp = BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.service']['name'], self.name).json()
+        if self.name != rsp.name:
+            logger.warning("Groupname changed from {} to {} by BWIDM".format(self.name, rsp.name))
+            self.name = rsp.name
+
+        self.id = rsp.id
 
     def delete(self):
         # groupdel
