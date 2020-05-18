@@ -182,7 +182,14 @@ class User:
             self.credentials['ssh_user'], self.credentials['ssh_host'])
 
     def delete(self):
-        """Only deactivate, don't delete (deletion is not supported by BWIDM)."""
+        """Deregister the user from the given service in BWIDM."""
+        BWIDM.get('external-user', 'deregister', 'externalId', self.info.unique_id,\
+                  'ssn', CONFIG['backend.bwidm.service']['name'])
+
+    def deactivate(self):
+        """Deactivate the user, this does not delete from BWIDM, but sets
+        the status to ON_HOLD, thereby disabling the user from ALL
+        services."""
         BWIDM.get('external-user', 'deactivate', 'externalId', self.info.unique_id)
 
     def mod(self, supplementary_groups=None):
