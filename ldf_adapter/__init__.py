@@ -507,13 +507,15 @@ class UserInfo(Mapping):
         """Return the assurance levels of the user."""
         return self.userinfo.get('eduperson_assurance', [])
 
-    def value_or_ask(self, value, answer_name, question_text, allow_question):
+    def value_or_ask(self, value, answer_name, question_text, allow_question, default=None):
         """Return the submitted answer, the default value or raise a questionaire."""
-        return (self.answers.get(answer_name)
+        previous_answer = self.answers.get(answer_name)
+        return (previous_answer
                 or value
                 or (allow_question and raise_question(
                     name=answer_name,
-                    text=question_text
+                    text=question_text,
+                    default=default,
                 )))
 
 

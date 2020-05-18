@@ -80,22 +80,31 @@ class Questionnaire(ExceptionalResult):
                  displayed to the user in the feudalClient webinterface. The answer
                  submitted by the user can then be found under the key `name` in the
                  answers dictionary.
+    defaults -- A Dictionary of `{name: thing, ...}` quenstionaire answers. The `thing` is the
+                default value of the named question. The type of thing determines the input of the
+                answer. Possible are strings, numbers or lists to provide the user with a selection
+                of the given values.
     **kwargs -- Any additional keyword arguments ar passed to ExceptionalResult.__init__
     """
-    def __init__(self, questions, **kwargs):
+    def __init__(self, questions, defaults, **kwargs):
          super().__init__(state='questionnaire', message='There are unanswered questions.', **kwargs)
          self.questionnaire = questions
+         self.questionnaire_answers = defaults
 
 class Question(Questionnaire):
     """Convenience class to ask a single question."""
-    def __init__(self, name, text, **kwargs):
+    def __init__(self, name, text, default=None, **kwargs):
         """See Questionaire.__init__ for details.
 
         Arguments:
         name -- The name of the question
         text -- Displayed to the user
+        default -- The default value / the input type
         **kwargs -- Any additional keyword arguments are passed to Questionaire.__init__
         """
+        if default:
+            kwargs['defaults'] = {name: default}
+
         super().__init__(questions={name: text}, **kwargs)
 
 def raise_question(*args, **kwargs):
