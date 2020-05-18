@@ -264,7 +264,12 @@ class Group:
         return b'no such group' not in BWIDM.get('group-admin', 'find', 'name', self.name, fail=False).content
 
     def create(self):
-        BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.service']['name'], self.name)
+        rsp = BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.service']['name'], self.name).json()
+        if self.name != rsp.name:
+            logger.warning("Groupname changed from {} to {} by BWIDM".format(self.name, rsp.name))
+            self.name = rsp.name
+
+        self.id = rsp.id
 
     def delete(self):
         # groupdel
