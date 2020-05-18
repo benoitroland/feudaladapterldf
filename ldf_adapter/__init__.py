@@ -466,7 +466,7 @@ class UserInfo(Mapping):
             ['{}_{}'.format(self._group_masked_for_bwidm(ns), self._group_masked_for_bwidm(grp))
              for (ns, grp)
              in chain.from_iterable(
-                 ((ent.delegated_namespace, grp) for grp in ent.all_groups)
+                 (("-".join([ent.delegated_namespace] + ent.subnamespaces), grp) for grp in ent.all_groups)
                  for ent in self.entitlement)]
         ))
 
