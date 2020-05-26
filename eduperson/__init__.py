@@ -78,7 +78,7 @@ class Entitlement:
 
     @property
     def all_groups(self):
-        return [self.group] + self.subgroups
+        return  ["_".join([self.group] + self.subgroups)]
 
     @property
     def full_namespace(self):
