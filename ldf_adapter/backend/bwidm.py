@@ -183,7 +183,7 @@ class User:
 
     def delete(self):
         """Deregister the user from the given service in BWIDM."""
-        BWIDM.get('external-user', 'deregister', 'externalId', self.info.unique_id,\
+        BWIDM.get('external-reg', 'deregister', 'externalId', self.info.unique_id,\
                   'ssn', CONFIG['backend.bwidm.service']['name'])
 
     def deactivate(self):
