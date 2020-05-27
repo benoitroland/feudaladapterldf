@@ -276,13 +276,9 @@ class Group:
 
     def create(self):
         rsp = BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.service']['name'], self.name).json()
-        try:
-            if self.name != rsp.name:
-                logger.warning("Groupname changed from {} to {} by BWIDM".format(self.name, rsp.name))
-                self.name = rsp.name
-        except AttributeError as e:
-            logger.error(F"Did not obtain a json with group name back: {e}")
-            logger.error(F"What is got is {rsp}")
+        if self.name != rsp.name:
+            logger.warning("Groupname changed from {} to {} by BWIDM".format(self.name, rsp.name))
+            self.name = rsp.name
 
         self.id = rsp.id
 
