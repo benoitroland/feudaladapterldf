@@ -276,11 +276,12 @@ class Group:
 
     def create(self):
         rsp = BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.service']['name'], self.name).json()
-        if self.name != rsp.name:
-            logger.warning("Groupname changed from {} to {} by BWIDM".format(self.name, rsp.name))
-            self.name = rsp.name
 
-        self.id = rsp.id
+        if self.name != rsp['name']:
+            logger.warning("Groupname changed from {} to {} by BWIDM".format(self.name, rsp['name']))
+            self.name = rsp['name']
+
+        self.id = rsp['id']
 
     def delete(self):
         # groupdel
