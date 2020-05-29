@@ -102,10 +102,11 @@ class Question(Questionnaire):
         default -- The default value / the input type
         **kwargs -- Any additional keyword arguments are passed to Questionaire.__init__
         """
+        defaults = {}
         if default:
-            kwargs['defaults'] = {name: default}
+            defaults[name] = default
 
-        super().__init__(questions={name: text}, **kwargs)
+        super().__init__(questions={name: text}, defaults=defaults, **kwargs)
 
 def raise_question(*args, **kwargs):
     """Convenice function needed in places where an expression is required.
