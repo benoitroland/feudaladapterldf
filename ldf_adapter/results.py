@@ -104,8 +104,10 @@ class Question(Questionnaire):
         """
         if default:
             kwargs['defaults'] = {name: default}
+        else:
+            kwargs['defaults'] = {name: ''}
 
-        super().__init__(questions={name: text}, defaults={name: ''}, **kwargs)
+        super().__init__(questions={name: text}, **kwargs)
 
 def raise_question(*args, **kwargs):
     """Convenice function needed in places where an expression is required.
