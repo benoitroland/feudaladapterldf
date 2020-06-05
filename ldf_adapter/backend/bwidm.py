@@ -198,6 +198,9 @@ class User:
         if supplementary_groups is not None:
             current_groups = [grp for grp in reg_info['secondaryGroups']]
             new_groups = [grp.reg_info(short=True) for grp in supplementary_groups]
+            new_groups += [self.primary_group]
+            for group in new_groups:
+                logger.info(F"  new group:  {group.name}")
 
             logger.debug("Groups according to BWIDM: {}".format([g['name'] for g in current_groups]))
             logger.debug("Groups according to FEUDAL: {}".format([g['name'] for g in new_groups]))
