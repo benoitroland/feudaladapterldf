@@ -120,9 +120,11 @@ if args.sub_iss == 'test-borja-new':
     sys.stderr.write("using test id: %s\n" % args.sub_iss)
 
 externalId = args.sub_iss
-(sub,iss) = args.sub_iss.split('@')
+vals = args.sub_iss.split('@')
+sub = '@'.join(vals[0:-1]) # First few components are sub, may contain '@'
+iss = vals[-1] # Last component is issuer may NOT contain '@'
 externalId = ul.quote_plus(sub) + \
-            '@' + \
+            '@n' + \
             ul.quote_plus(iss)
 
 url = args.base_url + '/external-user/find/externalId/' + ul.quote_plus(str(externalId))
