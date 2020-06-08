@@ -261,7 +261,7 @@ class User:
 
         Create the groups on the service, if necessary.
         """
-        for group in filter(lambda grp: not grp.exists(), self.service_groups):
+        for group in filter(lambda grp: not grp.exists(), [self.service_user.primary_group] + self.service_groups):
             logger.info("Creating group {}".format(group.name))
             group.create()
 
