@@ -198,13 +198,7 @@ class User:
         if supplementary_groups is not None:
             current_groups = [grp for grp in reg_info['secondaryGroups']]
             new_groups = [grp.reg_info(short=True) for grp in supplementary_groups]
-            new_groups += [self.primary_group]
-            for group in new_groups:
-                try:
-                    logger.info(F"  new group:  {group.name}")
-                except AttributeError as e:
-                    logger.error(F"Error displaying group name: {e} for {group}")
-
+            new_groups += [self.primary_group.reg_info()]
 
             logger.debug("Groups according to BWIDM: {}".format([g['name'] for g in current_groups]))
             logger.debug("Groups according to FEUDAL: {}".format([g['name'] for g in new_groups]))
