@@ -41,6 +41,15 @@ class User:
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
+        logger.info("/--------------------------------------------------------------------------------\\")
+        logger.info(F"primary group: {UserInfo(data).primary_group}")
+        logger.info("--------------------------------------------------------------------------------")
+
+        logger.info("self.service_groups: ")
+        for group in self.service_groups:
+            logger.info(F"    {group.name}")
+        logger.info("\\--------------------------------------------------------------------------------/")
+
     def assurance_verifier(self):
         """Produce a suitably function to check if a user is allowed.
 
@@ -252,7 +261,7 @@ class User:
 
         Create the groups on the service, if necessary.
         """
-        for group in filter(lambda grp: not grp.exists(), self.service_groups):
+        for group in filter(lambda grp: not grp.exists(), [self.service_user.primary_group] + self.service_groups):
             logger.info("Creating group {}".format(group.name))
             group.create()
 
