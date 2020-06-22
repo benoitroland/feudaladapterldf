@@ -1,12 +1,17 @@
+
 from unittest import TestCase
 
 from itertools import repeat
 
 from ldf_adapter import *
-from eduperson import *
+
+logger = logging.getLogger(__name__)
+
 
 class UserInfoTest(TestCase):
+
     def test_sub_masked_for_bwidm_eppn_unchanged(self):
+
         subs = [
             "MWMQb4ybpHVSThMGpRKkqFDJIYlGLXl1CWXSRgM8bQGR9mMXRXtMbLFubL8Sua6vZn8Dq9X3YGoKR",
             "bNAkgXeaN2rlP83UeckV0fSjU2qNmKjQ7BsOsGFC7KB1PHtYGxRXkdSZ6S1egB085cwkIYt0NNPe",
