@@ -1,8 +1,12 @@
 import os
+import sys
+
 from configparser import ConfigParser
 from pathlib import Path
 import logging
-from ldf_adapter.cmdline_params import args
+
+if 'pytest' not in sys.modules:
+    from ldf_adapter.cmdline_params import args
 
 CONFIG = ConfigParser()
 
@@ -25,7 +29,8 @@ def reload():
     logger = logging.getLogger(__name__)
     files = []
 
-    files += [ Path(args.config_file) ]
+    if 'pytest' not in sys.modules:
+        files += [ Path(args.config_file) ]
 
     filename = os.environ.get("LDF_ADAPTER_CONFIG")
     if filename:
