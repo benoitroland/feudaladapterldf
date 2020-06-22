@@ -12,3 +12,5 @@ __pycache__/
 *.pyc
 *.egg-info
 /dist
+.coverage
+cov_html/

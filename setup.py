@@ -30,5 +30,4 @@ setuptools.setup(
             "ldf_adapter = ldf_adapter.interface:main"
         ]
     },
-    test_suite="tests"
 )
