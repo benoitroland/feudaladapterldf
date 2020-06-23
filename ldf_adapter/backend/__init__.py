@@ -1,29 +1,29 @@
 import sys
+import pkgutil
 import logging
 
 from ..config import CONFIG
-logger = logging.getLogger(__name__)
 
-# import all backends, so they are in sys.modules for the getattr redirect
-from . import bwidm, local_unix
-
-__backend__ = f"{__name__}.{CONFIG['ldf_adapter']['backend']}"
-__import__(__backend__)
+for module_info in pkgutil.iter_modules(sys.modules[__name__].__path__):
+    module_path = f"{__name__}.{module_info.name}"
+    __import__(module_path)
 
 class Backend:
-    """Need to put __getattr__ in a classe for Python < 3.7 compatibility.
+    """Need to put __getattr__ in a class for Python < 3.7 compatibility.
+
+    This class acts as a module.
 
     See https://stackoverflow.com/questions/2447353/getattr-on-a-module#7668273
     """
+    __backend__ = CONFIG['ldf_adapter']['backend']
 
     def __getattr__(self, name):
-        logger.debug('__backend__: %s', __backend__)
-
         """Return the `User` and `Group` from the configured backend."""
         if name in ['User', 'Group']:
-            return getattr(sys.modules[__name__+'.'+__backend__], name)
+            return getattr(sys.modules[f"{__name__}.{self.__backend__}"], name)
         else:
             raise AttributeError(f"backend module '{__name__}' has no attribute '{name}'")
 
-# TODO this breaks the import of Backend?
-# sys.modules[__name__] = Backend()
+# Replace this very module (`ldf_adapter.backend`) with the pseudo-module above, which has the
+# effect of this ldf_adapter.backend acting as the actually configured backend module.
+sys.modules[__name__] = Backend()

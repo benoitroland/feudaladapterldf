@@ -5,23 +5,18 @@ import pytest
 from ldf_adapter import config as globalConfig, UserInfo
 from ldf_adapter import backend
 
+TEST_BACKENDS = ['bwidm', 'local_unix']
+
 # this is from:
 # https://docs.pytest.org/en/stable/example/parametrize.html#deferring-the-setup-of-parametrized-resources
 def pytest_generate_tests(metafunc):
-    if 'config' in metafunc.fixturenames:
-        metafunc.parametrize('config', ['bwidm', 'local_unix'], indirect=True)
+    if 'backend' in metafunc.fixturenames:
+        metafunc.parametrize('backend', TEST_BACKENDS, indirect=True)
 
 test_primary_group = 'test_primary_group'
 
 @pytest.fixture
-def config(monkeypatch, request):
-    conf = globalConfig.CONFIG
-
-    conf['ldf_adapter']['backend'] = request.param
-    conf['ldf_adapter']['primary_group'] = test_primary_group
-
-    # replace config
-    monkeypatch.setattr(globalConfig, 'CONFIG', conf)
+def backend(monkeypatch, request):
     monkeypatch.setattr(backend, '__backend__', request.param)
     return conf
 
