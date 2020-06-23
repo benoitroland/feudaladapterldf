@@ -38,7 +38,8 @@ def reload():
 
     files += [
         Path('ldf_adapter.conf'),
-        Path.home()/'.config'/'ldf_adapter.conf'
+        Path.home()/'.config'/'ldf_adapter.conf',
+        Path.home()/'.config'/'feudal'/'ldf_adapter.conf',
     ]
     logger.debug("Using these config files: {} to find a suitable one".format(files))
 
