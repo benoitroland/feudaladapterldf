@@ -40,9 +40,11 @@ class User:
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
+        self.service_user.primary_group = backend.Group(UserInfo(data).primary_group)
 
         logger.info("/--------------------------------------------------------------------------------\\")
         logger.info(F"primary group: {UserInfo(data).primary_group}")
+        logger.info(F"primary group from service_user: {self.service_user.primary_group}")
         logger.info("--------------------------------------------------------------------------------")
 
         logger.info("self.service_groups: ")
