@@ -10,6 +10,7 @@ import logging
 import regex
 from unidecode import unidecode
 
+from ..config import CONFIG
 from ..results import Failure
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class User:
         self.name = make_shadow_compatible(userinfo.username)
         self.unique_id = userinfo.unique_id
         self.ssh_keys = [key['value'] for key in userinfo.ssh_keys]
+        self.credentials = {}
 
     def exists(self):
         return bool(self.__passwd_entry)
@@ -41,7 +43,10 @@ class User:
             raise Failure(message='Cannot create user')
 
     def update(self):
-        pass
+        self.credentials['ssh_user'] = self.name
+        self.credentials['ssh_host'] = CONFIG['backend.local_unix.login_info'].get('ssh_host', 'undefined')
+        self.credentials['commandline'] = "ssh {}@{}".format(
+            self.credentials['ssh_user'], self.credentials['ssh_host'])
 
     def delete(self):
         name = self.__passwd_entry['login']
@@ -86,12 +91,6 @@ class User:
     @property
     def __authorized_keys(self):
         return Path(self.__passwd_entry['home'])/'.ssh'/'authorized_keys'
-
-    @property
-    def credentials(self):
-        return {
-            'login_name': self.__passwd_entry.get('login', self.name)
-        }
 
     @property
     def __passwd_entry(self):
