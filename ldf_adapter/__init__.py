@@ -43,6 +43,7 @@ class User:
 
         logger.info("/--------------------------------------------------------------------------------\\")
         logger.info(F"primary group: {UserInfo(data).primary_group}")
+        logger.info(F"primary group from service_user: {self.service_user.primary_group}")
         logger.info("--------------------------------------------------------------------------------")
 
         logger.info("self.service_groups: ")
