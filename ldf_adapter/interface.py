@@ -23,6 +23,10 @@ def main():
 
     logger.debug(f"Attempting to reach state '{data['state_target']}'")
 
+    if data['user']['userinfo'] is None:
+        logger.error(f"Cannot process null input")
+        sys.exit(2)
+
     try:
         result = User(data).reach_state(data['state_target'])
     except ExceptionalResult as result:
