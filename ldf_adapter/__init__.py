@@ -529,7 +529,7 @@ class UserInfo(Mapping):
         config_group = CONFIG['ldf_adapter'].get("primary_group")
         if config_group:
             return config_group
-        elif len(self.groups) == 1:                                                                                               
+        elif len(self.groups) == 1:
             # lousy way to access a set element:
             for group in self.groups:
                 return group
