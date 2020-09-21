@@ -152,12 +152,12 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
-
-        if not self.assurance_verifier()(self.data.assurance):
-            if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
-                logger.warning("Assurance level is insufficient. Undeploying anyway.")
-            else:
-                raise Rejection(message="Your assurance level is insufficient to access this resource")
+        if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
+            if not self.assurance_verifier()(self.data.assurance):
+                if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
+                    logger.warning("Assurance level is insufficient. Undeploying anyway.")
+                else:
+                    raise Rejection(message="Your assurance level is insufficient to access this resource")
 
         if target == 'deployed':
             return self.deploy()
@@ -529,6 +529,10 @@ class UserInfo(Mapping):
         config_group = CONFIG['ldf_adapter'].get("primary_group")
         if config_group:
             return config_group
+        elif len(self.groups) == 1:
+            # lousy way to access a set element:
+            for group in self.groups:
+                return group
         elif len(self.groups) > 1:
             return self.value_or_ask(
                 self.userinfo.get(0), "primary_group",
@@ -536,7 +540,7 @@ class UserInfo(Mapping):
                 allow_questions, list(self.groups)
             )
         else:
-            raise Failure("No groups in userinfo and no global primary group configured")
+            raise Failure(message="No groups in userinfo and no global primary group configured")
 
     def value_or_ask(self, value, answer_name, question_text, allow_question, default=None):
         """Return the submitted answer, the default value or raise a questionaire."""
