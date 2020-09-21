@@ -530,7 +530,9 @@ class UserInfo(Mapping):
         if config_group:
             return config_group
         elif len(self.groups) == 1:                                                                                               
-            return self.groups
+            # lousy way to access a set element:
+            for group in self.groups:
+                return group
         elif len(self.groups) > 1:
             return self.value_or_ask(
                 self.userinfo.get(0), "primary_group",
