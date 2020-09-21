@@ -152,12 +152,12 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
-
-        if not self.assurance_verifier()(self.data.assurance):
-            if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
-                logger.warning("Assurance level is insufficient. Undeploying anyway.")
-            else:
-                raise Rejection(message="Your assurance level is insufficient to access this resource")
+        if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
+            if not self.assurance_verifier()(self.data.assurance):
+                if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
+                    logger.warning("Assurance level is insufficient. Undeploying anyway.")
+                else:
+                    raise Rejection(message="Your assurance level is insufficient to access this resource")
 
         if target == 'deployed':
             return self.deploy()
