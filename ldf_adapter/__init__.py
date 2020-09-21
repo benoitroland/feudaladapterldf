@@ -536,7 +536,7 @@ class UserInfo(Mapping):
                 allow_questions, list(self.groups)
             )
         else:
-            raise Failure("No groups in userinfo and no global primary group configured")
+            raise Failure(message="No groups in userinfo and no global primary group configured")
 
     def value_or_ask(self, value, answer_name, question_text, allow_question, default=None):
         """Return the submitted answer, the default value or raise a questionaire."""
