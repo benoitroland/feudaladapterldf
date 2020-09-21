@@ -529,6 +529,8 @@ class UserInfo(Mapping):
         config_group = CONFIG['ldf_adapter'].get("primary_group")
         if config_group:
             return config_group
+        elif len(self.groups) == 1:                                                                                               
+            return self.groups
         elif len(self.groups) > 1:
             return self.value_or_ask(
                 self.userinfo.get(0), "primary_group",
