@@ -153,11 +153,11 @@ class User:
         user -- The user to be deployed/undeployed (type: User)
         """
         if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
-            if not self.assurance_verifier()(self.data.assurance):
-                if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
-                    logger.warning("Assurance level is insufficient. Undeploying anyway.")
-                else:
-                    raise Rejection(message="Your assurance level is insufficient to access this resource")
+        if not self.assurance_verifier()(self.data.assurance):
+            if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
+                logger.warning("Assurance level is insufficient. Undeploying anyway.")
+            else:
+                raise Rejection(message="Your assurance level is insufficient to access this resource")
 
         if target == 'deployed':
             return self.deploy()
@@ -222,21 +222,33 @@ class User:
         Return True, if the user didn't exist before.
         """
         logger.debug('Ensuring user {unique_id} exits'.format(**self.data))
-        if self.service_user.name_taken():
-            raise Question(
-                name='username',
-                text='Username {} already taken on this service. Please enter another one.'.format(
-                    self.data.username
-                )
-            )
 
         is_new_user = not self.service_user.exists()
 
         if is_new_user:
             logger.info('Creating user {username} for {unique_id}'.format(**self.data))
+
+            if self.service_user.name_taken():
+                logger.info(F'Username {username} is already taken, asking user to pick a new one')
+                raise Question(
+                    name='username',
+                    text='Username {} already taken on this service. Please enter another one.'.format(
+                        self.data.username
+                    )
+                )
+
             self.service_user.create()
         else:
+            try:
+                existing_username = self.service_user.get_username()
+                if existing_username is not None:
+                    logger.debug(F'Using existing username: {existing_username}')
+                    self.name = existing_username
+            except AttributeError:
+                # the currently used service_user class has to method get_username
+                existing_username = None
             logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
+
 
         self.service_user.update()
         return is_new_user
