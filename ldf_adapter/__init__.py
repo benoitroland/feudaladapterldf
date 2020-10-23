@@ -243,7 +243,7 @@ class User:
                 existing_username = self.service_user.get_username()
                 if existing_username is not None:
                     logger.debug(F'Using existing username: {existing_username}')
-                    self.name = existing_username
+                    self.service_user.name = existing_username
             except AttributeError:
                 # the currently used service_user class has to method get_username
                 existing_username = None
