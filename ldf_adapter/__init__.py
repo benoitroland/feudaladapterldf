@@ -41,6 +41,9 @@ class User:
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
+        if self.service_user.exists():
+            self.update_username_from_existing()
+
         logger.info("/--------------------------------------------------------------------------------\\")
         logger.info(F"primary group: {UserInfo(data).primary_group}")
         logger.info(F"primary group from service_user: {self.service_user.primary_group}")
@@ -153,11 +156,11 @@ class User:
         user -- The user to be deployed/undeployed (type: User)
         """
         if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
-        if not self.assurance_verifier()(self.data.assurance):
-            if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
-                logger.warning("Assurance level is insufficient. Undeploying anyway.")
-            else:
-                raise Rejection(message="Your assurance level is insufficient to access this resource")
+            if not self.assurance_verifier()(self.data.assurance):
+                if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
+                    logger.warning("Assurance level is insufficient. Undeploying anyway.")
+                else:
+                    raise Rejection(message="Your assurance level is insufficient to access this resource")
 
         if target == 'deployed':
             return self.deploy()
@@ -236,22 +239,27 @@ class User:
                         self.data.username
                     )
                 )
-
             self.service_user.create()
-        else:
-            try:
-                existing_username = self.service_user.get_username()
-                if existing_username is not None:
-                    logger.debug(F'Using existing username: {existing_username}')
-                    self.service_user.name = existing_username
-            except AttributeError:
-                # the currently used service_user class has to method get_username
-                existing_username = None
+        else: # The user exists
+            # Update service_user.name if unique_id already points to a username:
             logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
 
 
         self.service_user.update()
         return is_new_user
+
+    def update_username_from_existing(self):
+        """ Update self.service_user.name, if a user with matching
+        unique_id can be found
+        """
+        try:
+            existing_username = self.service_user.get_username()
+            if existing_username is not None:
+                self.service_user.name = existing_username
+                logger.debug(F'Using existing username: {existing_username}')
+        except AttributeError:
+            # the currently used service_user class has to method get_username
+            existing_username = None
 
     def ensure_dosent_exist(self):
         """Ensure that the user doesn't exist.
