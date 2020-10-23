@@ -24,15 +24,15 @@ class User:
         """
         Arguments:
         userinfo -- Only these attributes are used:
-                `username` (which is passed through `make_shadow_compatible`),
-                `primary_group`
+                `username` (which is passed through `make_shadow_compatible`), 
+                `primary_group` 
                 `unique_id`  stored in gecos, used to find the user
                 `ssh_keys`
         """
         self.name = make_shadow_compatible(userinfo.username)
         self.unique_id = userinfo.unique_id
         self.ssh_keys = [key['value'] for key in userinfo.ssh_keys]
-        self.primary_group = Group(userinfo.primary_group)
+        self.primary_group = Group(userinfo.primary_group) 
         self.credentials = {}
 
     def exists(self):
@@ -42,7 +42,7 @@ class User:
         return self.name in [entry['login'] for entry in User.__all_passwd_entries().values()]
 
     def get_username(self):
-        gecos_user_map = {entry['gecos']: entry['login']
+        gecos_user_map = {entry['gecos']: entry['login'] 
                 for entry in User.__all_passwd_entries().values()}
         try:
             return gecos_user_map[self.unique_id]
@@ -52,8 +52,10 @@ class User:
     def create(self):
         try:
             # TODO this should consider self.primary_group
-            subprocess.run(['useradd', '--comment', self.unique_id,
-                            '-g', self.primary_group.name,
+            shell = CONFIG['backend.local_unix'].get('shell', '/bin/sh')
+            subprocess.run(['useradd', '--comment', self.unique_id, 
+                            '-g', self.primary_group.name, 
+                            '--shell', shell,
                            self.name],
                            capture_output=True, check=True)
         except CalledProcessError as e:
@@ -71,12 +73,17 @@ class User:
         name = self.__passwd_entry['login']
 
         try:
+            subprocess.run(['/usr/bin/pkill', '-u', name],
+                           capture_output=True, check=True)
+        except CalledProcessError:
+            pass
+        try:
             subprocess.run(['userdel', name],
                            capture_output=True, check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message='Cannot delete user')
+            raise Failure(message=F'Cannot delete user: {msg}')
 
     def mod(self, supplementary_groups=None):
         options = []
