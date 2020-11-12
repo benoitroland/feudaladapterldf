@@ -1,0 +1,22 @@
+action: py36, msg: envreport
+cwd: /home/joshua/repos/by-owner/feudal/feudal_adapter_ldf
+cmd: /home/joshua/repos/by-owner/feudal/feudal_adapter_ldf/.tox/py36/bin/python -m pip freeze
+attrs==19.3.0
+certifi==2019.11.28
+chardet==3.0.4
+idna==2.8
+importlib-metadata==1.5.0
+ldf-adapter==0.1.1
+more-itertools==8.2.0
+packaging==20.1
+pluggy==0.13.1
+py==1.8.1
+pyparsing==2.4.6
+pytest==5.3.5
+regex==2020.1.8
+requests==2.22.0
+six==1.14.0
+Unidecode==1.1.1
+urllib3==1.25.8
+wcwidth==0.1.8
+zipp==3.0.0

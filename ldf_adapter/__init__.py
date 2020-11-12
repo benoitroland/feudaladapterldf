@@ -354,7 +354,7 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
-    def eppn(self):
+    def eppn(self, allow_question=True):
         """Uniquely identifies the user.
 
         At least almost. Due to homogenisations, there might be collisions. E.g. the following users
@@ -524,7 +524,7 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
-    def primary_group(self, allow_questions=True):
+    def primary_group(self, allow_question=True):
         config_group = CONFIG['ldf_adapter'].get("primary_group")
         if config_group:
             return config_group
@@ -532,10 +532,10 @@ class UserInfo(Mapping):
             return self.value_or_ask(
                 self.userinfo.get(0), "primary_group",
                 "You are a member of multiple groups. Please select your desired primary group.",
-                allow_questions, list(self.groups)
+                allow_question, list(self.groups)
             )
         else:
-            raise Failure("No groups in userinfo and no global primary group configured")
+            raise Failure(message="No groups in userinfo and no global primary group configured")
 
     def value_or_ask(self, value, answer_name, question_text, allow_question, default=None):
         """Return the submitted answer, the default value or raise a questionaire."""

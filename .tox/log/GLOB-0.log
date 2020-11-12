@@ -1,0 +1,107 @@
+action: GLOB, msg: packaging
+cwd: /home/joshua/repos/by-owner/feudal/feudal_adapter_ldf
+cmd: /home/joshua/.virtualenvs/ldf_adapter/bin/python3.6 setup.py sdist --formats=zip --dist-dir .tox/dist
+running sdist
+running egg_info
+writing ldf_adapter.egg-info/PKG-INFO
+writing dependency_links to ldf_adapter.egg-info/dependency_links.txt
+writing entry points to ldf_adapter.egg-info/entry_points.txt
+writing requirements to ldf_adapter.egg-info/requires.txt
+writing top-level names to ldf_adapter.egg-info/top_level.txt
+reading manifest file 'ldf_adapter.egg-info/SOURCES.txt'
+writing manifest file 'ldf_adapter.egg-info/SOURCES.txt'
+running check
+creating ldf_adapter-0.1.1
+creating ldf_adapter-0.1.1/eduperson
+creating ldf_adapter-0.1.1/ldf_adapter
+creating ldf_adapter-0.1.1/ldf_adapter.egg-info
+creating ldf_adapter-0.1.1/ldf_adapter/backend
+creating ldf_adapter-0.1.1/ssh-key-retriever
+creating ldf_adapter-0.1.1/ssh-key-retriever/rpm
+creating ldf_adapter-0.1.1/tests
+creating ldf_adapter-0.1.1/tests/eduperson
+creating ldf_adapter-0.1.1/tests/ldf_adapter
+copying files to ldf_adapter-0.1.1...
+copying .gitignore -> ldf_adapter-0.1.1
+copying README.md -> ldf_adapter-0.1.1
+copying devel-requirements.txt -> ldf_adapter-0.1.1
+copying setup.py -> ldf_adapter-0.1.1
+copying subiss-to-unix.py -> ldf_adapter-0.1.1
+copying eduperson/__init__.py -> ldf_adapter-0.1.1/eduperson
+copying eduperson/assurance.py -> ldf_adapter-0.1.1/eduperson
+copying ldf_adapter/__init__.py -> ldf_adapter-0.1.1/ldf_adapter
+copying ldf_adapter/cmdline_params.py -> ldf_adapter-0.1.1/ldf_adapter
+copying ldf_adapter/config.py -> ldf_adapter-0.1.1/ldf_adapter
+copying ldf_adapter/interface.py -> ldf_adapter-0.1.1/ldf_adapter
+copying ldf_adapter/results.py -> ldf_adapter-0.1.1/ldf_adapter
+copying ldf_adapter/utils.py -> ldf_adapter-0.1.1/ldf_adapter
+copying ldf_adapter.egg-info/PKG-INFO -> ldf_adapter-0.1.1/ldf_adapter.egg-info
+copying ldf_adapter.egg-info/SOURCES.txt -> ldf_adapter-0.1.1/ldf_adapter.egg-info
+copying ldf_adapter.egg-info/dependency_links.txt -> ldf_adapter-0.1.1/ldf_adapter.egg-info
+copying ldf_adapter.egg-info/entry_points.txt -> ldf_adapter-0.1.1/ldf_adapter.egg-info
+copying ldf_adapter.egg-info/ldf_adapter_template.conf -> ldf_adapter-0.1.1/ldf_adapter.egg-info
+copying ldf_adapter.egg-info/requires.txt -> ldf_adapter-0.1.1/ldf_adapter.egg-info
+copying ldf_adapter.egg-info/top_level.txt -> ldf_adapter-0.1.1/ldf_adapter.egg-info
+copying ldf_adapter/backend/__init__.py -> ldf_adapter-0.1.1/ldf_adapter/backend
+copying ldf_adapter/backend/bwidm.py -> ldf_adapter-0.1.1/ldf_adapter/backend
+copying ldf_adapter/backend/example.py -> ldf_adapter-0.1.1/ldf_adapter/backend
+copying ldf_adapter/backend/local_unix.py -> ldf_adapter-0.1.1/ldf_adapter/backend
+copying ssh-key-retriever/Changelog -> ldf_adapter-0.1.1/ssh-key-retriever
+copying ssh-key-retriever/Makefile -> ldf_adapter-0.1.1/ssh-key-retriever
+copying ssh-key-retriever/README.md -> ldf_adapter-0.1.1/ssh-key-retriever
+copying ssh-key-retriever/ssh-key-retriever.go -> ldf_adapter-0.1.1/ssh-key-retriever
+copying ssh-key-retriever/ssh-key-retriever.json.conf.example -> ldf_adapter-0.1.1/ssh-key-retriever
+copying ssh-key-retriever/rpm/ssh-key-retriever.spec -> ldf_adapter-0.1.1/ssh-key-retriever/rpm
+copying tests/__init__.py -> ldf_adapter-0.1.1/tests
+copying tests/eduperson/__init__.py -> ldf_adapter-0.1.1/tests/eduperson
+copying tests/eduperson/assurance.py -> ldf_adapter-0.1.1/tests/eduperson
+copying tests/ldf_adapter/__init__.py -> ldf_adapter-0.1.1/tests/ldf_adapter
+Writing ldf_adapter-0.1.1/setup.cfg
+creating '.tox/dist/ldf_adapter-0.1.1.zip' and adding 'ldf_adapter-0.1.1' to it
+adding 'ldf_adapter-0.1.1'
+adding 'ldf_adapter-0.1.1/eduperson'
+adding 'ldf_adapter-0.1.1/ldf_adapter'
+adding 'ldf_adapter-0.1.1/ldf_adapter.egg-info'
+adding 'ldf_adapter-0.1.1/ssh-key-retriever'
+adding 'ldf_adapter-0.1.1/tests'
+adding 'ldf_adapter-0.1.1/.gitignore'
+adding 'ldf_adapter-0.1.1/README.md'
+adding 'ldf_adapter-0.1.1/devel-requirements.txt'
+adding 'ldf_adapter-0.1.1/setup.py'
+adding 'ldf_adapter-0.1.1/subiss-to-unix.py'
+adding 'ldf_adapter-0.1.1/PKG-INFO'
+adding 'ldf_adapter-0.1.1/setup.cfg'
+adding 'ldf_adapter-0.1.1/eduperson/__init__.py'
+adding 'ldf_adapter-0.1.1/eduperson/assurance.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/backend'
+adding 'ldf_adapter-0.1.1/ldf_adapter/__init__.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/cmdline_params.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/config.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/interface.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/results.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/utils.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/backend/__init__.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/backend/bwidm.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/backend/example.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter/backend/local_unix.py'
+adding 'ldf_adapter-0.1.1/ldf_adapter.egg-info/PKG-INFO'
+adding 'ldf_adapter-0.1.1/ldf_adapter.egg-info/SOURCES.txt'
+adding 'ldf_adapter-0.1.1/ldf_adapter.egg-info/dependency_links.txt'
+adding 'ldf_adapter-0.1.1/ldf_adapter.egg-info/entry_points.txt'
+adding 'ldf_adapter-0.1.1/ldf_adapter.egg-info/ldf_adapter_template.conf'
+adding 'ldf_adapter-0.1.1/ldf_adapter.egg-info/requires.txt'
+adding 'ldf_adapter-0.1.1/ldf_adapter.egg-info/top_level.txt'
+adding 'ldf_adapter-0.1.1/ssh-key-retriever/rpm'
+adding 'ldf_adapter-0.1.1/ssh-key-retriever/Changelog'
+adding 'ldf_adapter-0.1.1/ssh-key-retriever/Makefile'
+adding 'ldf_adapter-0.1.1/ssh-key-retriever/README.md'
+adding 'ldf_adapter-0.1.1/ssh-key-retriever/ssh-key-retriever.go'
+adding 'ldf_adapter-0.1.1/ssh-key-retriever/ssh-key-retriever.json.conf.example'
+adding 'ldf_adapter-0.1.1/ssh-key-retriever/rpm/ssh-key-retriever.spec'
+adding 'ldf_adapter-0.1.1/tests/eduperson'
+adding 'ldf_adapter-0.1.1/tests/ldf_adapter'
+adding 'ldf_adapter-0.1.1/tests/__init__.py'
+adding 'ldf_adapter-0.1.1/tests/eduperson/__init__.py'
+adding 'ldf_adapter-0.1.1/tests/eduperson/assurance.py'
+adding 'ldf_adapter-0.1.1/tests/ldf_adapter/__init__.py'
+removing 'ldf_adapter-0.1.1' (and everything under it)

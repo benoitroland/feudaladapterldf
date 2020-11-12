@@ -1,0 +1,16 @@
+action: py36, msg: installpkg
+cwd: /home/joshua/repos/by-owner/feudal/feudal_adapter_ldf
+cmd: /home/joshua/repos/by-owner/feudal/feudal_adapter_ldf/.tox/py36/bin/python -m pip install --no-deps -U .tox/.tmp/package/1/ldf_adapter-0.1.1.zip
+Processing ./.tox/.tmp/package/1/ldf_adapter-0.1.1.zip
+Building wheels for collected packages: ldf-adapter
+  Building wheel for ldf-adapter (setup.py): started
+  Building wheel for ldf-adapter (setup.py): finished with status 'done'
+  Created wheel for ldf-adapter: filename=ldf_adapter-0.1.1-py3-none-any.whl size=33131 sha256=367931b800e0d09bcfa268221bbf5767efc00bb1e90a59b3489d01adbcd9ac2b
+  Stored in directory: /home/joshua/.cache/pip/wheels/f3/3a/ac/ffd17e796a4dbafcf0c074116e719ffa210ce8278f938af3b3
+Successfully built ldf-adapter
+Installing collected packages: ldf-adapter
+  Attempting uninstall: ldf-adapter
+    Found existing installation: ldf-adapter 0.1.1
+    Not uninstalling ldf-adapter at /home/joshua/repos/by-owner/feudal/feudal_adapter_ldf, outside environment /home/joshua/repos/by-owner/feudal/feudal_adapter_ldf/.tox/py36
+    Can't uninstall 'ldf-adapter'. No files were found to uninstall.
+Successfully installed ldf-adapter-0.1.1
