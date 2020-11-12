@@ -43,6 +43,7 @@ class User:
 
         logger.info("/--------------------------------------------------------------------------------\\")
         logger.info(F"primary group: {UserInfo(data).primary_group}")
+        logger.info(F"primary group from service_user: {self.service_user.primary_group}")
         logger.info("--------------------------------------------------------------------------------")
 
         logger.info("self.service_groups: ")
@@ -151,12 +152,12 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
-
-        if not self.assurance_verifier()(self.data.assurance):
-            if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
-                logger.warning("Assurance level is insufficient. Undeploying anyway.")
-            else:
-                raise Rejection(message="Your assurance level is insufficient to access this resource")
+        if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
+            if not self.assurance_verifier()(self.data.assurance):
+                if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
+                    logger.warning("Assurance level is insufficient. Undeploying anyway.")
+                else:
+                    raise Rejection(message="Your assurance level is insufficient to access this resource")
 
         if target == 'deployed':
             return self.deploy()
@@ -528,6 +529,10 @@ class UserInfo(Mapping):
         config_group = CONFIG['ldf_adapter'].get("primary_group")
         if config_group:
             return config_group
+        elif len(self.groups) == 1:
+            # lousy way to access a set element:
+            for group in self.groups:
+                return group
         elif len(self.groups) > 1:
             return self.value_or_ask(
                 self.userinfo.get(0), "primary_group",
