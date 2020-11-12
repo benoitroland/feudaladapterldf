@@ -1,4 +1,0 @@
-action: py36, msg: getenv
-cwd: /home/joshua/repos/by-owner/feudal/feudal_adapter_ldf/.tox
-cmd: /home/joshua/.virtualenvs/ldf_adapter/bin/python3.6 -m virtualenv --no-download --python /home/joshua/.virtualenvs/ldf_adapter/bin/python3.6 py36
-created virtual environment in 1010ms CPython3Posix(dest=/home/joshua/repos/by-owner/feudal/feudal_adapter_ldf/.tox/py36, clear=False, global=False) with seeder FromAppData pip=latest setuptools=latest wheel=latest app_data_dir=/home/joshua/.local/share/virtualenv/seed-v1 via=copy
