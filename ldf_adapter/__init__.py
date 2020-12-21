@@ -10,7 +10,7 @@ import urllib
 import regex
 from unidecode import unidecode
 
-import eduperson
+from . import eduperson
 
 from . import backend
 from .config import CONFIG
