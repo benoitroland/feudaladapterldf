@@ -4,9 +4,10 @@ import logging
 
 from ..config import CONFIG
 
-for module_info in pkgutil.iter_modules(sys.modules[__name__].__path__):
-    module_path = f"{__name__}.{module_info.name}"
-    __import__(module_path)
+logger = logging.getLogger(__name__)
+
+__backend__ = f"{__name__}.{CONFIG['ldf_adapter']['backend']}"
+__import__(__backend__)
 
 class Backend:
     """Need to put __getattr__ in a class for Python < 3.7 compatibility.
