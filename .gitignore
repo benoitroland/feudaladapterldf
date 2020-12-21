@@ -18,3 +18,4 @@ ldf_adapter.conf ldf_adapter_template.conf subiss-to-unix.conf
 AUTHORS
 ChangeLog
 build
+*.rpm
