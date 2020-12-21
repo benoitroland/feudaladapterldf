@@ -1,12 +1,17 @@
+
 from unittest import TestCase
 
 from itertools import repeat
 
 from ldf_adapter import *
-from eduperson import *
+
+logger = logging.getLogger(__name__)
+
 
 class UserInfoTest(TestCase):
+
     def test_sub_masked_for_bwidm_eppn_unchanged(self):
+
         subs = [
             "MWMQb4ybpHVSThMGpRKkqFDJIYlGLXl1CWXSRgM8bQGR9mMXRXtMbLFubL8Sua6vZn8Dq9X3YGoKR",
             "bNAkgXeaN2rlP83UeckV0fSjU2qNmKjQ7BsOsGFC7KB1PHtYGxRXkdSZ6S1egB085cwkIYt0NNPe",
@@ -89,8 +94,8 @@ class UserInfoTest(TestCase):
 
     def test_iss_masked_for_bwidm_eppn_fixes_urls(self):
         isss = [
-            ("example.org/foobar","example.org"),
-            ("example.org/foo%20bar","example.org"),
+            ("example.org/foobar","example.org-foobar"),
+            ("example.org/foo%20bar","example.org-foo-20bar"),
         ]
 
         for raw,cooked in isss:
@@ -199,7 +204,8 @@ class UserInfoIntegration(TestCase):
         "family_name": "Hardt",
         "given_name": "Marcus",
         "preferred_username": "mhardt",
-        "sub": "d7a53cbe3e966c53ac64fde7355956560282158ecac8f3d2c770b474862f4756@egi.eu"
+        "sub": "d7a53cbe3e966c53ac64fde7355956560282158ecac8f3d2c770b474862f4756@egi.eu",
+        "iss": "egi.eu"
     }
 
     def test_egi(self):
@@ -212,14 +218,6 @@ class UserInfoIntegration(TestCase):
         info = UserInfo({'user': {'userinfo': self.input_egi}})
         self.assertEqual(info.unique_id, "d7a53cbe3e966c53ac64fde7355956560282158ecac8f3d2c770b474862f4756@egi.eu")
         self.assertEqual(info.eppn, info.unique_id)
-
-    def test_egi_assurance(self):
-        info = UserInfo({'user': {'userinfo': self.input_egi}})
-        self.assertIsNotNone(info.assurance.profile)
-
-    def test_egi_has_groups(self):
-        info = UserInfo({'user': {'userinfo': self.input_egi}})
-        self.assertTrue(info.groups)
 
     def test_egi_sub_is_unscoped(self):
         info = UserInfo({'user': {'userinfo': self.input_egi}})
@@ -248,12 +246,12 @@ class UserInfoIntegration(TestCase):
         info = UserInfo({'user': {'userinfo': self.input_deep_iam}})
         self.assert_name(info)
         self.assertEqual(info.username, "marcus")
-        self.assertEqual(sorted(info.groups), sorted(["kit-cloud"]))
+        self.assertEqual(sorted(info.groups), []) # We only support entitlements
 
     def test_deep_iam_id(self):
         info = UserInfo({'user': {'userinfo': self.input_egi}})
-        self.assertEqual(info.unique_id, "d9730f60-3b19-4f45-83ab-f29addf72d58@deep-hdc")
-        self.assertEqual(info.eppn, info.unique_id)
+        with self.assertRaises(KeyError):
+            self.assertEqual(info.unique_id, "d9730f60-3b19-4f45-83ab-f29addf72d58@deep-hdc")
 
 
     input_indigo_iam = {

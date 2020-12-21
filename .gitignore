@@ -12,3 +12,10 @@ __pycache__/
 *.pyc
 *.egg-info
 /dist
+.coverage
+cov_html/
+ldf_adapter.conf ldf_adapter_template.conf subiss-to-unix.conf
+AUTHORS
+ChangeLog
+build
+*.rpm

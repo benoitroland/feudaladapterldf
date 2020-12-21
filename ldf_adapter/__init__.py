@@ -10,7 +10,7 @@ import urllib
 import regex
 from unidecode import unidecode
 
-import eduperson
+from . import eduperson
 
 from . import backend
 from .config import CONFIG
@@ -40,6 +40,9 @@ class User:
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
+
+        if self.service_user.exists():
+            self.update_username_from_existing()
 
         logger.info("/--------------------------------------------------------------------------------\\")
         logger.info(F"primary group: {UserInfo(data).primary_group}")
@@ -222,24 +225,41 @@ class User:
         Return True, if the user didn't exist before.
         """
         logger.debug('Ensuring user {unique_id} exits'.format(**self.data))
-        if self.service_user.name_taken():
-            raise Question(
-                name='username',
-                text='Username {} already taken on this service. Please enter another one.'.format(
-                    self.data.username
-                )
-            )
 
         is_new_user = not self.service_user.exists()
 
         if is_new_user:
             logger.info('Creating user {username} for {unique_id}'.format(**self.data))
+
+            if self.service_user.name_taken():
+                logger.info(F'Username {username} is already taken, asking user to pick a new one')
+                raise Question(
+                    name='username',
+                    text='Username {} already taken on this service. Please enter another one.'.format(
+                        self.data.username
+                    )
+                )
             self.service_user.create()
-        else:
+        else: # The user exists
+            # Update service_user.name if unique_id already points to a username:
             logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
+
 
         self.service_user.update()
         return is_new_user
+
+    def update_username_from_existing(self):
+        """ Update self.service_user.name, if a user with matching
+        unique_id can be found
+        """
+        try:
+            existing_username = self.service_user.get_username()
+            if existing_username is not None:
+                self.service_user.name = existing_username
+                logger.debug(F'Using existing username: {existing_username}')
+        except AttributeError:
+            # the currently used service_user class has to method get_username
+            existing_username = None
 
     def ensure_dosent_exist(self):
         """Ensure that the user doesn't exist.
@@ -355,7 +375,7 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
-    def eppn(self):
+    def eppn(self, allow_question=True):
         """Uniquely identifies the user.
 
         At least almost. Due to homogenisations, there might be collisions. E.g. the following users
@@ -525,7 +545,7 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
-    def primary_group(self, allow_questions=True):
+    def primary_group(self, allow_question=True):
         config_group = CONFIG['ldf_adapter'].get("primary_group")
         if config_group:
             return config_group
@@ -537,7 +557,7 @@ class UserInfo(Mapping):
             return self.value_or_ask(
                 self.userinfo.get(0), "primary_group",
                 "You are a member of multiple groups. Please select your desired primary group.",
-                allow_questions, list(self.groups)
+                allow_question, list(self.groups)
             )
         else:
             raise Failure(message="No groups in userinfo and no global primary group configured")

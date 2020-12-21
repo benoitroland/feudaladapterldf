@@ -1,8 +1,12 @@
 import os
+import sys
+
 from configparser import ConfigParser
 from pathlib import Path
 import logging
-from ldf_adapter.cmdline_params import args
+
+if 'pytest' not in sys.modules:
+    from ldf_adapter.cmdline_params import args
 
 CONFIG = ConfigParser()
 
@@ -25,7 +29,8 @@ def reload():
     logger = logging.getLogger(__name__)
     files = []
 
-    files += [ Path(args.config_file) ]
+    if 'pytest' not in sys.modules:
+        files += [ Path(args.config_file) ]
 
     filename = os.environ.get("LDF_ADAPTER_CONFIG")
     if filename:
@@ -33,14 +38,15 @@ def reload():
 
     files += [
         Path('ldf_adapter.conf'),
-        Path.home()/'.config'/'ldf_adapter.conf'
+        Path.home()/'.config'/'ldf_adapter.conf',
+        Path.home()/'.config'/'feudal'/'ldf_adapter.conf',
     ]
     logger.debug("Using these config files: {} to find a suitable one".format(files))
 
     for f in files:
         if f.exists():
             files_read = CONFIG.read(f)
-            logger.debug(F"Read config from {files_read}")
+            logger.info(F"Read config from {files_read}")
             break
 
 # Load config on import

@@ -1,0 +1,58 @@
+{
+    "state_target": "deployed",
+    "user": {
+        "userinfo": {
+            "eduperson_assurance": [
+                "https://refeds.org/assurance/IAP/local-enterprise",
+                "https://refeds.org/assurance/ID/eppn-unique-no-reassign",
+                "https://refeds.org/assurance/ATP/ePA-1m",
+                "https://refeds.org/assurance/ATP/ePA-1d",
+                "https://refeds.org/assurance/ID/unique",
+                "https://refeds.org/assurance/IAP/low"
+            ],
+            "eduperson_entitlement": [
+                "urn:mace:dir:entitlement:common-lib-terms",
+                "http://bwidm.de/entitlement/bwLSDF-SyncShare",
+                "urn:geant:h-df.de:group:MyExampleColab#login.helmholtz-data-federation.de",
+                "urn:geant:h-df.de:group:HDF#login.helmholtz-data-federation.de",
+                "urn:geant:h-df.de:group:m-team#login.helmholtz-data-federation.de",
+                "urn:geant:h-df.de:group:m-team:feudal-developers#login.helmholtz-data-federation.de"
+            ],
+            "eduperson_principal_name": "af9063@kit.edu",
+            "eduperson_scoped_affiliation": [
+                "member@kit.edu",
+                "employee@kit.edu"
+            ],
+            "email": "lukas.burgey@kit.edu",
+            "email_verified": true,
+            "family_name": "Burgey",
+            "given_name": "Lukas",
+            "groups": [
+                "/m-team/NNE09",
+                "/MyExampleColab",
+                "/m-team",
+                "/HDF",
+                "/"
+            ],
+            "iss": "https://login.helmholtz-data-federation.de/oauth2",
+            "name": "Lukas Burgey",
+            "preferred_username": "lukas.burgey",
+            "ssh_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKQmiXxGRNU+88LQmGogkgje6zhfSki7c0dvKqUhY9IK burgey@artemis\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKQmiXxGRNU+88LQmGogkgje6zhfSki7c0dvKqUhY9IK burgey@artemis2\n",
+            "sub": "95933c71-bd92-4059-84e0-547672dfe57c"
+        },
+        "credentials": {
+            "ssh_key": [
+                {
+                    "id": 32,
+                    "name": "oeuoeu",
+                    "value": "oeuoeu"
+                },
+                {
+                    "id": 38,
+                    "name": "unity_key",
+                    "value": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKQmiXxGRNU+88LQmGogkgje6zhfSki7c0dvKqUhY9IK burgey@artemis\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKQmiXxGRNU+88LQmGogkgje6zhfSki7c0dvKqUhY9IK burgey@artemis2\n"
+                }
+            ]
+        }
+    }
+}
