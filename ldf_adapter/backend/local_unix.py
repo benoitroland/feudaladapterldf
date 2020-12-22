@@ -37,18 +37,18 @@ class User:
 
     def exists(self):
         """Check wheter a user (identified by the unique_id) exists"""
-        return bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries().values()])
+        return bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
 
     def name_taken(self):
         """Check if a username is already taken"""
-        return self.name in [entry['login'] for entry in User.__all_passwd_entries().values()]
+        return self.name in [entry['login'] for entry in User.__all_passwd_entries('login').values()]
 
     def get_username(self):
         """Return username based on unique_id"""
         gecos_user_map = {entry['gecos']: entry['login']
-                for entry in User.__all_passwd_entries().values()}
+                for entry in User.__all_passwd_entries('gecos').values()}
         try:
-            return gecos_user_map[self.unique_id]
+            return User.__all_passwd_entries('gecos')[self.unique_id]['login']
         except KeyError:
             return None
 
@@ -64,7 +64,7 @@ class User:
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F"Cannot create user ({msg or '<no output>'}")
+            raise Failure(message=F"Cannot create user ({msg or '<no output>'})")
 
     def update(self):
         self.credentials['ssh_user'] = self.name
@@ -123,12 +123,11 @@ class User:
 
     @property
     def __passwd_entry(self):
-        return User.__all_passwd_entries().get(self.unique_id, {})
+        return User.__all_passwd_entries('gecos').get(self.unique_id, {})
 
-    def __all_passwd_entries():
+    def __all_passwd_entries(ID_FIELD='gecos'):
         PASSWD_PATH = Path('/')/'etc'/'passwd'
         PASSWD_FIELDS = ['login', 'pw', 'uid', 'gid', 'gecos', 'home', 'shell']
-        ID_FIELD = 'gecos'
 
         try:
             raw = PASSWD_PATH.read_text()
@@ -137,6 +136,11 @@ class User:
             raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
         else:
             users = [dict(zip(PASSWD_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
+
+            # import json
+            # thedata={user[ID_FIELD]: user for user in users}
+            # str_str = json.dumps(thedata, sort_keys=True, indent=4, separators=(',', ': '))
+            # logging.info(str_str)
             return {user[ID_FIELD]: user for user in users}
 
 class Group:
