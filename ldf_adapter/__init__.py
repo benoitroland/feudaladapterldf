@@ -19,7 +19,7 @@ from . import eduperson
 from . import backend
 from .config import CONFIG
 from .results import Deployed, NotDeployed, Rejection, Failure, Question, raise_question
-from .name_generators import generate_friendly_username
+from .name_generators import FriendlyNameGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -212,10 +212,10 @@ class User:
 
         what_changed = ''
         if was_removed:
-            what_changed += F'User "{self.service_user.name}" was removed.'
+            what_changed += F"User '{self.service_user.name}' was removed."
         else:
-            what_changed += F'No user for "{self.service_user.unique_id}" existed. '+\
-                            F'User "{self.service_user.name}" was not changed'
+            what_changed += F"No user for '{self.service_user.unique_id}' existed. "+\
+                            F"User '{self.service_user.name}' was not changed"
 
         return NotDeployed(message=what_changed)
 
@@ -241,7 +241,7 @@ class User:
             logger.info(F'Creating user "{username}" for "{unique_id}"')
 
             # Raise question in case of existing username in case we're interactive
-            if CONFIG.getboolean('ldf_adapter', 'noninteractive', fallback=False):
+            if CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False):
                 if self.service_user.name_taken():
                     logger.info(F'Username "{username}" is already taken, asking user to pick a new one')
                     raise Question(
@@ -249,11 +249,15 @@ class User:
                         text=F'Username "{username}" already taken on this service. Please enter another one.'
                     )
             else:
+                logger.info("starting while")
+                fng = FriendlyNameGenerator(self.data)
+                logger.info(F"initial try: {self.service_user.name}")
                 while self.service_user.name_taken():
-                    new_username = username+"x"
-                    self.service_user.name = new_username
-                    logger.debug(F'noninteractive mode; trying username: {self.service_user.name}')
-                logger.info(F'noninteractive mode: chosen username: {self.service_user.name}')
+                    self.service_user.name = fng.suggest_name(self.service_user.name)
+                logger.info(F'                             Using: {self.service_user.name}')
+                if self.service_user.name is None:
+                    raise Rejection(message=F"I cannot create usernames. "
+                                    F"The list of tried ones is: {', '.join(fng.tried_names())}.")
                 self.service_user.create()
         else: # The user exists
             # Update service_user.name if unique_id already points to a username:
@@ -365,11 +369,12 @@ class UserInfo(Mapping):
         self.userinfo = data['user']['userinfo']
         self.answers = data.get('answers', {})
         self.credentials = data['user'].get('credentials', {})
-        self.allow_questions = not CONFIG.getboolean('ldf_adapter', 'noninteractive', fallback=False)
+        self.allow_question = CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False)
+        logger.info(F"UserInfo: allow question: {self.allow_question}")
 
     @property
     @lru_cache(maxsize=None)
-    def unique_id(self, allow_question=True):
+    def unique_id(self):
         """Globally and uniquely identifies the user.
 
         This can be easily used to find out the identity of the user in the data source.
@@ -390,7 +395,7 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
-    def eppn(self, allow_question=True):
+    def eppn(self):
         """Uniquely identifies the user.
 
         At least almost. Due to homogenisations, there might be collisions. E.g. the following users
@@ -444,34 +449,36 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
-    def username(self, allow_question=True):
+    def username(self):
         """Return the user's preferred username, or ask for one if none was provided."""
         # FIXME: This function is called, even when there is already a local user with an existing
         # name.  SImply not having a "preferred_username" does not mean that we have to bother the user!!!
-        if allow_question:
+        logger.info(F"Interactive? : {not self.allow_question}")
+        if self.allow_question:
             return self.value_or_ask(
                 self.userinfo.get('preferred_username'), 'username',
                 'You have not set a global username preference. Please enter your preferred username.',
-                allow_question
+                self.allow_question
             )
-        return generate_friendly_username(self)
+        fng = FriendlyNameGenerator(self)
+        return fng.suggest_name()
 
     @property
     @lru_cache(maxsize=None)
-    def email(self, allow_question=True):
+    def email(self):
         """Return the user's E-Mail Address."""
         return self.userinfo['email']
 
     @property
     @lru_cache(maxsize=None)
-    def given_name(self, allow_question=True):
+    def given_name(self):
         """Return the user's given name. If none is provided, try to extract it from the full name."""
         return (self.userinfo.get('given_name')
                 or ' '.join(self.userinfo['name'].split(' ')[:-1]))
 
     @property
     @lru_cache(maxsize=None)
-    def family_name(self, allow_question=True):
+    def family_name(self):
         """Return the user's family name. If none is provided, try to extract it from the full name."""
         return (self.userinfo.get('family_name')
                 or self.userinfo.get('sn')
@@ -479,19 +486,19 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
-    def full_name(self, allow_question=True):
+    def full_name(self):
         """Return the user's full name. If none is provided, try to assemple it from the first and given name."""
         return (self.userinfo.get('name')
                 or ' '.join(filter(None, [self.given_name, self.family_name])))
 
     @property
     @lru_cache(maxsize=None)
-    def ssh_keys(self, allow_question=True):
+    def ssh_keys(self):
         """Return the user's SSH keys."""
         return self.credentials.get('ssh_key', [])
 
     @property
-    def entitlement(self, allow_question=True):
+    def entitlement(self):
         """Return the parsed entitlement attribute of the user. See `eduperson.Entitlement` for details."""
         attr = self.userinfo.get('eduperson_entitlement', [])
         if not isinstance(attr, list):
@@ -508,7 +515,7 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
-    def groups(self, allow_question=True):
+    def groups(self):
         """Return the homogenised names of the groups the user should be a member of.
 
         These are extracted from the entitlement. Any additional 'group'-keys in the input are ignored.
@@ -558,13 +565,13 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
-    def assurance(self, allow_question=True):
+    def assurance(self):
         """Return the assurance levels of the user."""
         return self.userinfo.get('eduperson_assurance', [])
 
     @property
     @lru_cache(maxsize=None)
-    def primary_group(self, allow_question=True):
+    def primary_group(self):
         config_group = CONFIG['ldf_adapter'].get("primary_group")
         if config_group:
             return config_group
@@ -573,13 +580,30 @@ class UserInfo(Mapping):
             for group in self.groups:
                 return group
         elif len(self.groups) > 1:
-            return self.value_or_ask(
-                self.userinfo.get(0), "primary_group",
-                "You are a member of multiple groups. Please select your desired primary group.",
-                allow_question, list(self.groups)
-            )
+            if self.allow_question:
+                return self.value_or_ask(
+                    self.userinfo.get(0), "primary_group",
+                    "You are a member of multiple groups. Please select your desired primary group.",
+                    self.allow_question, list(self.groups)
+                )
+            else: # make something up, regarding the primary group:
+                logger.warning (F"We have a user with mutiple primary groups, and no default primary group set in the config.")
+                logger.warning (F"Furthermore, we are in non-interactive mode, so we can't ask the user.")
+                logger.warning (F"Therefore, we just take the first group: '{list(self.groups)[0]}'")
+                nl="\n            "
+                logger.warning (F"Available groups are: {nl}{nl.join(self.groups)}")
+                return list(self.groups)[0]
+
         else:
             raise Failure(message="No groups in userinfo and no global primary group configured")
+
+    @property
+    @lru_cache(maxsize=None)
+    def preferred_username(self):
+        """Return the prefrred username of the user."""
+        return self.userinfo.get('preferred_username', [])
+
+
 
     def value_or_ask(self, value, answer_name, question_text, allow_question, default=None):
         """Return the submitted answer, the default value or raise a questionaire."""
@@ -594,7 +618,7 @@ class UserInfo(Mapping):
 
 
     def __str__(self):
-        attrs = ("{} = {}".format(k, getattr(UserInfo, k).fget(self, allow_question=False)) for k in iter(self))
+        attrs = ("{} = {}".format(k, getattr(UserInfo, k).fget(self)) for k in iter(self))
 
         return "<UserInfo\n{}\n>".format("\n".join("\t{}".format(attr) for attr in attrs))
 
@@ -604,7 +628,7 @@ class UserInfo(Mapping):
     def __iter__(self):
         return (k for k in dir(UserInfo) if type(getattr(UserInfo, k)) is property)
 
-    def __len__(self, allow_questions=True):
+    def __len__(self):
         sum(1 for _ in filter(lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo)))
 
     def __hash__(self):
