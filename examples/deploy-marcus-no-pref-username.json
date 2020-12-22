@@ -39,7 +39,6 @@
             "given_name": "Marcus",
             "iss": "https://login.helmholtz.de/oauth2",
             "name": "Marcus Hardt",
-            "preferred_username": "marcus",
             "sn": "Hardt",
             "ssh_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAqA5FW6m3FbFhCOsRQBxKMRki5qJxoNhZdaeLXg6ym/ marcus@nemo2019\n",
             "sub": "6c611e2a-2c1c-487f-9948-c058a36c8f0e"

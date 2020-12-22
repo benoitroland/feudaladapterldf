@@ -3,8 +3,8 @@ Manages a user and groups via standard UNIX shadow-utils(8).
 """
 # vim: foldmethod=indent : tw=100
 # pylint: disable=invalid-name, superfluous-parens
-# pylint: disable=logging-not-lazy, logging-format-interpolation
-# pylint: disable=missing-docstring, too-few-public-methods
+# pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
+# pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
 import subprocess
 from subprocess import CalledProcessError
@@ -24,28 +24,31 @@ class User:
         """
         Arguments:
         userinfo -- Only these attributes are used:
-                `username` (which is passed through `make_shadow_compatible`), 
-                `primary_group` 
+                `username` (which is passed through `make_shadow_compatible`),
+                `primary_group`
                 `unique_id`  stored in gecos, used to find the user
                 `ssh_keys`
         """
         self.name = make_shadow_compatible(userinfo.username)
         self.unique_id = userinfo.unique_id
         self.ssh_keys = [key['value'] for key in userinfo.ssh_keys]
-        self.primary_group = Group(userinfo.primary_group) 
+        self.primary_group = Group(userinfo.primary_group)
         self.credentials = {}
 
     def exists(self):
-        return bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries().values()])
+        """Check wheter a user (identified by the unique_id) exists"""
+        return bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
 
     def name_taken(self):
-        return self.name in [entry['login'] for entry in User.__all_passwd_entries().values()]
+        """Check if a username is already taken"""
+        return self.name in [entry['login'] for entry in User.__all_passwd_entries('login').values()]
 
     def get_username(self):
-        gecos_user_map = {entry['gecos']: entry['login'] 
-                for entry in User.__all_passwd_entries().values()}
+        """Return username based on unique_id"""
+        gecos_user_map = {entry['gecos']: entry['login']
+                for entry in User.__all_passwd_entries('gecos').values()}
         try:
-            return gecos_user_map[self.unique_id]
+            return User.__all_passwd_entries('gecos')[self.unique_id]['login']
         except KeyError:
             return None
 
@@ -53,15 +56,15 @@ class User:
         try:
             # TODO this should consider self.primary_group
             shell = CONFIG['backend.local_unix'].get('shell', '/bin/sh')
-            subprocess.run(['useradd', '--comment', self.unique_id, 
-                            '-g', self.primary_group.name, 
+            subprocess.run(['useradd', '--comment', self.unique_id,
+                            '-g', self.primary_group.name,
                             '--shell', shell,
                            self.name],
                            capture_output=True, check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message='Cannot create user')
+            raise Failure(message=F"Cannot create user ({msg or '<no output>'})")
 
     def update(self):
         self.credentials['ssh_user'] = self.name
@@ -83,7 +86,7 @@ class User:
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F'Cannot delete user: {msg}')
+            raise Failure(message=F"Cannot delete user: {msg or '<no output>'}")
 
     def mod(self, supplementary_groups=None):
         options = []
@@ -97,7 +100,7 @@ class User:
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message='Cannot modify user')
+            raise Failure(message=F"Cannot modify user: {msg or '<no output>'}")
 
     def install_ssh_keys(self):
         try:
@@ -105,7 +108,7 @@ class User:
             self.__authorized_keys.write_text("\n".join(self.ssh_keys))
         except IOError as e:
             logger.error(e)
-            raise Failure(message='Could not write new ssh keys')
+            raise Failure(message=F"Could not write new ssh keys: {e or '<no output>'}")
 
     def uninstall_ssh_keys(self):
         """Remove any SSH keys stored in the users .authorized_keys file."""
@@ -120,20 +123,24 @@ class User:
 
     @property
     def __passwd_entry(self):
-        return User.__all_passwd_entries().get(self.unique_id, {})
+        return User.__all_passwd_entries('gecos').get(self.unique_id, {})
 
-    def __all_passwd_entries():
+    def __all_passwd_entries(ID_FIELD='gecos'):
         PASSWD_PATH = Path('/')/'etc'/'passwd'
         PASSWD_FIELDS = ['login', 'pw', 'uid', 'gid', 'gecos', 'home', 'shell']
-        ID_FIELD = 'gecos'
 
         try:
             raw = PASSWD_PATH.read_text()
         except IOError as e:
             logger.error(e)
-            raise Failure(message='Could not get information about existing users on system')
+            raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
         else:
             users = [dict(zip(PASSWD_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
+
+            # import json
+            # thedata={user[ID_FIELD]: user for user in users}
+            # str_str = json.dumps(thedata, sort_keys=True, indent=4, separators=(',', ': '))
+            # logging.info(str_str)
             return {user[ID_FIELD]: user for user in users}
 
 class Group:
@@ -150,7 +157,7 @@ class Group:
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message='Cannot create user')
+            raise Failure(message=F"Cannot create group: {msg or '<no output>'}")
 
     def delete(self):
         # groupdel
@@ -178,7 +185,7 @@ class Group:
             raw = GROUP_PATH.read_text()
         except IOError as e:
             logger.error(e)
-            raise Failure(message='Could not get information about existing users on system')
+            raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
         else:
             users = [dict(zip(GROUP_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
 
