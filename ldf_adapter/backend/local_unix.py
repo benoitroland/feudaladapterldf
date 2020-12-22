@@ -64,7 +64,7 @@ class User:
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F'Cannot create user ({msg or "<no output>"}')
+            raise Failure(message=F"Cannot create user ({msg or '<no output>'}")
 
     def update(self):
         self.credentials['ssh_user'] = self.name
@@ -86,7 +86,7 @@ class User:
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F'Cannot delete user: {msg or "<no output>"}')
+            raise Failure(message=F"Cannot delete user: {msg or '<no output>'}")
 
     def mod(self, supplementary_groups=None):
         options = []
@@ -100,7 +100,7 @@ class User:
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F'Cannot modify user: {msg or "<no output>"}')
+            raise Failure(message=F"Cannot modify user: {msg or '<no output>'}")
 
     def install_ssh_keys(self):
         try:
@@ -108,7 +108,7 @@ class User:
             self.__authorized_keys.write_text("\n".join(self.ssh_keys))
         except IOError as e:
             logger.error(e)
-            raise Failure(message=F'Could not write new ssh keys: {e or "<no output>"}')
+            raise Failure(message=F"Could not write new ssh keys: {e or '<no output>'}")
 
     def uninstall_ssh_keys(self):
         """Remove any SSH keys stored in the users .authorized_keys file."""
@@ -134,7 +134,7 @@ class User:
             raw = PASSWD_PATH.read_text()
         except IOError as e:
             logger.error(e)
-            raise Failure(message=F'Could not get information about existing users on system: {e or "<no output>"}')
+            raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
         else:
             users = [dict(zip(PASSWD_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
             return {user[ID_FIELD]: user for user in users}
@@ -153,7 +153,7 @@ class Group:
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F'Cannot create group: {msg or "<no output>"}')
+            raise Failure(message=F"Cannot create group: {msg or '<no output>'}")
 
     def delete(self):
         # groupdel
@@ -181,7 +181,7 @@ class Group:
             raw = GROUP_PATH.read_text()
         except IOError as e:
             logger.error(e)
-            raise Failure(message=F'Could not get information about existing users on system: {e or "<no output>"}')
+            raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
         else:
             users = [dict(zip(GROUP_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
 
