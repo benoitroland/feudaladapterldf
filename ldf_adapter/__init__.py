@@ -1,4 +1,8 @@
 name = 'ldf_adapter'
+# vim: foldmethod=indent : tw=100
+# pylint: disable=invalid-name, superfluous-parens
+# pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
+# pylint: disable=missing-docstring, too-few-public-methods
 
 import logging
 from collections import Mapping
@@ -15,6 +19,7 @@ from . import eduperson
 from . import backend
 from .config import CONFIG
 from .results import Deployed, NotDeployed, Rejection, Failure, Question, raise_question
+from .name_generators import generate_friendly_username
 
 logger = logging.getLogger(__name__)
 
@@ -207,9 +212,10 @@ class User:
 
         what_changed = ''
         if was_removed:
-            what_changed += 'User was removed.'
+            what_changed += F'User "{self.service_user.name}" was removed.'
         else:
-            what_changed += 'User didn\'t exist.'
+            what_changed += F'No user for "{self.service_user.unique_id}" existed. '+\
+                            F'User "{self.service_user.name}" was not changed'
 
         return NotDeployed(message=what_changed)
 
@@ -229,21 +235,29 @@ class User:
         is_new_user = not self.service_user.exists()
 
         if is_new_user:
-            logger.info('Creating user {username} for {unique_id}'.format(**self.data))
+            username = self.service_user.name
+            logger.info(F'self.service_user.name: {self.service_user.name}')
+            unique_id= self.service_user.unique_id
+            logger.info(F'Creating user "{username}" for "{unique_id}"')
 
-            if self.service_user.name_taken():
-                logger.info(F'Username {username} is already taken, asking user to pick a new one')
-                raise Question(
-                    name='username',
-                    text='Username {} already taken on this service. Please enter another one.'.format(
-                        self.data.username
+            # Raise question in case of existing username in case we're interactive
+            if CONFIG.getboolean('ldf_adapter', 'noninteractive', fallback=False):
+                if self.service_user.name_taken():
+                    logger.info(F'Username "{username}" is already taken, asking user to pick a new one')
+                    raise Question(
+                        name='username',
+                        text=F'Username "{username}" already taken on this service. Please enter another one.'
                     )
-                )
-            self.service_user.create()
+            else:
+                while self.service_user.name_taken():
+                    new_username = username+"x"
+                    self.service_user.name = new_username
+                    logger.debug(F'noninteractive mode; trying username: {self.service_user.name}')
+                logger.info(F'noninteractive mode: chosen username: {self.service_user.name}')
+                self.service_user.create()
         else: # The user exists
             # Update service_user.name if unique_id already points to a username:
-            logger.debug('User for {unique_id} already exists. Nothing to do.'.format(**self.data))
-
+            logger.debug('User for "{unique_id}" already exists. Nothing to do.'.format(**self.data))
 
         self.service_user.update()
         return is_new_user
@@ -351,6 +365,7 @@ class UserInfo(Mapping):
         self.userinfo = data['user']['userinfo']
         self.answers = data.get('answers', {})
         self.credentials = data['user'].get('credentials', {})
+        self.allow_questions = not CONFIG.getboolean('ldf_adapter', 'noninteractive', fallback=False)
 
     @property
     @lru_cache(maxsize=None)
@@ -431,11 +446,15 @@ class UserInfo(Mapping):
     @lru_cache(maxsize=None)
     def username(self, allow_question=True):
         """Return the user's preferred username, or ask for one if none was provided."""
-        return self.value_or_ask(
-            self.userinfo.get('preferred_username'), 'username',
-            'You have not set a global username preference. Please enter your preferred username.',
-            allow_question
-        )
+        # FIXME: This function is called, even when there is already a local user with an existing
+        # name.  SImply not having a "preferred_username" does not mean that we have to bother the user!!!
+        if allow_question:
+            return self.value_or_ask(
+                self.userinfo.get('preferred_username'), 'username',
+                'You have not set a global username preference. Please enter your preferred username.',
+                allow_question
+            )
+        return generate_friendly_username(self)
 
     @property
     @lru_cache(maxsize=None)
