@@ -33,6 +33,7 @@ class User:
     __init__ for details).
     """
     def __init__(self, data):
+        logger.info("init")
         """
         Arguments:
         data -- Information about the user (type: UserInfo or dict)
@@ -48,6 +49,7 @@ class User:
 
         if self.service_user.exists():
             self.update_username_from_existing()
+        logger.info("init done")
 
     def assurance_verifier(self):
         """Produce a suitably function to check if a user is allowed.
@@ -157,16 +159,19 @@ class User:
             logger.info(F"Incoming request to '{target}' user '{self.data.full_name}' ({self.service_user.unique_id})")
         except AttributeError:
             logger.info(F"Incoming request to '{target}' user '{self.service_user.unique_id}'")
-        if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
-            if not self.assurance_verifier()(self.data.assurance):
-                if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
-                    logger.warning("Assurance level is insufficient. Undeploying anyway.")
-                else:
-                    raise Rejection(message="Your assurance level is insufficient to access this resource")
 
         if target == 'deployed':
+            if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
+                if not self.assurance_verifier()(self.data.assurance):
+                    raise Rejection(message="Your assurance level is insufficient to access this resource")
             return self.deploy()
         elif target == 'not_deployed':
+            if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
+                if not self.assurance_verifier()(self.data.assurance):
+                    if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False):
+                        logger.warning("Assurance level is insufficient. Undeploying anyway.")
+                    else:
+                        raise Rejection(message="Your assurance level is insufficient to access this resource")
             return self.undeploy()
         elif target == 'get_status':
             return self.get_status()
@@ -247,9 +252,9 @@ class User:
         """
         
         msg="No message"
-        # if self.service_user.exists():
-        #     msg=F"username {self.service_user.name}"
-        #     return Status("deployed", message=msg)
+        if self.service_user.exists():
+            msg=F"username {self.service_user.name}"
+            return Status("deployed", message=msg)
         if hasattr(self.service_user, "is_rejected"):
             if self.service_user.is_rejected():
                 return Status("rejected", message=msg)
@@ -515,7 +520,10 @@ class UserInfo(Mapping):
     @lru_cache(maxsize=None)
     def email(self):
         """Return the user's E-Mail Address."""
-        return self.userinfo['email']
+        try:
+            return self.userinfo['email']
+        except KeyError:
+            return None
 
     @property
     @lru_cache(maxsize=None)
@@ -647,7 +655,8 @@ class UserInfo(Mapping):
                 return list(self.groups)[0]
 
         else:
-            raise Failure(message="No groups in userinfo and no global primary group configured")
+            logger.warning("Not a single group found; This may be ok, depending on the request type")
+            # raise Failure(message="No groups in userinfo and no global primary group configured")
 
     @property
     @lru_cache(maxsize=None)
