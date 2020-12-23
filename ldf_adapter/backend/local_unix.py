@@ -226,7 +226,9 @@ def make_shadow_compatible(orig_word):
     Any change made to the word is logged with level WARNING.
 
     """
-    # Sinvoll Umlaute kodieren
+    if orig_word is None:
+        return None
+    # Encode German Umlauts
     word = orig_word.translate(str.maketrans({
         'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
         'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
