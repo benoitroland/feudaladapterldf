@@ -46,7 +46,7 @@ def reload():
     for f in files:
         if f.exists():
             files_read = CONFIG.read(f)
-            logger.info(F"Read config from {files_read}")
+            logger.debug(F"Read config from {files_read}")
             break
 
 # Load config on import
