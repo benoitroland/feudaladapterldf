@@ -47,6 +47,11 @@ class NotDeployed(Success):
     def __init__(self, **kwargs):
         super().__init__(state='not_deployed', **kwargs)
 
+class Status(Success):
+    """Indicates the status of the user."""
+    def __init__(self, state, **kwargs):
+        super().__init__(state=state, **kwargs)
+
 
 ## Exceptional (Error or Questionnaire)
 class ExceptionalResult(Result, Exception):

@@ -18,7 +18,7 @@ from . import eduperson
 
 from . import backend
 from .config import CONFIG
-from .results import Deployed, NotDeployed, Rejection, Failure, Question, raise_question
+from .results import Deployed, NotDeployed, Rejection, Failure, Question, raise_question, Status
 from .name_generators import FriendlyNameGenerator
 
 logger = logging.getLogger(__name__)
@@ -168,6 +168,8 @@ class User:
             return self.deploy()
         elif target == 'not_deployed':
             return self.undeploy()
+        elif target == 'get_status':
+            return self.get_status()
         else:
             raise ValueError(f"Invalid target state: {target}")
 
@@ -188,6 +190,9 @@ class User:
         if was_created:
             what_changed += 'User was created'
         else:
+            # FIXME: a user that was not created might not exist for other reasons.
+            #        the code probably relies on Failures rosen.
+            #        A "pending" flow might require additional Classes for return
             what_changed += 'User already existed'
 
         if new_groups:
@@ -215,6 +220,52 @@ class User:
                             F"User '{self.service_user.name}' was not changed"
 
         return NotDeployed(message=what_changed)
+
+    def get_status(self):
+        """
+        Return the current status (that he has in the underlying local user management system)
+        User can have these status:
+        +--------------+-----------------------------------------------------------------+-----------------+
+        | Status       | Comment                                                         | Backend support |
+        +--------------+-----------------------------------------------------------------+-----------------+
+        +--------------+-----------------------------------------------------------------+-----------------+
+        | deployed     | There is an account for the user identified by unique_id        | Mandatory       |
+        +--------------+-----------------------------------------------------------------+-----------------+
+        | not deployed | There is no account for the user identified by unique_id        | Mandatory       |
+        |              | We have no information if there has ever been an account        |                 |
+        +--------------+-----------------------------------------------------------------+-----------------+
+        | rejected     | This might not be supportable; Depends on the backend           | Optional        |
+        +--------------+-----------------------------------------------------------------+-----------------+
+        | suspended    | The user with unique_id has been suspended                      | Optional        |
+        +--------------+-----------------------------------------------------------------+-----------------+
+        | pending      | The creation of the user is pending                             | Optional        |
+        +--------------+-----------------------------------------------------------------+-----------------+
+        | expired      | The user was expired, typically after being idle for some time  | Optional        |
+        +--------------+-----------------------------------------------------------------+-----------------+
+        | unknown      | We don't know the status, but at least the user is not deployed | Mandatory       |
+        +--------------+-----------------------------------------------------------------+-----------------+
+        """
+        
+        msg="No message"
+        # if self.service_user.exists():
+        #     msg=F"username {self.service_user.name}"
+        #     return Status("deployed", message=msg)
+        if hasattr(self.service_user, "is_rejected"):
+            if self.service_user.is_rejected():
+                return Status("rejected", message=msg)
+        if hasattr(self.service_user, "is_suspended"):
+            if self.service_user.is_suspended():
+                return Status("suspended", message=msg)
+        if hasattr(self.service_user, "is_pending"):
+            if self.service_user.is_pending():
+                return Status("pending", message=msg)
+        if hasattr(self.service_user, "is_expired"):
+            if self.service_user.is_expired():
+                return Status("expired", message=msg)
+        if not self.service_user.exists():
+            return Status("not_deployed", message=msg)
+        return Status("unknown", message=msg)
+        
 
     def ensure_exists(self):
         """Ensure that the user exists on the service.
