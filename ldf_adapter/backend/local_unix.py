@@ -39,6 +39,26 @@ class User:
         """Check wheter a user (identified by the unique_id) exists"""
         return bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
 
+    def is_rejected(self):
+        """Optional, only if the backend supports it.
+        Inform the user whether a user was rejected"""
+        return False
+    
+    def is_suspended(self):
+        """Optional, only if the backend supports it.
+        Inform the user whether a user was suspended (e.g. due to a security incident)"""
+        return False
+
+    def is_pending(self):
+        """Optional, only if the backend supports it.
+        Inform the user whether his creation is pending"""
+        return False
+
+    def is_expired(self):
+        """Optional, only if the backend supports it.
+        Inform the user whether his creation is pending"""
+        return False
+
     def name_taken(self):
         """Check if a username is already taken"""
         return self.name in [entry['login'] for entry in User.__all_passwd_entries('login').values()]
@@ -59,12 +79,13 @@ class User:
             subprocess.run(['useradd', '--comment', self.unique_id,
                             '-g', self.primary_group.name,
                             '--shell', shell,
+                            '-m',
                            self.name],
                            capture_output=True, check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F"Cannot create user ({msg or '<no output>'})")
+            raise Failure(message=F"Cannot create user ({mzMsg or '<no output>'})")
 
     def update(self):
         self.credentials['ssh_user'] = self.name
