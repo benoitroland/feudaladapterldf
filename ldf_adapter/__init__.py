@@ -340,7 +340,9 @@ class User:
         Return True, if the user existed before.
         """
         if self.service_user.exists():
-            logger.info('Deleting user {username} of {unique_id}'.format(**self.data))
+            self.service_user.username = self.service_user.get_username()
+            logger.info(F"Deleting user '{self.service_user.username}' ({self.data.unique_id})")
+            self.service_user.username = self.service_user.get_username()
             self.service_user.uninstall_ssh_keys()
             self.service_user.delete()
             return True
