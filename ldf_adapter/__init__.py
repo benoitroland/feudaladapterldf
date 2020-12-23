@@ -49,16 +49,6 @@ class User:
         if self.service_user.exists():
             self.update_username_from_existing()
 
-        logger.info("/--------------------------------------------------------------------------------\\")
-        logger.info(F"primary group: {UserInfo(data).primary_group}")
-        logger.info(F"primary group from service_user: {self.service_user.primary_group}")
-        logger.info("--------------------------------------------------------------------------------")
-
-        logger.info("self.service_groups: ")
-        for group in self.service_groups:
-            logger.info(F"    {group.name}")
-        logger.info("\\--------------------------------------------------------------------------------/")
-
     def assurance_verifier(self):
         """Produce a suitably function to check if a user is allowed.
 
@@ -78,6 +68,7 @@ class User:
         """
         ass = CONFIG['assurance']
         prefix = ass['prefix']
+        prefix=prefix.rstrip('/') + '/'
 
         tokens = regex.findall('&|\||\(|\)|[^\s()&|]+', ass['require'])
 
@@ -160,6 +151,12 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
+        try:
+            logger.info(F"Incoming request to '{target}' user '{self.data.email}' ({self.service_user.unique_id})")
+        except AttributeError:
+            logger.info(F"Incoming request to '{target}' user '{self.data.full_name}' ({self.service_user.unique_id})")
+        except AttributeError:
+            logger.info(F"Incoming request to '{target}' user '{self.service_user.unique_id}'")
         if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
             if not self.assurance_verifier()(self.data.assurance):
                 if not CONFIG.getboolean('assurance', 'verified_undeploy', fallback=False) and target == 'not_deployed':
@@ -377,7 +374,6 @@ class UserInfo(Mapping):
         self.answers = data.get('answers', {})
         self.credentials = data['user'].get('credentials', {})
         self.allow_question = CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False)
-        logger.info(F"UserInfo: allow question: {self.allow_question}")
 
     @property
     @lru_cache(maxsize=None)
@@ -430,8 +426,9 @@ class UserInfo(Mapping):
         sub = regex.sub('[^a-zA-Z0-9_!#$%&*+/=?{|}~^.-]', '-', sub)
 
         if sub != self.userinfo['sub']:
-            logger.warning("Subject '{}' changed to '{}' for BWIDM compatibilty".format(
-                self.userinfo['sub'], sub))
+            if CONFIG.getboolean('messages', 'log_name_changes', fallback=True):
+                logger.warning("Subject '{}' changed to '{}' for BWIDM compatibilty".format(
+                    self.userinfo['sub'], sub))
 
         return sub
 
@@ -449,8 +446,9 @@ class UserInfo(Mapping):
         # We don't consider stripping the http[s]-prefix a change, since we always do that anyway,
         # and there shouldn't be two different issuers `http://example.org' and `https://example.org'.
         if iss != stripped_iss:
-            logger.warning("Issuer '{}' changed to '{}' for BWIDM compatibilty".format(
-                stripped_iss, iss))
+            if CONFIG.getboolean('messages', 'log_name_changes', fallback=True):
+                logger.warning("Issuer '{}' changed to '{}' for BWIDM compatibilty".format(
+                    stripped_iss, iss))
 
         return iss
 
@@ -460,7 +458,6 @@ class UserInfo(Mapping):
         """Return the user's preferred username, or ask for one if none was provided."""
         # FIXME: This function is called, even when there is already a local user with an existing
         # name.  SImply not having a "preferred_username" does not mean that we have to bother the user!!!
-        logger.info(F"Interactive? : {not self.allow_question}")
         if self.allow_question:
             return self.value_or_ask(
                 self.userinfo.get('preferred_username'), 'username',
@@ -566,7 +563,8 @@ class UserInfo(Mapping):
         grp = regex.sub('^9', 'nine_', grp)
 
         if grp != orig_grp:
-            logger.warning("Group name '{}' changed to '{}' for BWIDM compatibilty".format(orig_grp, grp))
+            if CONFIG.getboolean('messages', 'log_name_changes', fallback=True):
+                logger.warning("Group name '{}' changed to '{}' for BWIDM compatibilty".format(orig_grp, grp))
 
         return grp
 
@@ -594,11 +592,14 @@ class UserInfo(Mapping):
                     self.allow_question, list(self.groups)
                 )
             else: # make something up, regarding the primary group:
-                logger.warning (F"We have a user with mutiple primary groups, and no default primary group set in the config.")
-                logger.warning (F"Furthermore, we are in non-interactive mode, so we can't ask the user.")
-                logger.warning (F"Therefore, we just take the first group: '{list(self.groups)[0]}'")
-                nl="\n            "
-                logger.warning (F"Available groups are: {nl}{nl.join(self.groups)}")
+                if CONFIG.getboolean('messages', 'log_primary_group_definition', fallback=True):
+                    logger.warning("/----- No primary group issue --------------------------------------------\\")
+                    logger.warning(F"    We have a user with mutiple primary groups, and no default primary group set in the config.")
+                    logger.warning(F"    Furthermore, we are in non-interactive mode, so we can't ask the user.")
+                    logger.warning(F"    Therefore, we just take the first group: '{list(self.groups)[0]}'")
+                    nl="\n                            "
+                    logger.warning(F"    Available groups are: {nl}{nl.join(self.groups)}")
+                    logger.warning("\\--------------------------------------------------------------------------------/")
                 return list(self.groups)[0]
 
         else:

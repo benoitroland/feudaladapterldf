@@ -8,6 +8,7 @@ Generate useful user or group names
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
 import logging
+from .config import CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +65,10 @@ class FriendlyNameGenerator():
                 logger.error(F"Ran out of strategies for generating a friendly username")
                 return None
 
-            logger.info(F"            trying: {candidate_name}")
             if candidate_name not in self.dont_use_these_names:
                 self.dont_use_these_names.append(candidate_name)
-                logger.info(F"Potential username: {candidate_name}")
+                if CONFIG.getboolean('messages', 'log_username_creation', fallback=False):
+                    logger.info(F"Potential username: {candidate_name}")
                 return candidate_name
 
         return None
