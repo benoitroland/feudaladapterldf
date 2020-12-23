@@ -171,6 +171,8 @@ class User:
             return self.deploy()
         elif target == 'not_deployed':
             return self.undeploy()
+        elif target == 'get_status':
+            return self.get_status()
         else:
             raise ValueError(f"Invalid target state: {target}")
 
@@ -218,6 +220,11 @@ class User:
                             F"User '{self.service_user.name}' was not changed"
 
         return NotDeployed(message=what_changed)
+
+    def get_status(self):
+        """Return the current status (that he has in the underlying local user management system)"""
+        status = None
+
 
     def ensure_exists(self):
         """Ensure that the user exists on the service.
