@@ -655,6 +655,10 @@ class UserInfo(Mapping):
                 return list(self.groups)[0]
 
         else:
+            old_answer = self.answers.get("primary_group", None)
+            if old_answer is not None:
+                return old_answer
+
             logger.warning("Not a single group found; This may be ok, depending on the request type")
             # raise Failure(message="No groups in userinfo and no global primary group configured")
 
