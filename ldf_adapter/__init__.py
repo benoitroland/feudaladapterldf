@@ -347,7 +347,7 @@ class User:
             self.service_user.delete()
             return True
         else:
-            logger.debug('No user for {unique_id} did exist. Nothing to do.'.format(**self.data))
+            logger.debug(F'No user for {self.data.unique_id} did exist. Nothing to do.')
             return False
 
     def ensure_groups_exist(self):
