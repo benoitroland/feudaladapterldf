@@ -48,7 +48,7 @@ def reload():
 
     filename = os.environ.get("LDF_ADAPTER_CONFIG")
     if filename:
-        files += Path(filename)
+        files += [ Path(filename) ]
 
     files += [
         Path('ldf_adapter.conf'),
