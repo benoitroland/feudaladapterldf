@@ -8,6 +8,10 @@ import sys
 import json
 import logging
 
+# Must be before the first ldf_adapter import
+from feudal_globalconfig import globalconfig
+globalconfig.config['parse_commandline_args'] = False
+
 from ldf_adapter import User
 from ldf_adapter.results import ExceptionalResult
 
