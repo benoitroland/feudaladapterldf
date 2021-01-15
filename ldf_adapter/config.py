@@ -1,7 +1,7 @@
 import os
 import sys
 
-from globalconfig import globalconfig
+from feudal_globalconfig import globalconfig
 from configparser import ConfigParser
 from pathlib import Path
 import logging
