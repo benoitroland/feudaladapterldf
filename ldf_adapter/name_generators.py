@@ -20,6 +20,7 @@ class FriendlyNameGenerator():
     Don't return the same name twice per run
     """
     dont_use_these_names  = []
+    dont_use_these_names.append('[]')
     strategies = [
             "{self.userinfo.preferred_username}",
             "{self.userinfo.given_name}",
@@ -62,14 +63,18 @@ class FriendlyNameGenerator():
                 pass
                 continue
             except IndexError:
+                NL="\n    "
                 logger.error(F"Ran out of strategies for generating a friendly username")
+                logger.error(F"The list of tried usernames is: \n {NL.join(self.dont_use_these_names)}")
                 return None
 
             if candidate_name not in self.dont_use_these_names:
                 self.dont_use_these_names.append(candidate_name)
                 if CONFIG.getboolean('messages', 'log_username_creation', fallback=False):
-                    logger.info(F"Potential username: {candidate_name}")
+                    logger.info(F"Potential username: '{candidate_name}'")
                 return candidate_name
+            else:
+                self.dont_use_these_names.append(candidate_name)
 
         return None
     def tried_names(self):
