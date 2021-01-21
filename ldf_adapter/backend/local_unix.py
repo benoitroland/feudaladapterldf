@@ -9,6 +9,7 @@ Manages a user and groups via standard UNIX shadow-utils(8).
 import subprocess
 from subprocess import CalledProcessError
 from pathlib import Path
+from os import chown
 import logging
 
 import regex
@@ -126,10 +127,18 @@ class User:
     def install_ssh_keys(self):
         try:
             self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
+            self.__authorized_keys.parent.chmod(0o700)
+            chown(self.__authorized_keys.parent, self.__uid, self.__gid)
+
             self.__authorized_keys.write_text("\n".join(self.ssh_keys))
+            self.__authorized_keys.chmod(0o600)
+            chown(self.__authorized_keys, self.__uid, self.__gid)
         except IOError as e:
             logger.error(e)
             raise Failure(message=F"Could not write new ssh keys: {e or '<no output>'}")
+        except Exception as e:
+            logger.error(e)
+            raise Failure(message=F"Cannot change owner or permissions: {e or '<no output>'}")
 
     def uninstall_ssh_keys(self):
         """Remove any SSH keys stored in the users .authorized_keys file."""
@@ -141,6 +150,22 @@ class User:
     @property
     def __authorized_keys(self):
         return Path(self.__passwd_entry['home'])/'.ssh'/'authorized_keys'
+
+    @property
+    def __uid(self):
+        try:
+            return int(self.__passwd_entry.get('uid', None))
+        except TypeError as e:
+            logger.error(e)
+            raise Failure(message=F"Could not get uid: {e or '<no output>'}")
+
+    @property
+    def __gid(self):
+        try:
+            return int(self.__passwd_entry.get('gid', None))
+        except TypeError as e:
+            logger.error(e)
+            raise Failure(message=F"Could not get gid: {e or '<no output>'}")
 
     @property
     def __passwd_entry(self):
