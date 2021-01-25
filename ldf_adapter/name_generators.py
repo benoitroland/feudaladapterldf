@@ -21,6 +21,7 @@ class FriendlyNameGenerator():
     """
     dont_use_these_names  = []
     dont_use_these_names.append('[]')
+    dont_use_these_names.append('none')
     strategies = [
             "{self.userinfo.preferred_username}",
             "{self.userinfo.given_name}",
@@ -48,8 +49,8 @@ class FriendlyNameGenerator():
     def suggest_name(self, suggestion=None, forbidden_names = None):
         # Copy forbidden names:
         for name in forbidden_names or []:
-            if name not in self.dont_use_these_names:
-                self.dont_use_these_names.append(name)
+            if name.lower() not in self.dont_use_these_names:
+                self.dont_use_these_names.append(name.lower())
 
         while True:
 
@@ -68,13 +69,13 @@ class FriendlyNameGenerator():
                 logger.error(F"The list of tried usernames is: \n {NL.join(self.dont_use_these_names)}")
                 return None
 
-            if candidate_name not in self.dont_use_these_names:
+            if candidate_name.lower() not in self.dont_use_these_names:
                 self.dont_use_these_names.append(candidate_name)
                 if CONFIG.getboolean('messages', 'log_username_creation', fallback=False):
                     logger.info(F"Potential username: '{candidate_name}'")
-                return candidate_name
+                return candidate_name.lower()
             else:
-                self.dont_use_these_names.append(candidate_name)
+                self.dont_use_these_names.append(candidate_name).lower()
 
         return None
     def tried_names(self):
