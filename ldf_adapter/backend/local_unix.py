@@ -86,7 +86,7 @@ class User:
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F"Cannot create user ({mzMsg or '<no output>'})")
+            raise Failure(message=F"Cannot create user ({msg or '<no output>'})")
 
     def update(self):
         self.credentials['ssh_user'] = self.name
