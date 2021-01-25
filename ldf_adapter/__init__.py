@@ -47,6 +47,9 @@ class User:
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
+        for g in self.service_groups:
+            logger.debug(F"    group: {g.name}")
+
         if self.service_user.exists():
             self.update_username_from_existing()
         logger.info("init done")
@@ -570,25 +573,43 @@ class UserInfo(Mapping):
 
         return filter(lambda x: x, map(try_entitlement, attr))
 
+    @property
+    def group(self):
+        """Return the unparsed group attribute of the user"""
+        attr = self.userinfo.get('groups', [])
+        if not isinstance(attr, list):
+            attr = [attr]
+        return attr
 
     @property
     @lru_cache(maxsize=None)
     def groups(self):
         """Return the homogenised names of the groups the user should be a member of.
+        """
+        # A shitty way to see if the entitlement is empty or not:
+        if len([x for x in self.entitlement]) == 0:
+            logger.debug("Using plain groups from 'groups' claim")
+            grouplist = self.groups_from_grouplist()
+        else:
+            logger.debug("Using aarc-g002 groups from 'entitlements' claim")
+            grouplist = self.groups_from_entitlement()
+        return ([self._group_masked_for_bwidm(grp) for grp in grouplist])
 
-        These are extracted from the entitlement. Any additional 'group'-keys in the input are ignored.
+    def groups_from_entitlement(self):
+        """Gropus are extracted from the entitlement. Any additional 'group'-keys in the input are ignored.
 
         Group names are prefixed with the delegated namespace from the entitlement.
         """
-
         return set(filter(
             None,
-            ['{}_{}'.format(self._group_masked_for_bwidm(ns), self._group_masked_for_bwidm(grp))
-             for (ns, grp)
-             in chain.from_iterable(
+            ['{}_{}'.format(ns, grp) for (ns, grp) in chain.from_iterable(
                  (("-".join([ent.delegated_namespace] + ent.subnamespaces), grp) for grp in ent.all_groups)
                  for ent in self.entitlement)]
         ))
+    def groups_from_grouplist(self):
+        """Gropus are extracted from the groups claim
+        """
+        return (set( [grp for grp in self.group]))
 
     def _group_masked_for_bwidm(self, orig_grp):
         """Convert camelCase to snake_case, fixup beginning of name and replace invalid chars with a dash ('-')"""
@@ -661,7 +682,12 @@ class UserInfo(Mapping):
             if old_answer is not None:
                 return old_answer
 
-            logger.warning("Not a single group found; This may be ok, depending on the request type")
+            else:  # still no group found.
+                fallback_group = CONFIG['ldf_adapter'].get("fallback_group", None)
+                if fallback_group:
+                    return fallback_group
+                else:
+                    logger.warning("Not a single group found; This may be ok, depending on the request type")
             # raise Failure(message="No groups in userinfo and no global primary group configured")
 
     @property

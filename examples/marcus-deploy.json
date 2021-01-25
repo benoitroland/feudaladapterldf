@@ -16,7 +16,7 @@
             "eduperson_entitlement": [
                 "urn:geant:h-df.de:group:MyExampleColab#login.helmholtz.de",
                 "urn:geant:h-df.de:group:wlcg-test#login.helmholtz.de",
-                "urn:geant:h-df.de:group:Helmholtz-member#login.helmholtz.de",
+                "urn:geant:holla-die-fee:group:Helmholtz-member#login.helmholtz.de",
                 "urn:geant:h-df.de:group:lsdf_admin#login.helmholtz.de",
                 "urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz.de",
                 "urn:geant:h-df.de:group:m-team#login.helmholtz.de",
