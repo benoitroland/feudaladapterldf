@@ -75,7 +75,7 @@ class FriendlyNameGenerator():
                     logger.info(F"Potential username: '{candidate_name}'")
                 return candidate_name.lower()
             else:
-                self.dont_use_these_names.append(candidate_name).lower()
+                self.dont_use_these_names.append(candidate_name.lower())
 
         return None
     def tried_names(self):
