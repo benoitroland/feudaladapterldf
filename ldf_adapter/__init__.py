@@ -682,7 +682,12 @@ class UserInfo(Mapping):
             if old_answer is not None:
                 return old_answer
 
-            logger.warning("Not a single group found; This may be ok, depending on the request type")
+            else:  # still no group found.
+                fallback_group = CONFIG['ldf_adapter'].get("fallback_group", None)
+                if fallback_group:
+                    return fallback_group
+                else:
+                    logger.warning("Not a single group found; This may be ok, depending on the request type")
             # raise Failure(message="No groups in userinfo and no global primary group configured")
 
     @property
