@@ -7,7 +7,7 @@ from pathlib import Path
 import logging
 
 PARSE_CMDLINE_PARAMETERS = True
-if 'pytest' not in sys.modules:
+if 'pytest' in sys.modules:
     PARSE_CMDLINE_PARAMETERS = False
 else:
     try:
@@ -17,7 +17,6 @@ else:
         PARSE_CMDLINE_PARAMETERS = True
 
 if PARSE_CMDLINE_PARAMETERS:
-    print ("WILL PARSE PARAMS")
     from ldf_adapter.cmdline_params import args
 
 CONFIG = ConfigParser()
