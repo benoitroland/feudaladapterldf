@@ -10,10 +10,6 @@ import logging
 
 # Must be before the first ldf_adapter import
 from feudal_globalconfig import globalconfig
-if __name__ == '__main__':
-    globalconfig.config['parse_commandline_args'] = True
-else:
-    globalconfig.config['parse_commandline_args'] = False
 
 from ldf_adapter import User
 from ldf_adapter.results import ExceptionalResult
