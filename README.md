@@ -39,15 +39,6 @@ it is found no further config files will be considered:
 - `$HOME/.config/feudal/ldf_adapter.conf`
 - `/etc/feudal/ldf_adapter.conf`
 
-## Integration with Feudal:
-- Edit the FEUDAL Client config file (e.g. `~/.config/feudal/client.yaml`) to include:
-```yaml
-    services:
-        "mclientservice":
-            "name": "Demo Adapter"
-            "description": "Works so well"
-            "command": "feudal-adapter --conf /etc/feudal/ldf_adapter.conf"
-```
 
 # Input and Output
 
@@ -135,6 +126,15 @@ that of the main package). To run the tests, just do:
 ./setup.py test
 ```
 
+# Integration with Feudal:
+- Edit the FEUDAL Client config file (e.g. `~/.config/feudal/client.yaml`) to include:
+```yaml
+    services:
+        "mclientservice":
+            "name": "Demo Adapter"
+            "description": "Works so well"
+            "command": "feudal-adapter --conf /etc/feudal/ldf_adapter.conf"
+```
 ------------------------------------------------------------------------
 
 # This goes away sooner or later
