@@ -3,10 +3,19 @@ import pkgutil
 import logging
 
 from ..config import CONFIG
+from ..results import Failure
 
 logger = logging.getLogger(__name__)
 
-__backend__ = f"{__name__}.{CONFIG['ldf_adapter']['backend']}"
+__backend__ = None
+try:
+    __backend__ = f"{__name__}.{CONFIG['ldf_adapter']['backend']}"
+except KeyError: # Meaning: We did _NOT_ read any config, but we are used
+                 # as a library
+    logger.error("No configuration found; Cannot load backend")
+if not __backend__:
+    raise Failure(message="No configuration found; Cannot load backend")
+
 __import__(__backend__)
 
 class Backend:
