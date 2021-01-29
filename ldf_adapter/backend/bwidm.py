@@ -30,6 +30,11 @@ class BwIdmConnection:
                 config['backend.bwidm.auth']['http_pass']
             )
 
+        if not CONFIG['backend.bwidm'].getboolean('log_outgoing_http_requests', fallback=False):
+            logging.getLogger("requests").setLevel(logging.CRITICAL)
+            logging.getLogger("werkzeug").setLevel(logging.CRITICAL)
+            logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+
     def get(self, *url_fragments, **kwargs):
         return self._request('GET', url_fragments, **kwargs)
 
@@ -120,6 +125,39 @@ class User:
 
         return bool(other_users_with_name)
 
+    def get_username(self):
+        def safe_resp_conversion(resp):
+            '''Safely convert a response to json'''
+            if resp.status_code != 200:
+                logger.debug ('Error %d reading from remote: \n%s\n'% (resp.status_code, str(resp.text)))
+                s_exit(1) # or raise or return None?
+            try:
+                resp_json = resp.json()
+            except json.JSONDecodeError:
+                logging.error ('Could not decode json that I obtained from rest server')
+                raise
+            return resp_json
+
+        """Check if a user exists based on unique_id"""
+        full_username = None
+        external_id   = self.info.unique_id
+        resp          = BWIDM.get ('external-user', 'find', 'externalId', external_id)
+        resp_json     = safe_resp_conversion(resp)
+
+        try:
+            username = resp_json['attributeStore']['urn:oid:0.9.2342.19200300.100.1.1']
+            bwIdmOrgId = resp_json['attributeStore']['http://bwidm.de/bwidmOrgId']
+            full_username = F"{bwIdmOrgId}_{username}"
+        except KeyError as e:
+            logger.error('Error: I could not find the username in the database.')
+            logger.error('  Most likely the user is not registered for this service\n')
+            logger.error(F"  {e}")
+            logger.error('  This is the json data received\n')
+            logger.error(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
+        logger.debug(F"Found existing username: {full_username}")
+        return full_username
+
+
     def create(self):
         """Create or activate user."""
         if self._exists() and not self._is_active():
@@ -200,8 +238,9 @@ class User:
             new_groups = [grp.reg_info(short=True) for grp in supplementary_groups]
             new_groups += [self.primary_group.reg_info()]
 
-            logger.debug("Groups according to BWIDM: {}".format([g['name'] for g in current_groups]))
-            logger.debug("Groups according to FEUDAL: {}".format([g['name'] for g in new_groups]))
+            NL='\n    '
+            logger.debug(F"Groups according to BWIDM: {NL}{NL.join([g['name'] for g in current_groups])}")
+            logger.debug(F"Groups according to FEUDAL: {NL}{NL.join([g['name'] for g in new_groups])}")
 
             # Remove user from groups he should not be a member of
             to_be_removed_from = [g for g in current_groups
