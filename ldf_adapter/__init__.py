@@ -178,6 +178,8 @@ class User:
             return self.undeploy()
         elif target == 'get_status':
             return self.get_status()
+        elif target == 'resumed':
+            return self.resume()
         elif target == 'suspended':
             return self.suspend()
         elif target == 'expired':
@@ -325,7 +327,7 @@ class User:
                     return Status("expired", message=msg)
             return Status("deployed", message=msg)
         except Exception as e:
-            logger.log(F'User {self.data.unique_id} is in an undefined state.')
+            logger.error(F'User {self.data.unique_id} is in an undefined state.: {e}')
             return Status("unknown", message=msg)
 
     def ensure_exists(self):
