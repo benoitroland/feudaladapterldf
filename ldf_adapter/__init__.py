@@ -50,6 +50,8 @@ class User:
         for g in self.service_groups:
             logger.debug(F"    group: {g.name}")
 
+        logger.debug(F"self.service_user: {self.service_user}")
+
         if self.service_user.exists():
             self.update_username_from_existing()
         logger.info("init done")
@@ -156,6 +158,8 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
+        logger.debug(F"-------------> {self.service_user.info.unique_id}")
+        logger.debug(F"-------------> {self.service_user.unique_id}")
         try:
             logger.info(F"Incoming request to '{target}' user '{self.data.email}' ({self.service_user.unique_id})")
         except AttributeError:

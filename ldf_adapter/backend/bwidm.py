@@ -80,6 +80,7 @@ class User:
         """
         Inactive users ('ON_HOLD') are treated as nonexistent.
         """
+        logger.debug(F"bwidm:exists: self.info: {self.info}")
         return self._exists() and self._is_active()
 
     def _exists(self):
