@@ -14,13 +14,37 @@ from feudal_globalconfig import globalconfig
 from ldf_adapter import User
 from ldf_adapter.results import ExceptionalResult
 
-def main():
-    logging.basicConfig(
-        level=os.environ.get("LOG", "INFO")
-        #format='%(asctime)s [%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
-    )
+logger = logging.getLogger('')
 
-    logger = logging.getLogger(__name__)
+class PathTruncatingFormatter(logging.Formatter):
+    '''formatter for logging'''
+    def format(self, record):
+        pathname = record.pathname
+        if len(pathname) > 23:
+            pathname = '...{}'.format( pathname[-19:])
+        record.pathname = pathname
+        return super(PathTruncatingFormatter, self).format(record)
+
+def main():
+
+    # Setup logging:
+    for h in logger.handlers:
+        logger.removeHandler(h)
+
+
+    loglevel=os.environ.get("LOG", "INFO")
+    if loglevel=="DEBUG":
+        logformat = '%(asctime)s [%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
+        formatter  = PathTruncatingFormatter(logformat)
+    else:
+        logformat  = '[%(levelname)s] [%(filename)s] %(message)s'
+        formatter = logging.Formatter(logformat)
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+    logger.setLevel(loglevel)
 
     data = json.load(sys.stdin)
 
