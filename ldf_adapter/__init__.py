@@ -359,7 +359,7 @@ class User:
         is_new_user = not self.service_user.exists()
 
         if is_new_user:
-            unique_id= self.service_user.unique_id
+            unique_id= self.data.unique_id
             logger.info(F'Creating user for "{unique_id}"')
 
             # Raise question in case of existing username in case we're interactive
@@ -374,12 +374,13 @@ class User:
             else: # non-interactive
                 fng = FriendlyNameGenerator(self.data)
                 try:
-                    logger.info(F"initial try: {self.service_user.name}")
+                    logger.info(F"initial try: {self.data.username}")
                 except AttributeError:
                     pass
                 while self.service_user.name_taken():
-                    self.service_user.name = fng.suggest_name(self.service_user.name)
-                logger.info(F'                             Using: {self.service_user.name}')
+                    # FIXME: This may as well be data.username!! or a new  set_username
+                    self.service_user.name = fng.suggest_name(self.data.username)
+                logger.info(F'                             Using: {self.data.username}')
                 if self.service_user.name is None:
                     raise Rejection(message=F"I cannot create usernames. "
                                     F"The list of tried ones is: {', '.join(fng.tried_names())}.")
@@ -400,6 +401,7 @@ class User:
         try:
             existing_username = self.service_user.get_username()
             if existing_username is not None:
+                # FIXME: This may as well be data.username!! or a new  set_username
                 self.service_user.name = existing_username
                 logger.info(F'Found existing username: {existing_username}')
         except AttributeError:
