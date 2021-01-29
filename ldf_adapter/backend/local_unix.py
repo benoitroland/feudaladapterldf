@@ -6,6 +6,7 @@ Manages a user and groups via standard UNIX shadow-utils(8).
 # pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
+import sys
 import subprocess
 from subprocess import CalledProcessError
 from pathlib import Path
@@ -38,6 +39,8 @@ class User:
 
     def exists(self):
         """Check wheter a user (identified by the unique_id) exists"""
+        # x = bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
+        # logger.debug(F"user exists: {x}")
         return bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
 
     def is_rejected(self):
@@ -62,6 +65,8 @@ class User:
 
     def name_taken(self):
         """Check if a username is already taken"""
+        x = self.name in [entry['login'] for entry in User.__all_passwd_entries('login').values()]
+        logger.debug(F"name_taken: {x}")
         return self.name in [entry['login'] for entry in User.__all_passwd_entries('login').values()]
 
     def get_username(self):
@@ -74,6 +79,7 @@ class User:
             return None
 
     def create(self):
+        logger.debug(F"creating user: {self.name} - {self.unique_id} ")
         try:
             # TODO this should consider self.primary_group
             shell = CONFIG['backend.local_unix'].get('shell', '/bin/sh')
@@ -82,7 +88,7 @@ class User:
                             '--shell', shell,
                             '-m',
                            self.name],
-                           capture_output=True, check=True)
+                           check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
@@ -99,12 +105,12 @@ class User:
 
         try:
             subprocess.run(['/usr/bin/pkill', '-u', name],
-                           capture_output=True, check=True)
+                           check=True)
         except CalledProcessError:
             pass
         try:
             subprocess.run(['userdel', name],
-                           capture_output=True, check=True)
+                           check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
@@ -118,7 +124,7 @@ class User:
 
         try:
             subprocess.run(['usermod'] + options + [self.name],
-                           capture_output=True, check=True)
+                           check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
@@ -186,7 +192,9 @@ class User:
             # import json
             # thedata={user[ID_FIELD]: user for user in users}
             # str_str = json.dumps(thedata, sort_keys=True, indent=4, separators=(',', ': '))
-            # logging.info(str_str)
+            # logger.debug(str_str)
+            # x = {user[ID_FIELD]: user for user in users}
+            # logger.debug(F"whattttt: {x}")
             return {user[ID_FIELD]: user for user in users}
 
 class Group:
@@ -199,7 +207,7 @@ class Group:
     def create(self):
         try:
             subprocess.run(['groupadd', self.name],
-                           capture_output=True, check=True)
+                           check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
