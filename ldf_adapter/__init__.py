@@ -33,7 +33,6 @@ class User:
     __init__ for details).
     """
     def __init__(self, data):
-        logger.info("init")
         """
         Arguments:
         data -- Information about the user (type: UserInfo or dict)
@@ -42,17 +41,19 @@ class User:
         ldf_adapter.backend -- The name of the backend. See function the `backend` for possible values
         ldf_adapter.primary_group -- The primary group of the user. If empty, one from the
           supplementary groups will be used. If there are multiple, a question will be raised.
+
+        Words of warning: Since the service_user and service_groups are
+        backend specific, their structures differ from backend to backend.
+
+        Direct access to them from this __init__ is highly illegal (unless specified)
+        Instead: Use self.data
         """
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
-        for g in self.service_groups:
-            logger.debug(F"    group: {g.name}")
-
         if self.service_user.exists():
             self.update_username_from_existing()
-        logger.info("init done")
 
     def assurance_verifier(self):
         """Produce a suitably function to check if a user is allowed.
@@ -156,17 +157,26 @@ class User:
         target -- The desired state. One of 'deployed' and 'not_deployed'.
         user -- The user to be deployed/undeployed (type: User)
         """
+
+        username="not yet assigned"
+        if self.service_user.exists():
+            username = self.service_user.get_username()
         try:
-            logger.info(F"Incoming request to '{target}' user '{self.data.email}' ({self.service_user.unique_id})")
+            logger.info(F"Incoming request to reach '{target}' for user '{self.data.email}' ({self.data.unique_id}) username: {username}")
         except AttributeError:
-            logger.info(F"Incoming request to '{target}' user '{self.data.full_name}' ({self.service_user.unique_id})")
+            logger.info(F"Incoming request to reach '{target}' for user '{self.data.full_name}' ({self.data.unique_id}) username: {username}")
         except AttributeError:
-            logger.info(F"Incoming request to '{target}' user '{self.service_user.unique_id}'")
+            logger.info(F"Incoming request to reach '{target}' for user '{self.data.unique_id}' username: {username}")
 
         if target == 'deployed':
             if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
                 if not self.assurance_verifier()(self.data.assurance):
                     raise Rejection(message="Your assurance level is insufficient to access this resource")
+
+            logger.debug(F"User comes with these groups")
+            for g in self.service_groups:
+                logger.debug(F"    {g.name}")
+
             return self.deploy()
         elif target == 'not_deployed':
             if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
@@ -228,10 +238,10 @@ class User:
 
         what_changed = ''
         if was_removed:
-            what_changed += F"User '{self.service_user.name}' was removed."
+            what_changed += F"User '{self.data.username}' was removed."
         else:
-            what_changed += F"No user for '{self.service_user.unique_id}' existed. "+\
-                            F"User '{self.service_user.name}' was not changed"
+            what_changed += F"No user for '{self.data.unique_id}' existed. "+\
+                            F"User '{self.data.username}' was not changed"
 
         return NotDeployed(message=what_changed)
 
@@ -312,7 +322,7 @@ class User:
         try:
             if not self.service_user.exists():
                 return Status("not_deployed", message=msg)
-            msg=F"username {self.service_user.name}"
+            msg=F"username {self.data.username}"
             if hasattr(self.service_user, "is_rejected"):
                 if self.service_user.is_rejected():
                     return Status("rejected", message=msg)
@@ -347,20 +357,19 @@ class User:
 
         if is_new_user:
             username = self.service_user.name
-            logger.info(F'self.service_user.name: {self.service_user.name}')
             unique_id= self.service_user.unique_id
             logger.info(F'Creating user "{username}" for "{unique_id}"')
 
             # Raise question in case of existing username in case we're interactive
-            if CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False):
+            if CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False): # interactive
                 if self.service_user.name_taken():
                     logger.info(F'Username "{username}" is already taken, asking user to pick a new one')
                     raise Question(
                         name='username',
                         text=F'Username "{username}" already taken on this service. Please enter another one.'
                     )
-            else:
-                logger.info("starting while")
+
+            else: # non-interactive
                 fng = FriendlyNameGenerator(self.data)
                 logger.info(F"initial try: {self.service_user.name}")
                 while self.service_user.name_taken():
@@ -369,10 +378,12 @@ class User:
                 if self.service_user.name is None:
                     raise Rejection(message=F"I cannot create usernames. "
                                     F"The list of tried ones is: {', '.join(fng.tried_names())}.")
-                self.service_user.create()
+            self.service_user.create()
         else: # The user exists
             # Update service_user.name if unique_id already points to a username:
             logger.debug('User for "{unique_id}" already exists. Nothing to do.'.format(**self.data))
+
+        logger.debug(F"  This is a new user: {is_new_user}")
 
         self.service_user.update()
         return is_new_user
@@ -385,7 +396,7 @@ class User:
             existing_username = self.service_user.get_username()
             if existing_username is not None:
                 self.service_user.name = existing_username
-                logger.debug(F'Using existing username: {existing_username}')
+                logger.info(F'Found existing username: {existing_username}')
         except AttributeError:
             # the currently used service_user class has to method get_username
             existing_username = None
@@ -566,14 +577,14 @@ class UserInfo(Mapping):
         Usually subjects are only numbers and ascii-chars separeted by dashes, so this should not be
         much of a problem.
         """
+        # FIXME: Changing the sub of a user is potentially terrible
         sub = self.userinfo['sub']
 
         sub = regex.sub('[^a-zA-Z0-9_!#$%&*+/=?{|}~^.-]', '-', sub)
 
         if sub != self.userinfo['sub']:
-            if CONFIG.getboolean('messages', 'log_name_changes', fallback=True):
-                logger.warning("Subject '{}' changed to '{}' for BWIDM compatibilty".format(
-                    self.userinfo['sub'], sub))
+            logger.warning("sub '{}' changed to '{}' for BWIDM compatibilty".format(
+                self.userinfo['sub'], sub))
 
         return sub
 

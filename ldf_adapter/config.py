@@ -69,7 +69,6 @@ def reload():
         Path.home()/'.config'/'feudal'/'ldf_adapter.conf',
         Path('/etc/feudal/ldf_adapter.conf')
     ]
-    logger.debug("Using these config files: {} to find a suitable one".format(files))
 
     config_loaded = False
     for f in files:
