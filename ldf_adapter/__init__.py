@@ -253,11 +253,12 @@ class User:
         was_suspended = self.ensure_suspended()
         what_changed = ''
         if was_suspended:
+            # FIXME: I'm not sure if this ought to be self.data.username
             what_changed += F"User '{self.service_user.name}' was suspended."
             state = "suspended"
         else:
             state = self.get_status().state
-            what_changed += F"Suspending user '{self.service_user.unique_id}' was not possible from the '{state}' state. "+\
+            what_changed += F"Suspending user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
                             F"User was not changed."
         return Status(state, message=what_changed)
 
@@ -269,11 +270,12 @@ class User:
         was_resumed = self.ensure_resumed()
         what_changed = ''
         if was_resumed:
+            # FIXME: I'm not sure if this ought to be self.data.username
             what_changed += F"User '{self.service_user.name}' was resumed."
             state = "deployed"
         else:
             state = self.get_status().state
-            what_changed += F"Resuming user '{self.service_user.unique_id}' was not possible from the '{state}' state. "+\
+            what_changed += F"Resuming user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
                             F"User was not changed."
         return Status(state, message=what_changed)
 
@@ -285,11 +287,12 @@ class User:
         was_expired = self.ensure_expired()
         what_changed = ''
         if was_expired:
+            # FIXME: I'm not sure if this ought to be self.data.username
             what_changed += F"User '{self.service_user.name}' was expired."
             state = "expired"
         else:
             state = self.get_status().state
-            what_changed += F"Expiring user '{self.service_user.unique_id}' was not possible from the '{state}' state. "+\
+            what_changed += F"Expiring user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
                             F"User was not changed."
         return Status(state, message=what_changed)
 
@@ -356,6 +359,7 @@ class User:
         is_new_user = not self.service_user.exists()
 
         if is_new_user:
+            # FIXME: I'm not sure if this ought to be self.data.username
             username = self.service_user.name
             unique_id= self.service_user.unique_id
             logger.info(F'Creating user "{username}" for "{unique_id}"')
