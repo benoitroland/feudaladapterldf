@@ -7,47 +7,74 @@ This code implements the adapter for FEUDAL to communicate with various services
 
 Distributed with the adapter are backends for [BWIDM](ldf_adapter/backend/bwidm.py) and [UNIX](ldf_adapter/backend/local_unix.py).
 
-## Usage
-### Installation
-- Install [feudalClient](https://git.scc.kit.edu/feudal/feudalClient)
-- Build package: `./setup.py sdist`
-- Install package: `pip install dist/ldf_adapter-$version.tar.gz`
-- Edit the FEUDAL Client config file (e.g. `~/.config/feudal/client.json`) to include:
-   ```js
-   {
-       "services": {
-           "suppe": {
-               "name": "Der ADAPTER",
-               "description": "Er ist sehr gut",
-               "command": "ldf_adapter"
-           }
-       },
-   }
-   ```
+# Installation
+## From PyPi
+ - `pip install feudalAdapter`
 
-### Configuration
-See [config.py:reload](ldf_adapter/config.py) for a list of config file locations.
+## From Source
+- Git clone: `git clone git@git.scc.kit.edu:feudal/feudalAdapterLdf.git`
+- Build package: `cd feudalAdapterLDF; ./setup.py sdist`
+- Install package: `pip install dist/feudalAdapter-$version.tar.gz`
 
+# Configuration
 The config file contains both the generic config, as well as for specific backends.
+## Configuration Template
+See [ldf_adapter_template.conf](ldf_adapter_template.conf)
 
-An example config file explaining the options can be found in [ldf_adapter.conf](ldf_adapter.conf)
+## Config file search path
+The config file ldf_adapter.conf will be searched in several places. Once
+it is found no further config files will be considered:
 
-### Running
-Lastly, simply start the FEUDAL client:
+- If the commandline argument `--config` is specified, that location is used.
 
+- If the `feudal_globalconf` mechanism is used, it is used. In case there is
+    also a commandline argument specified, the `globaldconf` has precedence
+
+- If those dont work: the environment variable `LDF_ADAPTER_CONFIG` is used
+
+- If that does not work, these files will be tried by default:
+
+- `ldf_adapter.conf`
+- `$HOME/.config/ldf_adapter.conf`
+- `$HOME/.config/feudal/ldf_adapter.conf`
+- `/etc/feudal/ldf_adapter.conf`
+
+
+# Input and Output
+
+The FeudalAdapter is designed to work with feudalClient and hence expects
+specific json on stdin, and produces specific json on stdout. 
+
+The was initially defined [here (feudalScripts)](https://git.scc.kit.edu/feudal/feudalScripts/)
+
+An extension is implemented, to work with [Motley Cue](https://github.com/dianagudu/motley_cue), 
+therefore, we feudalAdapterLDF supports additional targets. Most of these
+targets do not require the full userinfo to be passed along:
+
+| Target         | Description                                            | Input required | Optional input |
+|----------------|--------------------------------------------------------|----------------|----------------|
+| `deployed`     | Make sure the user exists on the system                | Full userinfo  | ssh-keys       |
+| `not_deployed` | Make sure the user is not on the system                | sub+iss        |                |
+| `get_status`   | Get the current status of the user without changing it |                |                |
+
+
+
+
+# Development
+
+## Debugging
+
+For development you can use the included json files in the examples folder
+and pass them on stdin:
 ```sh
-feudalClient -c ~/.config/feudal/client.json
+cd [...]/feudalAdapterLDF
+export PYTHONPATH=`pwd`
+export LOG=DEBUG
+
+cat examples/marcus-deploy.json | ./ldf_adapter/interface.py
 ```
 
-### Further help
-If you encounter problem, you can find information about the behaviour of the adapter and the backends in the rather verbose inline doc. Just take a look at the inline doc. The [ldf_adapter Module](ldf_adapter/__init__.py) is probably a good starting point, or the [backend Module](ldf_adapter/backend).
-
-## Development
-For Documentation, just take a look at the inline doc.
-
-To get started, run `pip install -r devel-requirements.txt` (you probably want to do this inside a virtualenv).
-
-Then, set the command of the service in feudalClients `client.json` to the full path to [interface.py](interface.py) inside your cloned repo.
+## Debugging with FeudalClient:
 
 For debugging, run the feudalClient with:
 
@@ -55,18 +82,25 @@ For debugging, run the feudalClient with:
 LOG=DEBUG feudalClient -c ~/.config/feudal/client.json --debug-scripts
 ```
 
-### Backends
-Backends are simply python modules. There is an [example backend](ldf_adapter/backend/example.py) explaining what the module needs to implement.
-To create a new backend named `my_backend`:
+## Development
 
-```sh
-cd ldf_adapter/backend
-cp example.py my_backend.py
+feudalAdapter can also be used as a library; For that you can use the
+feudal_globalconfig to keep it from parsing your commandline paramenters:
+
+```python
+from feudal_globalconfig import globalconfig
+globalconfig.config['CONFIGFILE']="/etc/feudal/ldf_adapter_mailping.conf"
+globalconfig.config['parse_commandline_args']=False
+from ldf_adapter import User
 ```
 
-And fill out the methods in the classes in `my_backend.py` (don't rename the classes!).
 
-Then, you can activate the module using
+# Supported Backends
+Backends are simply python modules. The supported backends are in the
+[backends](ldf_adapter/backend/) folder.
+
+The backend is configured in the main config file, and may create and use
+its own sections therein.
 
 ```conf
 [ldf_adapter]
@@ -83,9 +117,8 @@ login_help = To login, ask your mama for help.
 # in the feudalClient webinterface
 ```
 
-in [ldf_adapter.conf](ldf_adapter.conf).
 
-### Unit Tests
+# Unit Tests
 There are unit tests, located under [tests](tests) (The package structure in `tests` corresponds to
 that of the main package). To run the tests, just do:
 
@@ -93,8 +126,20 @@ that of the main package). To run the tests, just do:
 ./setup.py test
 ```
 
+# Integration with Feudal:
+- Edit the FEUDAL Client config file (e.g. `~/.config/feudal/client.yaml`) to include:
+```yaml
+    services:
+        "mclientservice":
+            "name": "Demo Adapter"
+            "description": "Works so well"
+            "command": "feudal-adapter --conf /etc/feudal/ldf_adapter.conf"
+```
+------------------------------------------------------------------------
 
-# LDF REST Interface
+# This goes away sooner or later
+
+# RegApp REST Interface
 The rest interface of the LDAP facade supports the calls documented here.
 
 For configuration we use these environment variables
