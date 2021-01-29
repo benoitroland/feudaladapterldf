@@ -188,6 +188,12 @@ class User:
             return self.undeploy()
         elif target == 'get_status':
             return self.get_status()
+        elif target == 'resumed':
+            return self.resume()
+        elif target == 'suspended':
+            return self.suspend()
+        elif target == 'expired':
+            return self.expire()
         else:
             raise ValueError(f"Invalid target state: {target}")
 
@@ -239,6 +245,57 @@ class User:
 
         return NotDeployed(message=what_changed)
 
+    def suspend(self):
+        """Ensure that the user is suspended.
+
+        Return a Status result with a message describing what was done.
+        """
+        was_suspended = self.ensure_suspended()
+        what_changed = ''
+        if was_suspended:
+            # FIXME: I'm not sure if this ought to be self.data.username
+            what_changed += F"User '{self.data.unique_id}' was suspended."
+            state = "suspended"
+        else:
+            state = self.get_status().state
+            what_changed += F"Suspending user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
+                            F"User was not changed."
+        return Status(state, message=what_changed)
+
+    def resume(self):
+        """Ensure that a suspended or expired user is active again in state 'deployed'.
+
+        Return a Status result with a message describing what was done.
+        """
+        was_resumed = self.ensure_resumed()
+        what_changed = ''
+        if was_resumed:
+            # FIXME: I'm not sure if this ought to be self.data.username
+            what_changed += F"User '{self.data.unique_id}' was resumed."
+            state = "deployed"
+        else:
+            state = self.get_status().state
+            what_changed += F"Resuming user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
+                            F"User was not changed."
+        return Status(state, message=what_changed)
+
+    def expire(self):
+        """Ensure that a user is expired.
+
+        Return a Status result with a message describing what was done.
+        """
+        was_expired = self.ensure_expired()
+        what_changed = ''
+        if was_expired:
+            # FIXME: I'm not sure if this ought to be self.data.username
+            what_changed += F"User '{self.data.unique_id}' was expired."
+            state = "expired"
+        else:
+            state = self.get_status().state
+            what_changed += F"Expiring user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
+                            F"User was not changed."
+        return Status(state, message=what_changed)
+
     def get_status(self):
         """
         Return the current status (that he has in the underlying local user management system)
@@ -265,25 +322,26 @@ class User:
         """
         
         msg="No message"
-        if self.service_user.exists():
+        try:
+            if not self.service_user.exists():
+                return Status("not_deployed", message=msg)
             msg=F"username {self.data.username}"
+            if hasattr(self.service_user, "is_rejected"):
+                if self.service_user.is_rejected():
+                    return Status("rejected", message=msg)
+            if hasattr(self.service_user, "is_suspended"):
+                if self.service_user.is_suspended():
+                    return Status("suspended", message=msg)
+            if hasattr(self.service_user, "is_pending"):
+                if self.service_user.is_pending():
+                    return Status("pending", message=msg)
+            if hasattr(self.service_user, "is_expired"):
+                if self.service_user.is_expired():
+                    return Status("expired", message=msg)
             return Status("deployed", message=msg)
-        if hasattr(self.service_user, "is_rejected"):
-            if self.service_user.is_rejected():
-                return Status("rejected", message=msg)
-        if hasattr(self.service_user, "is_suspended"):
-            if self.service_user.is_suspended():
-                return Status("suspended", message=msg)
-        if hasattr(self.service_user, "is_pending"):
-            if self.service_user.is_pending():
-                return Status("pending", message=msg)
-        if hasattr(self.service_user, "is_expired"):
-            if self.service_user.is_expired():
-                return Status("expired", message=msg)
-        if not self.service_user.exists():
-            return Status("not_deployed", message=msg)
-        return Status("unknown", message=msg)
-        
+        except Exception as e:
+            logger.error(F'User {self.data.unique_id} is in an undefined state.: {e}')
+            return Status("unknown", message=msg)
 
     def ensure_exists(self):
         """Ensure that the user exists on the service.
@@ -301,9 +359,8 @@ class User:
         is_new_user = not self.service_user.exists()
 
         if is_new_user:
-            username = self.service_user.name
-            unique_id= self.service_user.unique_id
-            logger.info(F'Creating user "{username}" for "{unique_id}"')
+            unique_id= self.data.unique_id
+            logger.info(F'Creating user for "{unique_id}"')
 
             # Raise question in case of existing username in case we're interactive
             if CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False): # interactive
@@ -316,10 +373,14 @@ class User:
 
             else: # non-interactive
                 fng = FriendlyNameGenerator(self.data)
-                logger.info(F"initial try: {self.service_user.name}")
+                try:
+                    logger.info(F"initial try: {self.data.username}")
+                except AttributeError:
+                    pass
                 while self.service_user.name_taken():
-                    self.service_user.name = fng.suggest_name(self.service_user.name)
-                logger.info(F'                             Using: {self.service_user.name}')
+                    # FIXME: This may as well be data.username!! or a new  set_username
+                    self.service_user.name = fng.suggest_name(self.data.username)
+                logger.info(F'                             Using: {self.data.username}')
                 if self.service_user.name is None:
                     raise Rejection(message=F"I cannot create usernames. "
                                     F"The list of tried ones is: {', '.join(fng.tried_names())}.")
@@ -340,6 +401,7 @@ class User:
         try:
             existing_username = self.service_user.get_username()
             if existing_username is not None:
+                # FIXME: This may as well be data.username!! or a new  set_username
                 self.service_user.name = existing_username
                 logger.info(F'Found existing username: {existing_username}')
         except AttributeError:
@@ -363,6 +425,42 @@ class User:
         else:
             logger.debug(F'No user for {self.data.unique_id} did exist. Nothing to do.')
             return False
+
+    def ensure_suspended(self):
+        """Ensure that a user is suspended.
+        Return True if the user has been suspended.
+        """
+        status = self.get_status()
+        if status.state in ["deployed", "expired"]:
+            if hasattr(self.service_user, 'suspend'):
+                self.service_user.suspend()
+                return True
+        logger.debug(F'User {self.data.unique_id} in state {status.state}. Suspending not allowed.')
+        return False
+
+    def ensure_expired(self):
+        """Ensure that a user is expired.
+        Return True if setting the user is expired.
+        """
+        status = self.get_status()
+        if status.state == "deployed":
+            if hasattr(self.service_user, 'expire'):
+                self.service_user.expire()
+                return True
+        logger.debug(F'User {self.data.unique_id} in state {status.state}. Expiring not allowed.')
+        return False
+
+    def ensure_resumed(self):
+        """Ensure that a user is resumed.
+        Return True is the user
+        """
+        status = self.get_status()
+        if status.state in ["suspended", "expired"]:
+            if hasattr(self.service_user, 'resume'):
+                self.service_user.resume()
+                return True
+        logger.debug(F'User {self.data.unique_id} in state {status.state}. Resuming not allowed.')
+        return False
 
     def ensure_groups_exist(self):
         """Ensure that all the necessary groups exist.

@@ -11,6 +11,8 @@ import subprocess
 from subprocess import CalledProcessError
 from pathlib import Path
 from os import chown
+from datetime import date, datetime
+import json
 import logging
 
 import regex
@@ -51,7 +53,7 @@ class User:
     def is_suspended(self):
         """Optional, only if the backend supports it.
         Inform the user whether a user was suspended (e.g. due to a security incident)"""
-        return False
+        return self.__is_locked()
 
     def is_pending(self):
         """Optional, only if the backend supports it.
@@ -60,7 +62,30 @@ class User:
 
     def is_expired(self):
         """Optional, only if the backend supports it.
-        Inform the user whether his creation is pending"""
+        Inform the user whether a user has expired"""
+        # for local_unix backend, this is the same as being suspended
+        return self.__is_locked()
+
+    def __is_locked(self):
+        """Check whether a user is locked"""
+        if self.exists():
+            options = ['-j', 'user']
+            try:
+                result = subprocess.run(['userdbctl'] + options + [self.name],
+                                        capture_output=True, check=True)
+            except CalledProcessError as e:
+                msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
+                logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
+                raise Failure(message=F"Cannot get info for user: {msg or '<no output>'}")
+            try:
+                result = json.loads(result.stdout)
+                expiration_date_usec = result.get("notAfterUSec", None)
+                if expiration_date_usec:
+                    if expiration_date_usec/1000000 - datetime.now().timestamp() <= 0:
+                        return True
+            except Exception as e:
+                logger.error(e)
+                raise Failure(message=F"Could not get: {e or '<no output>'}")
         return False
 
     def name_taken(self):
@@ -129,6 +154,22 @@ class User:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
             raise Failure(message=F"Cannot modify user: {msg or '<no output>'}")
+
+    def expire(self, expiration_date=datetime.today().strftime("%Y-%m-%d")):
+        options = ['-E', expiration_date]
+        try:
+            subprocess.run(['chage'] + options + [self.name],
+                           capture_output=True, check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
+            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
+            raise Failure(message=F"Cannot set expiration date for user: {msg or '<no output>'}")
+
+    def suspend(self):
+        self.expire(datetime.today().strftime("%Y-%m-%d"))
+
+    def resume(self):
+        self.expire('-1')
 
     def install_ssh_keys(self):
         try:
