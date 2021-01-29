@@ -254,7 +254,7 @@ class User:
         what_changed = ''
         if was_suspended:
             # FIXME: I'm not sure if this ought to be self.data.username
-            what_changed += F"User '{self.service_user.name}' was suspended."
+            what_changed += F"User '{self.data.unique_id}' was suspended."
             state = "suspended"
         else:
             state = self.get_status().state
@@ -271,7 +271,7 @@ class User:
         what_changed = ''
         if was_resumed:
             # FIXME: I'm not sure if this ought to be self.data.username
-            what_changed += F"User '{self.service_user.name}' was resumed."
+            what_changed += F"User '{self.data.unique_id}' was resumed."
             state = "deployed"
         else:
             state = self.get_status().state
@@ -288,7 +288,7 @@ class User:
         what_changed = ''
         if was_expired:
             # FIXME: I'm not sure if this ought to be self.data.username
-            what_changed += F"User '{self.service_user.name}' was expired."
+            what_changed += F"User '{self.data.unique_id}' was expired."
             state = "expired"
         else:
             state = self.get_status().state
@@ -359,10 +359,8 @@ class User:
         is_new_user = not self.service_user.exists()
 
         if is_new_user:
-            # FIXME: I'm not sure if this ought to be self.data.username
-            username = self.service_user.name
             unique_id= self.service_user.unique_id
-            logger.info(F'Creating user "{username}" for "{unique_id}"')
+            logger.info(F'Creating user for "{unique_id}"')
 
             # Raise question in case of existing username in case we're interactive
             if CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False): # interactive
@@ -375,7 +373,10 @@ class User:
 
             else: # non-interactive
                 fng = FriendlyNameGenerator(self.data)
-                logger.info(F"initial try: {self.service_user.name}")
+                try:
+                    logger.info(F"initial try: {self.service_user.name}")
+                except AttributeError:
+                    pass
                 while self.service_user.name_taken():
                     self.service_user.name = fng.suggest_name(self.service_user.name)
                 logger.info(F'                             Using: {self.service_user.name}')
