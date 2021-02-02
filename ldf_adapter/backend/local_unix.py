@@ -53,21 +53,6 @@ class User:
     def is_suspended(self):
         """Optional, only if the backend supports it.
         Inform the user whether a user was suspended (e.g. due to a security incident)"""
-        return self.__is_locked()
-
-    def is_pending(self):
-        """Optional, only if the backend supports it.
-        Inform the user whether his creation is pending"""
-        return False
-
-    def is_expired(self):
-        """Optional, only if the backend supports it.
-        Inform the user whether a user has expired"""
-        # for local_unix backend, this is the same as being suspended
-        return self.__is_locked()
-
-    def __is_locked(self):
-        """Check whether a user is locked"""
         if self.exists():
             options = ['-j', 'user']
             try:
@@ -87,6 +72,25 @@ class User:
                 logger.error(e)
                 raise Failure(message=F"Could not get: {e or '<no output>'}")
         return False
+
+    def is_pending(self):
+        """Optional, only if the backend supports it.
+        Inform the user whether his creation is pending"""
+        return False
+
+    def is_limited(self):
+        """Optional, only if the backend supports it.
+        Inform the user whether a user has limited access"""
+        # if shell is nologin
+        try:
+            shell = self.__passwd_entry.get('shell', None)
+            return (
+                shell == '/sbin/nologin' or
+                shell == '/usr/bin/nologin' or
+                shell == '/bin/nologin'
+                )
+        except KeyError:
+            return False
 
     def name_taken(self):
         """Check if a username is already taken"""
@@ -155,7 +159,7 @@ class User:
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
             raise Failure(message=F"Cannot modify user: {msg or '<no output>'}")
 
-    def expire(self, expiration_date=datetime.today().strftime("%Y-%m-%d")):
+    def __expire(self, expiration_date=datetime.today().strftime("%Y-%m-%d")):
         options = ['-E', expiration_date]
         try:
             subprocess.run(['chage'] + options + [self.name],
@@ -166,10 +170,25 @@ class User:
             raise Failure(message=F"Cannot set expiration date for user: {msg or '<no output>'}")
 
     def suspend(self):
-        self.expire(datetime.today().strftime("%Y-%m-%d"))
+        self.__expire(datetime.today().strftime("%Y-%m-%d"))
 
     def resume(self):
-        self.expire('-1')
+        self.__expire('-1')
+
+    def __set_shell(self, shell):
+        try:
+            subprocess.run(['usermod', '-s', shell, self.name], check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
+            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
+            raise Failure(message=F"Cannot modify user: {msg or '<no output>'}")
+
+    def limit(self):
+        self.__set_shell('/sbin/nologin')
+
+    def unlimit(self):
+        shell = CONFIG['backend.local_unix'].get('shell', '/bin/sh')
+        self.__set_shell(shell)
 
     def install_ssh_keys(self):
         try:
