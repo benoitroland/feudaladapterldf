@@ -342,7 +342,7 @@ class User:
         try:
             if not self.service_user.exists():
                 return Status("not_deployed", message=msg)
-            msg=F"username {self.data.username}"
+            msg=F"username {self.service_user.name}"
             if hasattr(self.service_user, "is_rejected"):
                 if self.service_user.is_rejected():
                     return Status("rejected", message=msg)
