@@ -269,12 +269,11 @@ class User:
         """
         was_resumed = self.ensure_resumed()
         what_changed = ''
+        state = self.get_status().state
         if was_resumed:
             # FIXME: I'm not sure if this ought to be self.data.username
             what_changed += F"User '{self.data.unique_id}' was resumed."
-            state = "deployed"
         else:
-            state = self.get_status().state
             what_changed += F"Resuming user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
                             F"User was not changed."
         return Status(state, message=what_changed)
