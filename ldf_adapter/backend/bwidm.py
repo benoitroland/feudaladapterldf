@@ -223,12 +223,12 @@ class User:
         """Deregister the user from the given service in BWIDM."""
         BWIDM.get('external-reg', 'deregister', 'externalId', self.info.unique_id,\
                   'ssn', CONFIG['backend.bwidm.service']['name'])
-        # FIXME: This is a silly workaround, to make sure, user is really # deleted
-        from time import sleep
-        sleep(0.5)
-        BWIDM.get('external-reg', 'deregister', 'externalId', self.info.unique_id,\
-                  'ssn', CONFIG['backend.bwidm.service']['name'])
-        # FIXME: End of (this) silly workaround
+        # # FIXME: This is a silly workaround, to make sure, user is really # deleted
+        # from time import sleep
+        # sleep(0.5)
+        # BWIDM.get('external-reg', 'deregister', 'externalId', self.info.unique_id,\
+        #           'ssn', CONFIG['backend.bwidm.service']['name'])
+        # # FIXME: End of (this) silly workaround
 
     def deactivate(self):
         """Deactivate the user, this does not delete from BWIDM, but sets
