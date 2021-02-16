@@ -421,8 +421,8 @@ class User:
             self.service_user.username = self.service_user.get_username()
             logger.info(F"Deleting user '{self.service_user.username}' ({self.data.unique_id})")
             self.service_user.username = self.service_user.get_username()
-            self.service_user.uninstall_ssh_keys()
             self.service_user.delete()
+            self.service_user.uninstall_ssh_keys()
             return True
         else:
             logger.debug(F'No user for {self.data.unique_id} did exist. Nothing to do.')
