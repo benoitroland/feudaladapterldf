@@ -103,6 +103,10 @@ class User:
         except KeyError:
             return None
 
+    def set_username(self, username):
+        """Set username based on unique_id"""
+        self.name = username
+
     def create(self):
         logger.debug(F"creating user: {self.name} - {self.unique_id} ")
         try:
