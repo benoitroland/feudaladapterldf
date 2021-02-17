@@ -52,8 +52,9 @@ class User:
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
-        if self.service_user.exists():
-            self.update_username_from_existing()
+        if CONFIG.get('ldf_adapter', 'backend_supports_preferring_existing_user', fallback = False):
+            if self.service_user.exists():
+                self.update_username_from_existing()
 
     def assurance_verifier(self):
         """Produce a suitably function to check if a user is allowed.
@@ -412,13 +413,14 @@ class User:
 
     def update_username_from_existing(self):
         """ Update self.service_user.name, if a user with matching
-        unique_id can be found
+        unique_id can be found, and if the backend implements 'set_username'
         """
         try:
             existing_username = self.service_user.get_username()
             if existing_username is not None:
-                # FIXME: This may as well be data.username!! or a new  set_username
-                self.service_user.name = existing_username
+                if hasattr(self.service_user, 'set_username'):
+                    logger.debug(F"Setting username to {existing_username} ({self.data.unique_id})")
+                    self.service_user.set_username(existing_username)
                 logger.info(F'Found existing username: {existing_username}')
         except AttributeError:
             # the currently used service_user class has to method get_username
@@ -435,8 +437,8 @@ class User:
             self.service_user.username = self.service_user.get_username()
             logger.info(F"Deleting user '{self.service_user.username}' ({self.data.unique_id})")
             self.service_user.username = self.service_user.get_username()
-            self.service_user.uninstall_ssh_keys()
             self.service_user.delete()
+            self.service_user.uninstall_ssh_keys()
             return True
         else:
             logger.debug(F'No user for {self.data.unique_id} did exist. Nothing to do.')
