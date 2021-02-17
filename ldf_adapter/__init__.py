@@ -193,8 +193,8 @@ class User:
             return self.resume()
         elif target == 'suspended':
             return self.suspend()
-        elif target == 'expired':
-            return self.expire()
+        elif target == 'limited':
+            return self.limit()
         else:
             raise ValueError(f"Invalid target state: {target}")
 
@@ -264,36 +264,52 @@ class User:
         return Status(state, message=what_changed)
 
     def resume(self):
-        """Ensure that a suspended or expired user is active again in state 'deployed'.
+        """Ensure that a suspended user is active again in state 'deployed'.
 
         Return a Status result with a message describing what was done.
         """
         was_resumed = self.ensure_resumed()
         what_changed = ''
+        state = self.get_status().state
         if was_resumed:
             # FIXME: I'm not sure if this ought to be self.data.username
             what_changed += F"User '{self.data.unique_id}' was resumed."
-            state = "deployed"
         else:
-            state = self.get_status().state
             what_changed += F"Resuming user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
                             F"User was not changed."
         return Status(state, message=what_changed)
 
-    def expire(self):
-        """Ensure that a user is expired.
+    def limit(self):
+        """Ensure that a user has limited access.
 
         Return a Status result with a message describing what was done.
         """
-        was_expired = self.ensure_expired()
+        was_limited = self.ensure_limited()
         what_changed = ''
-        if was_expired:
+        if was_limited:
             # FIXME: I'm not sure if this ought to be self.data.username
-            what_changed += F"User '{self.data.unique_id}' was expired."
-            state = "expired"
+            what_changed += F"User '{self.data.unique_id}' was limited."
+            state = "limited"
         else:
             state = self.get_status().state
-            what_changed += F"Expiring user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
+            what_changed += F"Limiting user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
+                            F"User was not changed."
+        return Status(state, message=what_changed)
+
+    def unlimit(self):
+        """Ensure that a limited user is active again in state 'deployed'.
+
+        Return a Status result with a message describing what was done.
+        """
+        was_unlimited = self.ensure_unlimited()
+        what_changed = ''
+        if was_unlimited:
+            # FIXME: I'm not sure if this ought to be self.data.username
+            what_changed += F"User '{self.data.unique_id}' was unlimited."
+            state = "deployed"
+        else:
+            state = self.get_status().state
+            what_changed += F"Resuming user '{self.data.unique_id}' was not possible from the '{state}' state. "+\
                             F"User was not changed."
         return Status(state, message=what_changed)
 
@@ -316,7 +332,7 @@ class User:
         +--------------+-----------------------------------------------------------------+-----------------+
         | pending      | The creation of the user is pending                             | Optional        |
         +--------------+-----------------------------------------------------------------+-----------------+
-        | expired      | The user was expired, typically after being idle for some time  | Optional        |
+        | limited      | The user was limited, typically after being idle for some time  | Optional        |
         +--------------+-----------------------------------------------------------------+-----------------+
         | unknown      | We don't know the status, but at least the user is not deployed | Mandatory       |
         +--------------+-----------------------------------------------------------------+-----------------+
@@ -326,7 +342,7 @@ class User:
         try:
             if not self.service_user.exists():
                 return Status("not_deployed", message=msg)
-            msg=F"username {self.data.username}"
+            msg=F"username {self.service_user.name}"
             if hasattr(self.service_user, "is_rejected"):
                 if self.service_user.is_rejected():
                     return Status("rejected", message=msg)
@@ -336,9 +352,9 @@ class User:
             if hasattr(self.service_user, "is_pending"):
                 if self.service_user.is_pending():
                     return Status("pending", message=msg)
-            if hasattr(self.service_user, "is_expired"):
-                if self.service_user.is_expired():
-                    return Status("expired", message=msg)
+            if hasattr(self.service_user, "is_limited"):
+                if self.service_user.is_limited():
+                    return Status("limited", message=msg)
             return Status("deployed", message=msg)
         except Exception as e:
             logger.error(F'User {self.data.unique_id} is in an undefined state.: {e}')
@@ -433,23 +449,23 @@ class User:
         Return True if the user has been suspended.
         """
         status = self.get_status()
-        if status.state in ["deployed", "expired"]:
+        if status.state in ["deployed", "limited"]:
             if hasattr(self.service_user, 'suspend'):
                 self.service_user.suspend()
                 return True
         logger.debug(F'User {self.data.unique_id} in state {status.state}. Suspending not allowed.')
         return False
 
-    def ensure_expired(self):
-        """Ensure that a user is expired.
-        Return True if setting the user is expired.
+    def ensure_limited(self):
+        """Ensure that a user has limited access.
+        Return True if setting the user is limited.
         """
         status = self.get_status()
         if status.state == "deployed":
-            if hasattr(self.service_user, 'expire'):
-                self.service_user.expire()
+            if hasattr(self.service_user, 'limit'):
+                self.service_user.limit()
                 return True
-        logger.debug(F'User {self.data.unique_id} in state {status.state}. Expiring not allowed.')
+        logger.debug(F'User {self.data.unique_id} in state {status.state}. Limiting not allowed.')
         return False
 
     def ensure_resumed(self):
@@ -457,11 +473,23 @@ class User:
         Return True is the user
         """
         status = self.get_status()
-        if status.state in ["suspended", "expired"]:
+        if status.state == "suspended":
             if hasattr(self.service_user, 'resume'):
                 self.service_user.resume()
                 return True
         logger.debug(F'User {self.data.unique_id} in state {status.state}. Resuming not allowed.')
+        return False
+
+    def ensure_unlimited(self):
+        """Ensure that a user is not limited anymore.
+        Return True is the user
+        """
+        status = self.get_status()
+        if status.state == "limited":
+            if hasattr(self.service_user, 'unlimit'):
+                self.service_user.unlimit()
+                return True
+        logger.debug(F'User {self.data.unique_id} in state {status.state}. Unlimit not allowed.')
         return False
 
     def ensure_groups_exist(self):
