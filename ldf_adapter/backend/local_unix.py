@@ -33,8 +33,14 @@ class User:
                 `unique_id`  stored in gecos, used to find the user
                 `ssh_keys`
         """
-        self.name = make_shadow_compatible(userinfo.username)
         self.unique_id = userinfo.unique_id
+        logger.debug(F"backend processing: {userinfo.unique_id}")
+        if self.exists():
+            logger.debug(F"This user does actually exist. The name is: {self.get_username()}")
+            self.set_username(make_shadow_compatible(self.get_username()))
+        else:
+            self.name = make_shadow_compatible(userinfo.username)
+
         self.ssh_keys = [key['value'] for key in userinfo.ssh_keys]
         self.primary_group = Group(userinfo.primary_group)
         self.credentials = {}
