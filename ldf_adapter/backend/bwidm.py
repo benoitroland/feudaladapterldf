@@ -1,3 +1,7 @@
+# vim: foldmethod=indent : tw=100
+# pylint: disable=invalid-name, superfluous-parens
+# pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
+# pylint: disable=missing-docstring, too-few-public-methods
 """
 BWIDM backend.
 
@@ -318,6 +322,8 @@ class Group:
         self.name = name
 
     def exists(self):
+        # FIXME: Group existence needs to be checked with using also
+        # CONFIG['backend.bwidm.service']['name']
         return b'no such group' not in BWIDM.get('group-admin', 'find', 'name', self.name, fail=False).content
 
     def create(self):
