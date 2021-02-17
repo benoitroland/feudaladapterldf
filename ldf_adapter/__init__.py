@@ -163,11 +163,11 @@ class User:
         if self.service_user.exists():
             username = self.service_user.get_username()
         try:
-            logger.info(F"Incoming request to reach '{target}' for user '{self.data.email}' ({self.data.unique_id}) username: {username}")
+            logger.info(F"Incoming request to reach '{target}' for user with email: '{self.data.email}' ({self.data.unique_id}) username: {username}")
         except AttributeError:
-            logger.info(F"Incoming request to reach '{target}' for user '{self.data.full_name}' ({self.data.unique_id}) username: {username}")
+            logger.info(F"Incoming request to reach '{target}' for user with name: '{self.data.full_name}' ({self.data.unique_id}) username: {username}")
         except AttributeError:
-            logger.info(F"Incoming request to reach '{target}' for user '{self.data.unique_id}' username: {username}")
+            logger.info(F"Incoming request to reach '{target}' for user with unique_id: '{self.data.unique_id}' username: {username}")
 
         if target == 'deployed':
             if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
@@ -235,14 +235,15 @@ class User:
 
         Return a NotDeployed result with a message saying if the user previously existed.
         """
+        username = self.service_user.get_username()
         was_removed = self.ensure_dosent_exist()
 
         what_changed = ''
         if was_removed:
-            what_changed += F"User '{self.data.username}' was removed."
+            what_changed += F"User '{username} ({self.data.unique_id})' was removed."
         else:
             what_changed += F"No user for '{self.data.unique_id}' existed. "+\
-                            F"User '{self.data.username}' was not changed"
+                            F"User '{username}' was not changed"
 
         return NotDeployed(message=what_changed)
 
@@ -342,7 +343,7 @@ class User:
         try:
             if not self.service_user.exists():
                 return Status("not_deployed", message=msg)
-            msg=F"username {self.service_user.name}"
+            msg=F"username {self.data.name}"
             if hasattr(self.service_user, "is_rejected"):
                 if self.service_user.is_rejected():
                     return Status("rejected", message=msg)
@@ -398,7 +399,7 @@ class User:
                     # FIXME: This may as well be data.username!! or a new  set_username
                     self.service_user.name = fng.suggest_name(self.data.username)
                 logger.info(F'                             Using: {self.data.username}')
-                if self.service_user.name is None:
+                if self.service_user.get_username is None:
                     raise Rejection(message=F"I cannot create usernames. "
                                     F"The list of tried ones is: {', '.join(fng.tried_names())}.")
             self.service_user.create()
@@ -436,9 +437,15 @@ class User:
         if self.service_user.exists():
             self.service_user.username = self.service_user.get_username()
             logger.info(F"Deleting user '{self.service_user.username}' ({self.data.unique_id})")
-            self.service_user.username = self.service_user.get_username()
-            self.service_user.delete()
-            self.service_user.uninstall_ssh_keys()
+            # bwIDM requires prior removal of the user, because ssh-key removal triggers an 
+            # asyncronous process. If user is removed during that, the user might be only partially
+            # removed...
+            if CONFIG.get('ldf_adapter','backend', fallback="") == 'bwidm':
+                self.service_user.delete()
+                self.service_user.uninstall_ssh_keys()
+            else:
+                self.service_user.uninstall_ssh_keys()
+                self.service_user.delete()
             return True
         else:
             logger.debug(F'No user for {self.data.unique_id} did exist. Nothing to do.')
@@ -570,6 +577,14 @@ class UserInfo(Mapping):
 
     @property
     @lru_cache(maxsize=None)
+    def size(self):
+        the_size = 0
+        for x in self.userinfo.keys():
+            the_size+=1
+        return the_size
+
+    @property
+    @lru_cache(maxsize=None)
     def unique_id(self):
         """Globally and uniquely identifies the user.
 
@@ -648,9 +663,15 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def username(self):
-        """Return the user's preferred username, or ask for one if none was provided."""
-        # FIXME: This function is called, even when there is already a local user with an existing
-        # name.  SImply not having a "preferred_username" does not mean that we have to bother the user!!!
+        """Return the user's name, this may be:
+            - preferred_username if that was provided
+            - if in interactive mode, we prompt the user
+            - otherwise, we cal lthe FriendlyNameGenerator"""
+        # FIXME: If this function is called, even when there is already a local user with an existing
+        # name, this is a bug in the flow, that MUST be fixed
+        #
+        # Simply not having a "preferred_username" does not mean that we have to bother the user!!!
+
         if self.allow_question:
             return self.value_or_ask(
                 self.userinfo.get('preferred_username'), 'username',
