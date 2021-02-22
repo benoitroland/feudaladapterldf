@@ -37,9 +37,9 @@ class User:
         logger.debug(F"backend processing: {userinfo.unique_id}")
         if self.exists():
             logger.debug(F"This user does actually exist. The name is: {self.get_username()}")
-            self.set_username(make_shadow_compatible(self.get_username()))
+            self.set_username(self.get_username())
         else:
-            self.name = make_shadow_compatible(userinfo.username)
+            self.set_username(userinfo.username)
 
         self.ssh_keys = [key['value'] for key in userinfo.ssh_keys]
         self.primary_group = Group(userinfo.primary_group)
@@ -98,11 +98,12 @@ class User:
         except KeyError:
             return False
 
-    def name_taken(self):
-        """Check if a username is already taken"""
-        x = self.name in [entry['login'] for entry in User.__all_passwd_entries('login').values()]
-        logger.debug(F"name_taken: {x}")
-        return self.name in [entry['login'] for entry in User.__all_passwd_entries('login').values()]
+    def name_taken(self, name):
+        """Check if a username is already taken by *another* user"""
+        name = make_shadow_compatible(name)
+        taken = name in [entry['login'] for entry in User.__all_passwd_entries('login').values()]
+        logger.debug(F"name_taken: {taken}")
+        return taken and name != self.get_username()
 
     def get_username(self):
         """Return username based on unique_id"""
@@ -114,8 +115,8 @@ class User:
             return None
 
     def set_username(self, username):
-        """Set username based on unique_id"""
-        self.name = username
+        """Set local username on the service."""
+        self.name = make_shadow_compatible(username)
 
     def create(self):
         logger.debug(F"creating user: {self.name} - {self.unique_id} ")

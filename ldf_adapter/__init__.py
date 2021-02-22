@@ -343,7 +343,7 @@ class User:
         try:
             if not self.service_user.exists():
                 return Status("not_deployed", message=msg)
-            msg=F"username {self.data.name}"
+            msg=F"username {self.service_user.get_username()}"
             if hasattr(self.service_user, "is_rejected"):
                 if self.service_user.is_rejected():
                     return Status("rejected", message=msg)
@@ -379,10 +379,11 @@ class User:
         if is_new_user:
             unique_id= self.data.unique_id
             logger.info(F'Creating user for "{unique_id}"')
+            username = self.data.username
 
             # Raise question in case of existing username in case we're interactive
             if CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False): # interactive
-                if self.service_user.name_taken():
+                if self.service_user.name_taken(username):
                     logger.info(F'Username "{username}" is already taken, asking user to pick a new one')
                     raise Question(
                         name='username',
@@ -390,18 +391,19 @@ class User:
                     )
 
             else: # non-interactive
-                fng = FriendlyNameGenerator(self.data)
                 try:
-                    logger.info(F"initial try: {self.data.username}")
+                    logger.info(F"initial try: {username}")
                 except AttributeError:
                     pass
-                while self.service_user.name_taken():
-                    # FIXME: This may as well be data.username!! or a new  set_username
-                    self.service_user.name = fng.suggest_name(self.data.username)
-                logger.info(F'                             Using: {self.data.username}')
-                if self.service_user.get_username is None:
+                fng = FriendlyNameGenerator(self.data)
+                proposed_name = username if username is not None else fng.suggest_name()
+                while self.service_user.name_taken(proposed_name):
+                    proposed_name = fng.suggest_name()
+                logger.info(F'Using: {proposed_name}')
+                if proposed_name is None:
                     raise Rejection(message=F"I cannot create usernames. "
                                     F"The list of tried ones is: {', '.join(fng.tried_names())}.")
+                self.service_user.set_username(proposed_name)
             self.service_user.create()
         else: # The user exists
             # Update service_user.name if unique_id already points to a username:
@@ -666,11 +668,12 @@ class UserInfo(Mapping):
         """Return the user's name, this may be:
             - preferred_username if that was provided
             - if in interactive mode, we prompt the user
-            - otherwise, we cal lthe FriendlyNameGenerator"""
+            - otherwise, None"""
         # FIXME: If this function is called, even when there is already a local user with an existing
         # name, this is a bug in the flow, that MUST be fixed
         #
         # Simply not having a "preferred_username" does not mean that we have to bother the user!!!
+        # TODO (DG): does this still need to be fixed? it should work => test 
 
         if self.allow_question:
             return self.value_or_ask(
@@ -678,8 +681,7 @@ class UserInfo(Mapping):
                 'You have not set a global username preference. Please enter your preferred username.',
                 self.allow_question
             )
-        fng = FriendlyNameGenerator(self)
-        return fng.suggest_name()
+        return self.userinfo.get('preferred_username', None)
 
     @property
     @lru_cache(maxsize=None)
@@ -854,7 +856,7 @@ class UserInfo(Mapping):
     @lru_cache(maxsize=None)
     def preferred_username(self):
         """Return the prefrred username of the user."""
-        return self.userinfo.get('preferred_username', [])
+        return self.userinfo.get('preferred_username', None)
 
 
 

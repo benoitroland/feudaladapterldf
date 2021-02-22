@@ -105,10 +105,11 @@ class User:
         ))
         return status == self.VALUE_USER_ACTIVE
 
-    def name_taken(self):
+    def name_taken(self, name):
         """
         If there is a user for our unique_id with our username, treat the name as available. This
         might happen if the our user is ON_HOLD on the service.
+        TODO: argument "name" was added, check if given "name" (instead of info.username) is taken by *another* user
         """
         users_with_name = BWIDM.get(
             'external-user', 'find',
@@ -161,6 +162,9 @@ class User:
         logger.debug(F"Found existing username: {full_username}")
         return full_username
 
+    def set_username(self, username):
+        """TODO: Set local username on the service."""
+        pass
 
     def create(self):
         """Create or activate user."""
