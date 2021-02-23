@@ -47,15 +47,6 @@ class FriendlyNameGenerator():
         """Generate a useful name"""
         self.userinfo = userinfo
     def suggest_name(self, suggestion=None, forbidden_names = None):
-        # Up Front: make sure we dont have an empty userinfo object, which may be used for
-        # deprovisioning, for example.
-        logger.debug(F"number of elements in userinfo: {(self.userinfo.size)}")
-        if self.userinfo.size < 4:
-            # we're probably not a real userinfo
-            logger.error("I encountered a userinfo with less than 4 fields; I am therefore assuming"
-                            "an action that does not require a username (such as undeploy)."
-                            "Thus I'm returning None")
-            return None
         # Copy forbidden names:
         for name in forbidden_names or []:
             if name.lower() not in self.dont_use_these_names:

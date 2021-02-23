@@ -105,14 +105,15 @@ class User:
         ))
         return status == self.VALUE_USER_ACTIVE
 
-    def name_taken(self):
+    def name_taken(self, name):
         """
         If there is a user for our unique_id with our username, treat the name as available. This
         might happen if the our user is ON_HOLD on the service.
+        TODO: argument "name" was added, check if given "name" (instead of info.username) is taken by *another* user
         """
         users_with_name = BWIDM.get(
             'external-user', 'find',
-            'attribute', self.ATTR_USERNAME, self.info.username
+            'attribute', self.ATTR_USERNAME, name
         ).json()
 
         other_users_with_name = [user for user in users_with_name if user['externalId'] != self.info.unique_id]
@@ -164,7 +165,6 @@ class User:
         """Update the internal representation of the user with the incoming username"""
         # FIXME: test this!!!!!
         self.info.username = username
-
 
     def create(self):
         """Create or activate user."""
