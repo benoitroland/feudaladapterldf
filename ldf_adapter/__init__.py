@@ -399,7 +399,7 @@ class User:
                     # FIXME: This may as well be data.username!! or a new  set_username
                     self.service_user.name = fng.suggest_name(self.data.username)
                 logger.info(F'                             Using: {self.data.username}')
-                if self.service_user.get_username is None:
+                if self.service_user.get_username() is None:
                     raise Rejection(message=F"I cannot create usernames. "
                                     F"The list of tried ones is: {', '.join(fng.tried_names())}.")
             self.service_user.create()
