@@ -113,7 +113,7 @@ class User:
         """
         users_with_name = BWIDM.get(
             'external-user', 'find',
-            'attribute', self.ATTR_USERNAME, self.info.username
+            'attribute', self.ATTR_USERNAME, name
         ).json()
 
         other_users_with_name = [user for user in users_with_name if user['externalId'] != self.info.unique_id]
@@ -126,7 +126,7 @@ class User:
                 ", ".join(map(lambda u: u['externalId'], other_users_with_name))
             ))
         else:
-            logger.debug("Username '{}' is available".format(self.info.username))
+            logger.debug("Username '{}' is available".format(name))
 
         return bool(other_users_with_name)
 
@@ -142,8 +142,7 @@ class User:
                 logging.error ('Could not decode json that I obtained from rest server')
                 raise
             return resp_json
-
-        """Check if a user exists based on unique_id"""
+        """Check if a user exists based on unique_id and return the name"""
         full_username = None
         external_id   = self.info.unique_id
         resp          = BWIDM.get ('external-user', 'find', 'externalId', external_id)
@@ -163,8 +162,9 @@ class User:
         return full_username
 
     def set_username(self, username):
-        """TODO: Set local username on the service."""
-        pass
+        """Update the internal representation of the user with the incoming username"""
+        # FIXME: test this!!!!!
+        self.info.username = username
 
     def create(self):
         """Create or activate user."""
