@@ -141,8 +141,7 @@ class User:
                 logging.error ('Could not decode json that I obtained from rest server')
                 raise
             return resp_json
-
-        """Check if a user exists based on unique_id"""
+        """Check if a user exists based on unique_id and return the name"""
         full_username = None
         external_id   = self.info.unique_id
         resp          = BWIDM.get ('external-user', 'find', 'externalId', external_id)
@@ -160,6 +159,11 @@ class User:
             logger.error(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
         logger.debug(F"Found existing username: {full_username}")
         return full_username
+
+    def set_username(self, username):
+        """Update the internal representation of the user with the incoming username"""
+        # FIXME: test this!!!!!
+        self.info.username = username
 
 
     def create(self):
