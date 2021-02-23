@@ -126,7 +126,7 @@ class User:
                 ", ".join(map(lambda u: u['externalId'], other_users_with_name))
             ))
         else:
-            logger.debug("Username '{}' is available".format(self.info.username))
+            logger.debug("Username '{}' is available".format(name))
 
         return bool(other_users_with_name)
 
