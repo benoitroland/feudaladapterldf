@@ -273,8 +273,11 @@ class User:
             if to_be_added_to:
                 logger.info('Add user {} to groups {}'.format(
                     self.info.username, ",".join(g['name'] for g in to_be_added_to)))
+            grp_add_retvals = []
             for grp in to_be_added_to:
-                BWIDM.get('group-admin', 'add', 'groupId', grp['id'], 'userId', reg_info['id'])
+                grp_add_retvals.append(BWIDM.get('group-admin', 'add', 'groupId', grp['id'], 'userId', reg_info['id'], fail=False))
+            if len(grp_add_retvals) > 0:
+                logger.debug(F"Group add retvals: {grp_add_retvals}")
 
     def install_ssh_keys(self):
         self.external_user_update({
