@@ -60,19 +60,24 @@ class User:
         """Optional, only if the backend supports it.
         Inform the user whether a user was suspended (e.g. due to a security incident)"""
         if self.exists():
-            options = ['-j', 'user']
+            options = ['-i', '-l']
             try:
-                result = subprocess.run(['userdbctl'] + options + [self.name],
+                result = subprocess.run(['chage'] + options + [self.name],
                                         capture_output=True, check=True)
             except CalledProcessError as e:
                 msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
                 logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
                 raise Failure(message=F"Cannot get info for user: {msg or '<no output>'}")
             try:
-                result = json.loads(result.stdout)
-                expiration_date_usec = result.get("notAfterUSec", None)
-                if expiration_date_usec:
-                    if expiration_date_usec/1000000 - datetime.now().timestamp() <= 0:
+                pattern = regex.compile(r'Account expires\s+: (.*)')
+                match = pattern.search(result.stdout.decode("utf-8"))
+                if match:
+                    expiration_date = match.group(1)
+                    if expiration_date == 'never':
+                        return False
+                    expiration_date_sec = int(
+                        datetime.fromisoformat(expiration_date).strftime('%s'))
+                    if expiration_date_sec - datetime.now().timestamp() <= 0:
                         return True
             except Exception as e:
                 logger.error(e)
