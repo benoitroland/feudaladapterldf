@@ -126,7 +126,6 @@ class User:
     def create(self):
         logger.debug(F"creating user: {self.name} - {self.unique_id} ")
         try:
-            # TODO this should consider self.primary_group
             shell = CONFIG['backend.local_unix'].get('shell', '/bin/sh')
             subprocess.run(['useradd', '--comment', self.unique_id,
                             '-g', self.primary_group.name,
@@ -364,8 +363,30 @@ def make_shadow_compatible(orig_word):
     # aber nur *ganz* am Ende ...
     word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
 
+
+    # usernames and group names can only be 32 characters long.
+    # My fix is to remove characters a) after the first '_' if there is one.
+    #                                b) from the beginning if there is none
+    # Also adds two dots as an indicator for where the shortening took place
+
+    excess_chars = len(word) - 32
+    if excess_chars > 0:
+
+        if len(word.split('_')) == 1: # no '_' found:
+            word = '..' + word[excess_chars+2:] 
+            logger.warning(F"shortened {orig_word} to {word}")
+
+        if len(word.split('_')) > 1: # at least one '_' found:
+            fragments = word.split('_')
+            if len(fragments[1]) > excess_chars: # we're fine, we can cut excess chars from fragments alone
+                fragments[1]=".."+fragments[1][excess_chars+2:]
+                word = '_'.join(fragments)
+            else:
+                logger.error(F"User or group name is too long")
+                raise(ValueError)
+            logger.warning(F"shortened {orig_word} to {word}")
+
     if word != orig_word:
         logger.warning("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
 
     return word
-
