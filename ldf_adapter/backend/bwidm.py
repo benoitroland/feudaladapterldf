@@ -104,6 +104,24 @@ class User:
             self.info.unique_id, status
         ))
         return status == self.VALUE_USER_ACTIVE
+    def _is_registered(self, ssn):
+        """
+        find if the user is already registered for a given
+        service, identified by its service short name
+        """
+        ssn = CONFIG['backend.bwidm.service']['name']
+        registrations = BWIDM.get ('external-reg', 'find', 'externalId',
+                                    self.info.unique_id)
+        # find registrations
+        number_of_registrations = 0
+        for reg in registrations:
+            if reg["serviceShortName"] == ssn:
+                if reg["registryStatus"] == "ACTIVE":
+                    number_of_registrations += 1
+        if number_of_registrations > 0:
+            return True
+        return False
+
 
     def name_taken(self, name):
         """
@@ -310,6 +328,13 @@ class User:
 
         """
         current_state = self.reg_info()
+        try:
+            formatted_json = (json.dumps(state_updates, sort_keys=True, indent=4, separators=(',', ': ')))
+            logger.debug(F"state_updates:  {formatted_json}")
+            formatted_json = (json.dumps(current_state, sort_keys=True, indent=4, separators=(',', ': ')))
+            logger.debug(F"state_updates:  {formatted_json}")
+        except:
+            pass
         new_state = utils.dictmerge(current_state, state_updates)
         utils.log_dictdiff(utils.dictdiff(current_state, new_state),
                            log_function=logger.info)
@@ -318,6 +343,7 @@ class User:
             if new_state[k] is None:
                 new_state[k] = {}
 
+        logger.debug(F"    new state:  {new_state}")
         BWIDM.post('external-user', 'update', json=new_state)
 
     def reg_info(self, json=True, **kwargs):
