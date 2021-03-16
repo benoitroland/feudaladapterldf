@@ -104,24 +104,27 @@ class User:
             self.info.unique_id, status
         ))
         return status == self.VALUE_USER_ACTIVE
-    def _is_registered(self, ssn):
+    def _is_registered(self):
         """
         find if the user is already registered for a given
         service, identified by its service short name
         """
+        # FIXME: Consider putting this request into the global user object (to reduce load on regapp)
         ssn = CONFIG['backend.bwidm.service']['name']
         registrations = BWIDM.get ('external-reg', 'find', 'externalId',
                                     self.info.unique_id)
         # find registrations
         number_of_registrations = 0
-        for reg in registrations:
+        logger.debug(registrations.json())
+        logger.debug(json.dumps(registrations.json(), sort_keys=True, indent=4, separators=(',', ': ')))
+        for reg in registrations.json():
             if reg["serviceShortName"] == ssn:
                 if reg["registryStatus"] == "ACTIVE":
                     number_of_registrations += 1
+        logger.debug(F"Number of registrations found: {number_of_registrations}")
         if number_of_registrations > 0:
             return True
         return False
-
 
     def name_taken(self, name):
         """
@@ -149,6 +152,7 @@ class User:
         return bool(other_users_with_name)
 
     def get_username(self):
+        """Check if a user exists based on unique_id and return the name"""
         def safe_resp_conversion(resp):
             '''Safely convert a response to json'''
             if resp.status_code != 200:
@@ -160,7 +164,6 @@ class User:
                 logging.error ('Could not decode json that I obtained from rest server')
                 raise
             return resp_json
-        """Check if a user exists based on unique_id and return the name"""
         full_username = None
         external_id   = self.info.unique_id
         resp          = BWIDM.get ('external-user', 'find', 'externalId', external_id)
@@ -196,6 +199,7 @@ class User:
             })
 
     def update(self):
+        # FIXME: Consider putting this request into the global user object (to reduce load on regapp)
         def get_active_reg_info(ext_id):
             rsp = BWIDM.get('external-reg', 'find',
                             'externalId', ext_id)
@@ -219,13 +223,15 @@ class User:
                 self.ATTR_ORG_ID: CONFIG['backend.bwidm']['org_id'],
             }
         })
+        # if the user is already registered for the service, we're done here
+        if self._is_registered():
+            return
 
         old_reg = get_active_reg_info(self.info.unique_id)
-
         # We wait until the 'lastReconciled' timestamp changes, which means that our update was sucessfully deployed
         reg = old_reg
         while reg['lastReconcile'] == old_reg['lastReconcile']:
-            sleep(0.1)
+            sleep(0.3)
             logger.debug("Received registration reconciled at {}. That is not up-to-date. Checking again.".format(
                 reg['lastReconcile']))
 
@@ -332,7 +338,7 @@ class User:
             formatted_json = (json.dumps(state_updates, sort_keys=True, indent=4, separators=(',', ': ')))
             logger.debug(F"state_updates:  {formatted_json}")
             formatted_json = (json.dumps(current_state, sort_keys=True, indent=4, separators=(',', ': ')))
-            logger.debug(F"state_updates:  {formatted_json}")
+            # logger.debug(F"current_state: {formatted_json}")
         except:
             pass
         new_state = utils.dictmerge(current_state, state_updates)
@@ -343,7 +349,8 @@ class User:
             if new_state[k] is None:
                 new_state[k] = {}
 
-        logger.debug(F"    new state:  {new_state}")
+        formatted_json = (json.dumps(current_state, sort_keys=True, indent=4, separators=(',', ': ')))
+        logger.debug(F"    new state for regapp:  {formatted_json}")
         BWIDM.post('external-user', 'update', json=new_state)
 
     def reg_info(self, json=True, **kwargs):
