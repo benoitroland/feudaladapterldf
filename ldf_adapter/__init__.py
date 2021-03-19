@@ -53,6 +53,7 @@ class User:
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
         if CONFIG.get('ldf_adapter', 'backend_supports_preferring_existing_user', fallback = False):
+            logger.debug("trying to update user from existing")
             if self.service_user.exists():
                 self.update_username_from_existing()
 
@@ -639,7 +640,6 @@ class UserInfo(Mapping):
         if sub != self.userinfo['sub']:
             logger.warning("sub '{}' changed to '{}' for BWIDM compatibilty".format(
                 self.userinfo['sub'], sub))
-
         return sub
 
     def _iss_masked_for_bwidm_eppn(self):
@@ -659,7 +659,6 @@ class UserInfo(Mapping):
             if CONFIG.getboolean('messages', 'log_name_changes', fallback=True):
                 logger.warning("Issuer '{}' changed to '{}' for BWIDM compatibilty".format(
                     stripped_iss, iss))
-
         return iss
 
     @property
@@ -682,6 +681,10 @@ class UserInfo(Mapping):
                 self.allow_question
             )
         return self.userinfo.get('preferred_username', None)
+    @username.setter
+    def username(self, name):
+        self.userinfo['username'] = name
+        
 
     @property
     @lru_cache(maxsize=None)
