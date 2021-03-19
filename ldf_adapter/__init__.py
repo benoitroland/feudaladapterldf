@@ -681,10 +681,6 @@ class UserInfo(Mapping):
                 self.allow_question
             )
         return self.userinfo.get('preferred_username', None)
-    @username.setter
-    def username(self, name):
-        self.userinfo['username'] = name
-        
 
     @property
     @lru_cache(maxsize=None)

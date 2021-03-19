@@ -84,6 +84,7 @@ class User:
         self.info = userinfo
         self.credentials = {}
         self.primary_group = Group(userinfo.primary_group)
+        self.force_username = None
 
     def exists(self):
         """
@@ -190,10 +191,8 @@ class User:
 
     def set_username(self, username):
         """Update the internal representation of the user with the incoming username"""
-        # FIXME: Setting the username does not work or not have any effect (even when adding
-        # a username.setter to UserInfo
         logger.debug("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-        self.info.username = username
+        self.force_username = username
         logger.debug("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 
     def create(self):
@@ -228,7 +227,7 @@ class User:
                 'id': self.primary_group.reg_info()['id']
             },
             'attributeStore': {
-                self.ATTR_USERNAME: self.info.username,
+                self.ATTR_USERNAME: self.force_username or self.info.username,
                 self.ATTR_ORG_ID: CONFIG['backend.bwidm']['org_id'],
             }
         })
