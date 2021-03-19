@@ -1,7 +1,6 @@
 # FEUDAL Client Adapter
 
 
-# **NOTE: THIS BRANCH INCLUDES THE "EXISTING USERNAME WINS APPROACH" THAT STILL NEEDS TO BE TESTED**
 
 This code implements the adapter for FEUDAL to communicate with various services, called "backends".
 
