@@ -84,6 +84,7 @@ class User:
         self.info = userinfo
         self.credentials = {}
         self.primary_group = Group(userinfo.primary_group)
+        self.force_username = None
 
     def exists(self):
         """
@@ -115,8 +116,11 @@ class User:
                                     self.info.unique_id)
         # find registrations
         number_of_registrations = 0
-        logger.debug(registrations.json())
-        logger.debug(json.dumps(registrations.json(), sort_keys=True, indent=4, separators=(',', ': ')))
+        logger.debug(registrations.json)
+        try:
+            logger.debug(json.dumps(registrations.json, sort_keys=True, indent=4, separators=(',', ': ')))
+        except TypeError:
+            pass
         for reg in registrations.json():
             if reg["serviceShortName"] == ssn:
                 if reg["registryStatus"] == "ACTIVE":
@@ -130,21 +134,25 @@ class User:
         """
         If there is a user for our unique_id with our username, treat the name as available. This
         might happen if the our user is ON_HOLD on the service.
-        TODO: argument "name" was added, check if given "name" (instead of info.username) is taken by *another* user
         """
+        # TODO: argument "name" was added, check if given "name" (instead of info.username) is taken by *another* user
+        logger.debug(F"checking for name taken of {name}")
         users_with_name = BWIDM.get(
             'external-user', 'find',
             'attribute', self.ATTR_USERNAME, name
         ).json()
 
         other_users_with_name = [user for user in users_with_name if user['externalId'] != self.info.unique_id]
+        # logger.debug (F"other_users: {other_users_with_name}")
+        logger.debug(F"Found {len(other_users_with_name)} with same username")
+        # FIXME: Why < ?
         if len(other_users_with_name) < len(users_with_name):
             logger.debug("Username '{}' is reserved for us".format(self.info.username))
 
         if other_users_with_name:
-            logger.error("Username '{}' is already used by {}".format(
+            logger.error("Username '{}' is already used by\n    {}".format(
                 self.info.username,
-                ", ".join(map(lambda u: u['externalId'], other_users_with_name))
+                ",\n    ".join(map(lambda u: u['externalId'], other_users_with_name))
             ))
         else:
             logger.debug("Username '{}' is available".format(name))
@@ -165,8 +173,7 @@ class User:
                 raise
             return resp_json
         full_username = None
-        external_id   = self.info.unique_id
-        resp          = BWIDM.get ('external-user', 'find', 'externalId', external_id)
+        resp          = BWIDM.get ('external-user', 'find', 'externalId', self.info.unique_id)
         resp_json     = safe_resp_conversion(resp)
 
         try:
@@ -184,8 +191,9 @@ class User:
 
     def set_username(self, username):
         """Update the internal representation of the user with the incoming username"""
-        # FIXME: test this!!!!!
-        self.info.username = username
+        logger.debug("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        self.force_username = username
+        logger.debug("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 
     def create(self):
         """Create or activate user."""
@@ -219,7 +227,7 @@ class User:
                 'id': self.primary_group.reg_info()['id']
             },
             'attributeStore': {
-                self.ATTR_USERNAME: self.info.username,
+                self.ATTR_USERNAME: self.force_username or self.info.username,
                 self.ATTR_ORG_ID: CONFIG['backend.bwidm']['org_id'],
             }
         })
@@ -255,12 +263,6 @@ class User:
         """Deregister the user from the given service in BWIDM."""
         BWIDM.get('external-reg', 'deregister', 'externalId', self.info.unique_id,\
                   'ssn', CONFIG['backend.bwidm.service']['name'])
-        # # FIXME: This is a silly workaround, to make sure, user is really # deleted
-        # from time import sleep
-        # sleep(0.5)
-        # BWIDM.get('external-reg', 'deregister', 'externalId', self.info.unique_id,\
-        #           'ssn', CONFIG['backend.bwidm.service']['name'])
-        # # FIXME: End of (this) silly workaround
 
     def deactivate(self):
         """Deactivate the user, this does not delete from BWIDM, but sets
@@ -334,13 +336,6 @@ class User:
 
         """
         current_state = self.reg_info()
-        try:
-            formatted_json = (json.dumps(state_updates, sort_keys=True, indent=4, separators=(',', ': ')))
-            logger.debug(F"state_updates:  {formatted_json}")
-            formatted_json = (json.dumps(current_state, sort_keys=True, indent=4, separators=(',', ': ')))
-            # logger.debug(F"current_state: {formatted_json}")
-        except:
-            pass
         new_state = utils.dictmerge(current_state, state_updates)
         utils.log_dictdiff(utils.dictdiff(current_state, new_state),
                            log_function=logger.info)
@@ -349,11 +344,19 @@ class User:
             if new_state[k] is None:
                 new_state[k] = {}
 
-        formatted_json = (json.dumps(current_state, sort_keys=True, indent=4, separators=(',', ': ')))
-        logger.debug(F"    new state for regapp:  {formatted_json}")
+        try:
+            formatted_json = (json.dumps(state_updates, sort_keys=True, indent=4, separators=(',', ': ')))
+            logger.debug(F"state_updates:  {formatted_json}")
+            formatted_json = (json.dumps(current_state, sort_keys=True, indent=4, separators=(',', ': ')))
+            logger.debug(F"current_state: {formatted_json}")
+            formatted_json = (json.dumps(new_state, sort_keys=True, indent=4, separators=(',', ': ')))
+            logger.debug(F"    new state for regapp:  {formatted_json}")
+        except:
+            pass
         BWIDM.post('external-user', 'update', json=new_state)
 
     def reg_info(self, json=True, **kwargs):
+        # FIXME: Cache this functions results!
         rsp = BWIDM.get('external-user', 'find', 'externalId', self.info.unique_id, **kwargs)
         return rsp.json() if json else rsp.content
 

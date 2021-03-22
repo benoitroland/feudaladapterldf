@@ -1,0 +1,10 @@
+{
+    "state_target": "not_deployed",
+    "user": {
+        "userinfo": {
+            "iss": "https://login.helmholtz-data-federation.de/oauth2",
+            "sub": "6c611e2a-2c1c-487f-9948-c058a36c8f0e"
+        }
+    }
+}
+

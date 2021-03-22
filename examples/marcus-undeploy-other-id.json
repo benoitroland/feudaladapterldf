@@ -1,0 +1,34 @@
+{
+    "state_target": "not_deployed",
+    "user": {
+        "userinfo": {
+            "display_name": "Marcus Hardt",
+            "eduperson_principal_name": "lo0018@kit.edu",
+            "eduperson_scoped_affiliation": [
+                "member@kit.edu",
+                "employee@kit.edu"
+            ],
+            "eduperson_unique_id": "fakefakefake487f9948c058a36c8f0e@login.helmholtz-data-federation.de",
+            "email": "marcus.hardt@kit.edu",
+            "email_verified": true,
+            "family_name": "Hardt",
+            "given_name": "Marcus",
+            "iss": "https://login.helmholtz.de/oauth2",
+            "name": "Marcus Hardt",
+            "preferred_username": "marcus",
+            "sn": "Hardt",
+            "ssh_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAqA5FW6m3FbFhCOsRQBxKMRki5qJxoNhZdaeLXg6ym/ marcus@nemo2019\n",
+            "sub": "fake_5"
+        },
+        "credentials": {
+            "ssh_key": [
+                {
+                    "id": 94,
+                    "name": "unity_key",
+                    "value": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAqA5FW6m3FbFhCOsRQBxKMRki5qJxoNhZdaeLXg6ym/ marcus@nemo2019\n"
+                }
+            ]
+        }
+    }
+}
+
