@@ -1,3 +1,7 @@
+# pylint: disable=invalid-name, superfluous-parens
+# pylint: disable=mixed-indentation, wrong-import-order
+# pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation
+# pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
 import os
 import sys
 
@@ -36,10 +40,6 @@ def reload():
     processing is stopped, once a give file is found
     """
 
-    logging.basicConfig(
-        level=os.environ.get("LOG", "INFO")
-        # format='%(asctime)s [%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
-    )
     logger = logging.getLogger(__name__)
     files = []
 
