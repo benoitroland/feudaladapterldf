@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# vim: tw=100 foldmethod=indent
+# pylint: disable=invalid-name, superfluous-parens
+# pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation, logging-fstring-interpolation
+# pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
 #
 # Author: Joshua Bachmeier <joshua.bachmeier@student.kit.edu>
 #
@@ -7,6 +11,7 @@ import os
 import sys
 import json
 import logging
+from ldf_adapter import logsetup
 
 # Must be before the first ldf_adapter import
 from feudal_globalconfig import globalconfig
@@ -26,25 +31,6 @@ class PathTruncatingFormatter(logging.Formatter):
         return super(PathTruncatingFormatter, self).format(record)
 
 def main():
-
-    # Setup logging:
-    for h in logger.handlers:
-        logger.removeHandler(h)
-
-
-    loglevel=os.environ.get("LOG", "INFO")
-    if loglevel=="DEBUG":
-        logformat = '%(asctime)s [%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s'
-        formatter  = PathTruncatingFormatter(logformat)
-    else:
-        logformat  = '[%(levelname)s] [%(filename)s] %(message)s'
-        formatter = logging.Formatter(logformat)
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    logger.setLevel(loglevel)
 
     data = json.load(sys.stdin)
 
