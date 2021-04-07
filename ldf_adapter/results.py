@@ -2,6 +2,7 @@
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
 # pylint: disable=missing-docstring, too-few-public-methods
+"""Results for feudalClient"""
 
 class Result:
     """A Result returned by the adapter to the feudalClient.
