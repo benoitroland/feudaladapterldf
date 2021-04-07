@@ -1,8 +1,8 @@
 name = 'ldf_adapter'
-# vim: foldmethod=indent : tw=100
+# vim: tw=100 foldmethod=indent
 # pylint: disable=invalid-name, superfluous-parens
-# pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
-# pylint: disable=missing-docstring, too-few-public-methods
+# pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation, logging-fstring-interpolation
+# pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
 
 import logging
 from collections import Mapping
@@ -14,6 +14,7 @@ import urllib
 import regex
 from unidecode import unidecode
 
+from . import logsetup
 from . import eduperson
 
 from . import backend
@@ -425,7 +426,7 @@ class User:
                 if hasattr(self.service_user, 'set_username'):
                     logger.debug(F"Setting username to {existing_username} ({self.data.unique_id})")
                     self.service_user.set_username(existing_username)
-                logger.info(F'Found existing username: {existing_username}')
+                logger.info(F'Found an existing username: {existing_username}')
         except AttributeError:
             # the currently used service_user class has to method get_username
             existing_username = None
