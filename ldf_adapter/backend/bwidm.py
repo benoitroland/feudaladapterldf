@@ -22,6 +22,7 @@ from ..config import CONFIG
 from .. import utils
 from time import sleep
 
+from ldf_adapter.logsetup import jsonlogger
 logger = logging.getLogger(__name__)
 
 class BwIdmConnection:
@@ -116,9 +117,9 @@ class User:
                                     self.info.unique_id)
         # find registrations
         number_of_registrations = 0
-        logger.debug(registrations.json)
         try:
-            logger.debug(json.dumps(registrations.json, sort_keys=True, indent=4, separators=(',', ': ')))
+            logger.debug("logging registrations to jsonlog")
+            jsonlogger.debug(json.dumps(registrations.json, sort_keys=True, indent=4, separators=(',', ': ')))
         except TypeError:
             pass
         for reg in registrations.json():
@@ -184,7 +185,6 @@ class User:
             logger.error('Error: I could not find the username in the database.')
             logger.error('  Most likely the user is not registered for this service\n')
             logger.error(F"  {e}")
-            logger.error('  This is the json data received\n')
             logger.error(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
         logger.debug(F"Found existing username: {full_username}")
         return full_username
@@ -346,11 +346,16 @@ class User:
 
         try:
             formatted_json = (json.dumps(state_updates, sort_keys=True, indent=4, separators=(',', ': ')))
-            logger.debug(F"state_updates:  {formatted_json}")
+            logger.debug("  logging state_updates to jsonlog")
+            jsonlogger.debug(F"state_updates:  {formatted_json}")
+
             formatted_json = (json.dumps(current_state, sort_keys=True, indent=4, separators=(',', ': ')))
-            logger.debug(F"current_state: {formatted_json}")
+            logger.debug("  logging current_state_updates to jsonlog")
+            jsonlogger.debug(F"current_state: {formatted_json}")
+
+            logger.debug("  logging new_to jsonlog")
             formatted_json = (json.dumps(new_state, sort_keys=True, indent=4, separators=(',', ': ')))
-            logger.debug(F"    new state for regapp:  {formatted_json}")
+            jsonlogger.debug(F"    new state for regapp:  {formatted_json}")
         except:
             pass
         BWIDM.post('external-user', 'update', json=new_state)
