@@ -15,6 +15,7 @@ import regex
 from unidecode import unidecode
 
 from . import logsetup
+# from ldf_adapter.logsetup import jsonlogger
 from . import eduperson
 
 from . import backend
