@@ -12,6 +12,7 @@ import sys
 import json
 import logging
 from ldf_adapter import logsetup
+from ldf_adapter.logsetup import jsonlogger
 
 # Must be before the first ldf_adapter import
 from feudal_globalconfig import globalconfig
@@ -19,7 +20,7 @@ from feudal_globalconfig import globalconfig
 from ldf_adapter import User
 from ldf_adapter.results import ExceptionalResult
 
-logger = logging.getLogger('')
+logger = logging.getLogger(__name__)
 
 class PathTruncatingFormatter(logging.Formatter):
     '''formatter for logging'''
@@ -37,7 +38,7 @@ def main():
     logger.debug(f"Attempting to reach state '{data['state_target']}'")
 
     if data['user']['userinfo'] is None:
-        logger.error(f"Cannot process null input")
+        logger.error("Cannot process null input")
         sys.exit(2)
 
     try:
