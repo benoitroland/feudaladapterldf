@@ -9,9 +9,8 @@ import sys
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 
-
-# logger = logging.getLogger(__name__)
-logger = logging.getLogger('')  # => This is the key to allow logging from other modules
+logger = logging.getLogger('ldf_adapter')  # => This is the key to allow logging from other modules
+jsonlogger = logging.getLogger('jsonlog.ldf_adapter')
 
 class PathTruncatingFormatter(logging.Formatter):
     '''formatter for logging'''
@@ -71,7 +70,7 @@ def setup_logging():
             raise
 
     # Setup logging to logfile
-    file_handler = RotatingFileHandler(logfile, maxBytes=10**6, backupCount=2)
+    file_handler = RotatingFileHandler(logfile, maxBytes=100**6, backupCount=2)
     file_handler.setFormatter(formatter)
     file_handler.setLevel(loglevel)
     logger.addHandler(file_handler)
@@ -94,7 +93,16 @@ def setup_logging():
     logger.debug(F'Running: ')
     logger.debug(F'         {" ".join(sys.argv)} ')
 
-    return logger
+    # JSON LOGGER
+    # FIXME: jsonlogger name
+    jsonlogfile = F"{logfile.rstrip('.log')}-json.log"
+    jsonlogger = logging.getLogger('jsondata')
+    jsonfile_handler = RotatingFileHandler(jsonlogfile, maxBytes=100**6, backupCount=2)
+    jsonfile_handler.setFormatter(formatter)
+    jsonfile_handler.setLevel(loglevel)
+    jsonlogger.setLevel(loglevel)
+    jsonlogger.addHandler(jsonfile_handler)
 
-logger = setup_logging()
+    return (logger, jsonlogger)
 
+(logger, jsonlogger) = setup_logging()
