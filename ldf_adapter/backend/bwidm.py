@@ -355,7 +355,7 @@ class User:
 
             logger.debug("  logging new_to jsonlog")
             formatted_json = (json.dumps(new_state, sort_keys=True, indent=4, separators=(',', ': ')))
-            jsonlogger.debug(F"    new state for regapp:  {formatted_json}")
+            jsonlogger.debug(F"new state for regapp:  {formatted_json}")
         except:
             pass
         BWIDM.post('external-user', 'update', json=new_state)
