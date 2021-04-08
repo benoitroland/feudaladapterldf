@@ -95,7 +95,7 @@ def setup_logging():
 
     # JSON LOGGER
     # FIXME: jsonlogger name
-    jsonlogfile = F"{logfile}-json.log"
+    jsonlogfile = F"{logfile.rstrip('.log')}-json.log"
     jsonlogger = logging.getLogger('jsondata')
     jsonfile_handler = RotatingFileHandler(jsonlogfile, maxBytes=100**6, backupCount=2)
     jsonfile_handler.setFormatter(formatter)
