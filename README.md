@@ -18,10 +18,10 @@ Distributed with the adapter are backends for [BWIDM](ldf_adapter/backend/bwidm.
 # Configuration
 The config file contains both the generic config, as well as for specific backends.
 ## Configuration Template
-See [ldf_adapter_template.conf](ldf_adapter_template.conf)
+See [feudal_adapter_template.conf](feudal_adapter_template.conf)
 
 ## Config file search path
-The config file ldf_adapter.conf will be searched in several places. Once
+The config file feudal_adapter.conf will be searched in several places. Once
 it is found no further config files will be considered:
 
 - If the commandline argument `--config` is specified, that location is used.
@@ -29,14 +29,14 @@ it is found no further config files will be considered:
 - If the `feudal_globalconf` mechanism is used, it is used. In case there is
     also a commandline argument specified, the `globaldconf` has precedence
 
-- If those dont work: the environment variable `LDF_ADAPTER_CONFIG` is used
+- If those dont work: the environment variable `FEUDAL_ADAPTER_CONFIG` is used
 
 - If that does not work, these files will be tried by default:
 
-- `ldf_adapter.conf`
-- `$HOME/.config/ldf_adapter.conf`
-- `$HOME/.config/feudal/ldf_adapter.conf`
-- `/etc/feudal/ldf_adapter.conf`
+- `feudal_adapter.conf`
+- `$HOME/.config/feudal_adapter.conf`
+- `$HOME/.config/feudal/feudal_adapter.conf`
+- `/etc/feudal/feudal_adapter.conf`
 
 
 # Input and Output
@@ -88,7 +88,7 @@ feudal_globalconfig to keep it from parsing your commandline paramenters:
 
 ```python
 from feudal_globalconfig import globalconfig
-globalconfig.config['CONFIGFILE']="/etc/feudal/ldf_adapter_mailping.conf"
+globalconfig.config['CONFIGFILE']="/etc/feudal/feudal_adapter_mailping.conf"
 globalconfig.config['parse_commandline_args']=False
 from ldf_adapter import User
 ```
@@ -132,7 +132,7 @@ that of the main package). To run the tests, just do:
         "mclientservice":
             "name": "Demo Adapter"
             "description": "Works so well"
-            "command": "feudal-adapter --conf /etc/feudal/ldf_adapter.conf"
+            "command": "feudal-adapter --conf /etc/feudal/feudal_adapter.conf"
 ```
 ------------------------------------------------------------------------
 
