@@ -31,11 +31,11 @@ def reload():
     """Reload configuration from disk.
 
     Config locations, by priority:
-    --config option (defaults to /etc/feudal/ldf_adapter.conf)
-    $LDF_ADAPTER_CONFIG
-    ./ldf_adapter.conf
-    ~/.config/feudal/ldf_adapter.conf
-    /etc/feudal/ldf_adapter.conf
+    --config option (defaults to /etc/feudal/feudal_adapter.conf)
+    $FEUDAL_ADAPTER_CONFIG
+    ./feudal_adapter.conf
+    ~/.config/feudal/feudal_adapter.conf
+    /etc/feudal/feudal_adapter.conf
 
     processing is stopped, once a give file is found
     """
@@ -58,12 +58,18 @@ def reload():
         pass
     
     # Finally, check the environment (last means highes priority)
-    filename = os.environ.get("LDF_ADAPTER_CONFIG")
+    filename = os.environ.get("FEUDAL_ADAPTER_CONFIG")
+    if filename is None:
+        filename = os.environ.get("LDF_ADAPTER_CONFIG")
     if filename:
         files.append(Path(filename))
 
     # default files
     files += [
+        Path('feudal_adapter.conf'),
+        Path.home()/'.config'/'feudal_adapter.conf',
+        Path.home()/'.config'/'feudal'/'feudal_adapter.conf',
+        Path('/etc/feudal/feudal_adapter.conf'),
         Path('ldf_adapter.conf'),
         Path.home()/'.config'/'ldf_adapter.conf',
         Path.home()/'.config'/'feudal'/'ldf_adapter.conf',
