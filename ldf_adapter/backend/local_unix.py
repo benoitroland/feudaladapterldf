@@ -207,13 +207,16 @@ class User:
 
     def install_ssh_keys(self):
         try:
-            self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
-            self.__authorized_keys.parent.chmod(0o700)
-            chown(self.__authorized_keys.parent, self.__uid, self.__gid)
+            if len (self.ssh_keys) > 0:
+                if CONFIG['backend.local_unix'].get('deploy_user_ssh_keys', True):
+                    logger.error("Deploying these ssh keys: {self.ssh_keys}")
+                    self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
+                    self.__authorized_keys.parent.chmod(0o700)
+                    chown(self.__authorized_keys.parent, self.__uid, self.__gid)
 
-            self.__authorized_keys.write_text("\n".join(self.ssh_keys))
-            self.__authorized_keys.chmod(0o600)
-            chown(self.__authorized_keys, self.__uid, self.__gid)
+                    self.__authorized_keys.write_text("\n".join(self.ssh_keys))
+                    self.__authorized_keys.chmod(0o600)
+                    chown(self.__authorized_keys, self.__uid, self.__gid)
         except IOError as e:
             logger.error(e)
             raise Failure(message=F"Could not write new ssh keys: {e or '<no output>'}")

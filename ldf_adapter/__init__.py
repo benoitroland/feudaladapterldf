@@ -640,7 +640,7 @@ class UserInfo(Mapping):
         sub = regex.sub('[^a-zA-Z0-9_!#$%&*+/=?{|}~^.-]', '-', sub)
 
         if sub != self.userinfo['sub']:
-            logger.warning("sub '{}' changed to '{}' for BWIDM compatibilty".format(
+            logger.warning("sub '{}' changed to '{}' for general compatibilty".format(
                 self.userinfo['sub'], sub))
         return sub
 
@@ -659,7 +659,7 @@ class UserInfo(Mapping):
         # and there shouldn't be two different issuers `http://example.org' and `https://example.org'.
         if iss != stripped_iss:
             if CONFIG.getboolean('messages', 'log_name_changes', fallback=True):
-                logger.warning("Issuer '{}' changed to '{}' for BWIDM compatibilty".format(
+                logger.warning("Issuer '{}' changed to '{}' for general compatibilty".format(
                     stripped_iss, iss))
         return iss
 
@@ -802,7 +802,7 @@ class UserInfo(Mapping):
 
         if grp != orig_grp:
             if CONFIG.getboolean('messages', 'log_name_changes', fallback=True):
-                logger.warning("Group name '{}' changed to '{}' for BWIDM compatibilty".format(orig_grp, grp))
+                logger.warning("Group name '{}' changed to '{}' for general compatibilty".format(orig_grp, grp))
 
         return grp
 
