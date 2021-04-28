@@ -778,6 +778,14 @@ class UserInfo(Mapping):
 
         Group names are prefixed with the delegated namespace from the entitlement.
         """
+        if CONFIG.getboolean('username_generator', 'strip_sub_groups', fallback=False):
+            logger.debug("Stripping all subgroups")
+            return set(filter(
+                None,
+                ['{}_{}'.format(ns, grp) for (ns, grp) in chain.from_iterable(
+                     (("-".join([ent.delegated_namespace] + ent.subnamespaces), grp) for grp in ent.all_toplevel_groups)
+                     for ent in self.entitlement)]
+            ))
         return set(filter(
             None,
             ['{}_{}'.format(ns, grp) for (ns, grp) in chain.from_iterable(
