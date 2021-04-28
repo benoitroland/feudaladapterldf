@@ -209,7 +209,7 @@ class User:
         try:
             if len (self.ssh_keys) > 0:
                 if CONFIG['backend.local_unix'].get('deploy_user_ssh_keys', True):
-                    logger.error("Deploying these ssh keys: {self.ssh_keys}")
+                    logger.debug(F"Deploying these ssh keys: {self.ssh_keys}")
                     self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
                     self.__authorized_keys.parent.chmod(0o700)
                     chown(self.__authorized_keys.parent, self.__uid, self.__gid)
@@ -358,7 +358,10 @@ def make_shadow_compatible(orig_word):
     if regex.match(r'^[a-z_]', word):
         word = word
     else:
-        word = '_' + word
+        if len(word) >= 32:
+            word = '_'+word[1:]
+        else:
+            word = '_' + word
 
     # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
     # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
@@ -376,18 +379,18 @@ def make_shadow_compatible(orig_word):
     if excess_chars > 0:
 
         if len(word.split('_')) == 1: # no '_' found:
-            word = '..' + word[excess_chars+2:] 
-            logger.warning(F"shortened {orig_word} to {word}")
+            word = '__' + word[excess_chars+2:]
+            # logger.warning(F"shortened {orig_word} to {word}")
 
-        if len(word.split('_')) > 1: # at least one '_' found:
+        elif len(word.split('_')) > 1: # at least one '_' found:
             fragments = word.split('_')
             if len(fragments[1]) > excess_chars: # we're fine, we can cut excess chars from fragments alone
                 fragments[1]=".."+fragments[1][excess_chars+2:]
                 word = '_'.join(fragments)
             else:
-                logger.error(F"User or group name is too long")
+                logger.error(F"User or group name is too long: {word} ({len(word)})")
                 raise(ValueError)
-            logger.warning(F"shortened {orig_word} to {word}")
+            # logger.warning(F"shortened {orig_word} to {word}")
 
     if word != orig_word:
         logger.warning("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
