@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 class FriendlyNameGenerator():
     """
-    FNG != FunnyNameGenerator
     Create Names from UserInfo. 
     Don't return the same name twice per run
     """
@@ -81,3 +80,20 @@ class FriendlyNameGenerator():
         return None
     def tried_names(self):
         return self.dont_use_these_names
+
+
+class PooledNameGenerator():
+    """Name Generator for Pooled Accounts"""
+    index  = 0
+    digits = CONFIG.getint('username_generator','pool_digits', fallback=3)
+    username_prefix = ""
+    def __init__(self, pool_prefix = 'pool'):
+        self.username_prefix = CONFIG.get('username_generator','pool_prefix',
+                fallback=pool_prefix) 
+        if self.username_prefix is None:
+            self.username_prefix = 'pool'
+
+    def suggest_name(self, **kwargs):
+        self.index += 1
+        candidate_name = F"{self.username_prefix}%0{self.digits}d" % self.index
+        return candidate_name
