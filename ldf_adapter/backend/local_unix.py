@@ -208,7 +208,7 @@ class User:
     def install_ssh_keys(self):
         try:
             if len (self.ssh_keys) > 0:
-                if CONFIG['backend.local_unix'].get('deploy_user_ssh_keys', True):
+                if CONFIG['backend.local_unix'].getboolean('deploy_user_ssh_keys', True):
                     logger.debug(F"Deploying these ssh keys: {self.ssh_keys}")
                     self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
                     self.__authorized_keys.parent.chmod(0o700)
