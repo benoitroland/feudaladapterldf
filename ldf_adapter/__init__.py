@@ -21,7 +21,7 @@ from . import eduperson
 from . import backend
 from .config import CONFIG
 from .results import Deployed, NotDeployed, Rejection, Failure, Question, raise_question, Status
-from .name_generators import FriendlyNameGenerator
+from .name_generators import FriendlyNameGenerator, PooledNameGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -386,6 +386,7 @@ class User:
 
             # Raise question in case of existing username in case we're interactive
             if CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False): # interactive
+                logger.debug("interactive mode")
                 if self.service_user.name_taken(username):
                     logger.info(F'Username "{username}" is already taken, asking user to pick a new one')
                     raise Question(
@@ -394,19 +395,33 @@ class User:
                     )
 
             else: # non-interactive
-                try:
-                    logger.info(F"initial try: {username}")
-                except AttributeError:
-                    pass
-                fng = FriendlyNameGenerator(self.data)
-                proposed_name = username if username is not None else fng.suggest_name()
+                logger.debug("noninteractive mode")
+                username_mode = CONFIG.get('username_generator','mode', fallback='friendly')
+                logger.debug(F"username_mode: {username_mode}")
+                if username_mode == 'friendly':
+                    try:
+                        logger.info(F"Trying username: {username}")
+                    except AttributeError:
+                        pass
+                    name_generator = FriendlyNameGenerator(self.data)
+                    # Propose an initial name
+                    proposed_name = username if username is not None else name_generator.suggest_name()
+
+                elif username_mode == 'pooled':
+                    primary_group_name = self.data.primary_group
+                    name_generator = PooledNameGenerator(pool_prefix = primary_group_name)
+                    # Propose an initial name
+                    proposed_name = name_generator.suggest_name()
+
                 while self.service_user.name_taken(proposed_name):
-                    proposed_name = fng.suggest_name()
+                    proposed_name = name_generator.suggest_name()
                 logger.info(F'Using: {proposed_name}')
                 if proposed_name is None:
                     raise Rejection(message=F"I cannot create usernames. "
-                                    F"The list of tried ones is: {', '.join(fng.tried_names())}.")
+                                    F"The list of tried ones is: {', '.join(name_generator.tried_names())}.")
                 self.service_user.set_username(proposed_name)
+
+
             self.service_user.create()
         else: # The user exists
             # Update service_user.name if unique_id already points to a username:
