@@ -60,7 +60,7 @@ class User:
         """Optional, only if the backend supports it.
         Inform the user whether a user was suspended (e.g. due to a security incident)"""
         if self.exists():
-            options = ['-i', '-l']
+            options = ['-l']
             try:
                 result = subprocess.run(['chage'] + options + [self.name],
                                         capture_output=True, check=True)
@@ -76,7 +76,7 @@ class User:
                     if expiration_date == 'never':
                         return False
                     expiration_date_sec = int(
-                        datetime.fromisoformat(expiration_date).strftime('%s'))
+                        datetime.strptime(expiration_date, '%b %d, %Y').strftime("%s"))
                     if expiration_date_sec - datetime.now().timestamp() <= 0:
                         return True
             except Exception as e:
