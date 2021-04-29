@@ -32,8 +32,8 @@ def parseOptions():
     parser = argparse.ArgumentParser(description=name_of_executable)
 
     parser.add_argument('--config_file', '--config','-c','--conf', 
-            default='/etc/feudal/ldf_adapter.conf',
-            help='Default: /etc/feudal/ldf_adapter.conf')
+            default='/etc/feudal/feudal_adapter.conf',
+            help='Default: /etc/feudal/feudal_adapter.conf')
 
     return parser
 

@@ -77,6 +77,10 @@ class Entitlement:
 
 
     @property
+    def all_toplevel_groups(self):
+        return  ["_".join([self.group])]
+
+    @property
     def all_groups(self):
         return  ["_".join([self.group] + self.subgroups)]
 
