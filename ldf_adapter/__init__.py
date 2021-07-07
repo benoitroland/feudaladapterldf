@@ -5,6 +5,8 @@ name = 'ldf_adapter'
 # pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
 
 import logging
+import sys
+from feudal_globalconfig import globalconfig
 from collections import Mapping
 from functools import lru_cache
 from datetime import timedelta
@@ -173,6 +175,8 @@ class User:
             logger.info(F"Incoming request to reach '{target}' for user with unique_id: '{self.data.unique_id}' username: {username}")
 
         if target == 'deployed':
+            if CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
+                logger.warning("Assurance checking is disabled: Users with ANY assurance will be authorised")
             if not CONFIG.get('assurance', 'skip', fallback="No") =="Yes, do as I say!":
                 if not self.assurance_verifier()(self.data.assurance):
                     raise Rejection(message="Your assurance level is insufficient to access this resource")
@@ -375,13 +379,12 @@ class User:
 
         Return True, if the user didn't exist before.
         """
-        logger.debug('Ensuring user {unique_id} exits'.format(**self.data))
+        logger.debug(F'Ensuring user {self.data.unique_id} exits')
 
         is_new_user = not self.service_user.exists()
 
         if is_new_user:
             unique_id= self.data.unique_id
-            logger.info(F'Creating user for "{unique_id}"')
             username = self.data.username
 
             # Raise question in case of existing username in case we're interactive
@@ -398,6 +401,7 @@ class User:
                 logger.debug("noninteractive mode")
                 username_mode = CONFIG.get('username_generator','mode', fallback='friendly')
                 logger.debug(F"username_mode: {username_mode}")
+                primary_group_name = self.data.primary_group
                 if username_mode == 'friendly':
                     try:
                         logger.info(F"Trying username: {username}")
@@ -408,26 +412,34 @@ class User:
                     proposed_name = username if username is not None else name_generator.suggest_name()
 
                 elif username_mode == 'pooled':
-                    primary_group_name = self.data.primary_group
                     name_generator = PooledNameGenerator(pool_prefix = primary_group_name)
                     # Propose an initial name
                     proposed_name = name_generator.suggest_name()
 
                 while self.service_user.name_taken(proposed_name):
                     proposed_name = name_generator.suggest_name()
-                logger.info(F'Using: {proposed_name}')
                 if proposed_name is None:
                     raise Rejection(message=F"I cannot create usernames. "
                                     F"The list of tried ones is: {', '.join(name_generator.tried_names())}.")
                 self.service_user.set_username(proposed_name)
 
+            logger.info(F"Creating user '{proposed_name}' for {unique_id}")
+            # Sanity check to ensure user has a primary group:
+            if primary_group_name is None:
+                config_file_name = globalconfig.info['config_files_read']
+                message = 'User is not member of any group, and neither a "primary_group", nor '\
+                F'a "fallback_group" have been defined in the config file {config_file_name}'
+                logger.error(message)
+                print(F"\nERROR: {message}\n")
+                sys.exit(2)
 
             self.service_user.create()
         else: # The user exists
             # Update service_user.name if unique_id already points to a username:
-            logger.debug('User for "{unique_id}" already exists. Nothing to do.'.format(**self.data))
+            username = self.data.username
+            logger.info("User {username} for '{unique_id}' already exists.".format(**self.data))
 
-        logger.debug(F"  This is a new user: {is_new_user}")
+        logger.debug(F"This is a new user: {is_new_user}")
 
         self.service_user.update()
         return is_new_user
@@ -442,7 +454,7 @@ class User:
                 if hasattr(self.service_user, 'set_username'):
                     logger.debug(F"Setting username to {existing_username} ({self.data.unique_id})")
                     self.service_user.set_username(existing_username)
-                logger.info(F'Found an existing username: {existing_username}')
+                logger.debug(F'Found an existing username: {existing_username}')
         except AttributeError:
             # the currently used service_user class has to method get_username
             existing_username = None
@@ -468,7 +480,7 @@ class User:
                 self.service_user.delete()
             return True
         else:
-            logger.debug(F'No user for {self.data.unique_id} did exist. Nothing to do.')
+            logger.info(F'No user existed for {self.data.unique_id} did exist. Nothing to do.')
             return False
 
     def ensure_suspended(self):
@@ -524,17 +536,35 @@ class User:
 
         Create the groups on the service, if necessary.
         """
-        for group in filter(lambda grp: not grp.exists(), [self.service_user.primary_group] + self.service_groups):
-            logger.info("Creating group {}".format(group.name))
-            group.create()
+        group_list = filter(lambda grp: not grp.exists(), [self.service_user.primary_group] + self.service_groups)
+        for group in group_list:
+            if group.name is not None:
+                logger.info("Creating group '{}'".format(group.name))
+                group.create()
 
     def ensure_group_memberships(self):
         """Ensure that the user is a member of all the groups in self.service_groups.
 
         Return the names of all groups the user is now a member of.
         """
-        self.service_user.mod(supplementary_groups=self.service_groups)
-        return [grp.name for grp in self.service_groups]
+        # Note: current code will keep on adding the user to the primary group. This may be a
+        # problem with some backends
+
+        group_list = self.service_groups
+        if self.service_user.primary_group.name not in [grp.name for grp in self.service_groups]:
+            group_list.append(self.service_user.primary_group)
+
+        if group_list[0].name is None:
+            config_file_name = globalconfig.info['config_files_read']
+            message='User is not member of any group, and neither a "primary_group", nor '\
+                    F'a "fallback_group" have been defined in the config file {config_file_name}'
+            logger.error(message)
+            print(F"\nERROR: {message}\n")
+            sys.exit(3)
+        username = self.service_user.get_username()
+        logger.info(F"Ensuring user '{username}' ({self.data.unique_id}) is member of these groups: {[grp.name for grp in group_list]}")
+        self.service_user.mod(supplementary_groups = group_list)
+        return [grp.name for grp in group_list]
 
     def ensure_credentials_active(self):
         """Install all SSH Keys on the service.
@@ -655,7 +685,7 @@ class UserInfo(Mapping):
         sub = regex.sub('[^a-zA-Z0-9_!#$%&*+/=?{|}~^.-]', '-', sub)
 
         if sub != self.userinfo['sub']:
-            logger.warning("sub '{}' changed to '{}' for general compatibilty".format(
+            logger.warning("sub '{}' changed to '{}' to avoid confusion".format(
                 self.userinfo['sub'], sub))
         return sub
 
@@ -712,16 +742,31 @@ class UserInfo(Mapping):
     @lru_cache(maxsize=None)
     def given_name(self):
         """Return the user's given name. If none is provided, try to extract it from the full name."""
+        try:
+            given_name_from_name = ' '.join(self.userinfo['name'].split(' ')[:-1])
+        except KeyError:
+            given_name_from_name = None
         return (self.userinfo.get('given_name')
-                or ' '.join(self.userinfo['name'].split(' ')[:-1]))
+                or given_name_from_name
+                or None)
 
     @property
     @lru_cache(maxsize=None)
     def family_name(self):
         """Return the user's family name. If none is provided, try to extract it from the full name."""
+        try:
+            family_name_from_sn = self.userinfo.get('sn')
+        except KeyError:
+            family_name_from_name = None
+
+        try:
+            family_name_from_name = self.userinfo['name'].split(' ')[-1]
+        except KeyError:
+            family_name_from_name = None
+
         return (self.userinfo.get('family_name')
-                or self.userinfo.get('sn')
-                or self.userinfo['name'].split(' ')[-1])
+                or family_name_from_sn
+                or family_name_from_name)
 
     @property
     @lru_cache(maxsize=None)
@@ -839,6 +884,7 @@ class UserInfo(Mapping):
     @lru_cache(maxsize=None)
     def primary_group(self):
         config_group = CONFIG['ldf_adapter'].get("primary_group")
+        logger.debug(F"Using configured primary group: {config_group}")
         if config_group:
             return config_group
         elif len(self.groups) == 1:
@@ -859,7 +905,7 @@ class UserInfo(Mapping):
                     logger.warning(F"    Furthermore, we are in non-interactive mode, so we can't ask the user.")
                     logger.warning(F"    Therefore, we just take the first group: '{list(self.groups)[0]}'")
                     nl="\n                            "
-                    logger.warning(F"    Available groups are: {nl}{nl.join(self.groups)}")
+                    # logger.warning(F"    Available groups are: {nl}{nl.join(self.groups)}")
                     logger.warning("\\--------------------------------------------------------------------------------/")
                 return list(self.groups)[0]
 

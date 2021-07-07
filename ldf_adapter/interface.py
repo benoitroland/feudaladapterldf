@@ -33,7 +33,11 @@ class PathTruncatingFormatter(logging.Formatter):
 
 def main():
 
-    data = json.load(sys.stdin)
+    try:
+        data = json.load(sys.stdin)
+    except json.decoder.JSONDecodeError as e:
+        logger.error("Cannot decode the input json. Please verify the input!")
+        sys.exit(1)
 
     logger.debug(f"Attempting to reach state '{data['state_target']}'")
 

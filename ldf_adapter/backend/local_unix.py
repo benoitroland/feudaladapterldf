@@ -124,7 +124,7 @@ class User:
         self.name = make_shadow_compatible(username)
 
     def create(self):
-        logger.debug(F"creating user: {self.name} - {self.unique_id} ")
+        logger.debug(F"Creating user '{self.name}' for {self.unique_id} ")
         try:
             shell = CONFIG['backend.local_unix'].get('shell', '/bin/sh')
             subprocess.run(['useradd', '--comment', self.unique_id,
@@ -163,7 +163,7 @@ class User:
     def mod(self, supplementary_groups=None):
         options = []
         if supplementary_groups is not None:
-            logger.debug("Adding user {} to groups {}".format(self.name, [g.name for g in supplementary_groups]))
+            logger.debug("Ensuring user '{}' is member of these groups {}".format(self.name, [g.name for g in supplementary_groups]))
             options += ['--groups', ",".join([g.name for g in supplementary_groups])]
 
         try:

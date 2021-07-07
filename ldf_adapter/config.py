@@ -81,6 +81,8 @@ def reload():
         if f.exists():
             files_read = CONFIG.read(f)
             logger.debug(F"Using this config file: {files_read}")
+            globalconfig.info = {}
+            globalconfig.info['config_files_read'] = files_read
             config_loaded = True
             break
     if not config_loaded:
