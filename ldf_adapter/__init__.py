@@ -54,10 +54,25 @@ class User:
         """
         # Info Display Hack
         if CONFIG.getboolean('verbose-info-plugin', 'active', fallback=False) is True:
-            import json
-            filename=CONFIG.get('verbose-info-plugin', 'filename', fallback='/tmp/userinfo.json')
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, sort_keys=True, indent=4, separators=(',', ': '))
+            try:
+                if data['state_target'] == "deployed":
+                    import json
+                    import os
+                    import stat
+                    filename=CONFIG.get('verbose-info-plugin', 'filename', fallback='/tmp/userinfo/userinfo.json')
+                    dirname=CONFIG.get('verbose-info-plugin', 'dirname', fallback='/tmp/userinfo')
+                    try:
+                        os.mkdir(dirname)
+                        os.chmod(dirname, 0o0777)
+                    except:
+                        pass
+                    with open(filename, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, ensure_ascii=False, sort_keys=True, indent=4, separators=(',', ': '))
+                    os.chmod(filename, 0o0666)
+                    # os.chmod(filename, stat.S_IREAD || stat.S_IWRITE ||stat.S_IRGRP || stat.S_IWGRP
+                    #         || stat.S_IROTH || stat.S_IWOTH)
+            except Exception as e:
+                logger.error (F"Got an exception in uncritical code: {e}")
 
         # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
