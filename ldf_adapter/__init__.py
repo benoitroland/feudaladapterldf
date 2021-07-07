@@ -52,6 +52,14 @@ class User:
         Direct access to them from this __init__ is highly illegal (unless specified)
         Instead: Use self.data
         """
+        # Info Display Hack
+        if CONFIG.getboolean('verbose-info-plugin', 'active', fallback=False) is True:
+            import json
+            filename=CONFIG.get('verbose-info-plugin', 'filename', fallback='/tmp/userinfo.json')
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, sort_keys=True, indent=4, separators=(',', ': '))
+
+        # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
