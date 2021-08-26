@@ -15,7 +15,7 @@ class ExampleUser:
         """
         return bool()
     def name_taken(self, name):
-        """Return wheter a given username is already taken by another user on the service.
+        """Return whether a given username is already taken by another user on the service.
 
         Should return True if the name is not available for this user (even if it is available
         for other users for some reason)
@@ -86,6 +86,39 @@ class ExampleUser:
         If the user is not fully deployed, behaviour is undefined.
         """
         pass
+    def is_rejected(self):
+        """Optional, only if the backend supports it.
+        Return whether a pending user deployment request was rejected"""
+        return False
+    def is_suspended(self):
+        """Optional, only if the backend supports it.
+        Return whether the user was suspended (e.g. due to a security incident)"""
+        return False
+    def is_pending(self):
+        """Optional, only if the backend supports it.
+        Return whether the user deployment request is pending approval"""
+        return False
+    def is_limited(self):
+        """Optional, only if the backend supports it.
+        Return whether the user has limited access"""
+        return False
+    def suspend(self):
+        """Optional, only if the backend supports it.
+        Suspends the user such that no access to the service is possible"""
+        pass
+    def resume(self):
+        """Optional, only if the backend supports it.
+        Restores the suspended user"""
+        pass
+    def limit(self):
+        """Optional, only if the backend supports it.
+        Limits the user's capabilities on the service (e.g. read-only access)"""
+        pass
+    def unlimit(self):
+        """Optional, only if the backend supports it.
+        Restores a user with limited access to full capabilities"""
+        pass
+
 
 class ExampleGroup:
     """Manages the group object on the service."""
