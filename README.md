@@ -56,7 +56,7 @@ targets do not require the full userinfo to be passed along:
 | `not_deployed` | Make sure the user is not on the system                | sub+iss        |                |
 | `get_status`   | Get the current status of the user without changing it |                |                |
 
-
+A more detailed view of all the supported user states, as well as actions leading to these states, can be found in [states.md](states.md).
 
 
 # Development
