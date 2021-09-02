@@ -63,7 +63,7 @@ class User:
             options = ['-l']
             try:
                 result = subprocess.run(['chage'] + options + [self.name],
-                                        capture_output=True, check=True)
+                                        stdout=subprocess.PIPE, check=True)
             except CalledProcessError as e:
                 msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
                 logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
@@ -177,8 +177,7 @@ class User:
     def __expire(self, expiration_date=datetime.today().strftime("%Y-%m-%d")):
         options = ['-E', expiration_date]
         try:
-            subprocess.run(['chage'] + options + [self.name],
-                           capture_output=True, check=True)
+            subprocess.run(['chage'] + options + [self.name], check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
             logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
