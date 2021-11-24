@@ -26,6 +26,7 @@ INPUT_SHADOW_COMPATIBLE = [
     ("-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
     ("-abcdefaaaaaaaaaaaaaaaaaaaaaaaaaa", "_..defaaaaaaaaaaaaaaaaaaaaaaaaaa"),
     ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa", "__defaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    ("helmholtz-de_KIT_Helmholtz-member", "helmholtz-de_.._helmholtz-member")
     # ("a_b_c_d_e_f_a_a_a_a______________", "a_.._d_e_f_a_a_a_a______________"), # ??
     # ("_________________________________", "_.._____________________________"), # ??
 ]
@@ -58,6 +59,6 @@ def test_make_shadow_compatible(raw, cooked):
         - @ to _at_
     - unicode characters are decoded to ascii
     - all other special characters are replaced with _
-    - what about shortening?
+    - what about shortening? TODO: define expected behaviour
     """
     assert make_shadow_compatible(raw) == cooked
