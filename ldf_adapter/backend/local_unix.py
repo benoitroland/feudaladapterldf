@@ -386,10 +386,13 @@ def make_shadow_compatible(orig_word):
             fragments = word.split('_')
             if len(fragments[1]) > excess_chars: # we're fine, we can cut excess chars from fragments alone
                 fragments[1]=".."+fragments[1][excess_chars+2:]
+                # TODO: fix case when len(fragments[1]) == excess_chars + 1
                 word = '_'.join(fragments)
             else:
                 logger.error(F"User or group name is too long: {word} ({len(word)})")
                 raise(ValueError)
+                # TODO: fix case when removing chars from one fragment is not enough to shorten the word
+                # i.e. len(fragments[1] <= excess_chars)
             # logger.warning(F"shortened {orig_word} to {word}")
 
     if word != orig_word:
