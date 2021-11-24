@@ -347,11 +347,19 @@ def make_shadow_compatible(orig_word):
         '*': 'x', '@': '_at_',
     }))
 
+    # Unicode -> Ascii
+    word = unidecode(word)
+
     # Downcase
     word = word.lower()
 
-    # Unicode -> Ascii
-    word = unidecode(word)
+    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
+    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
+    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
+    # aber nur *ganz* am Ende ...
+    # word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
+    # since we already replace $ with s, no need to check for $ at the end
+    word = regex.sub(r'[^-0-9_a-z]', '_', word)
 
     # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
     if regex.match(r'^[a-z_]', word):
@@ -361,13 +369,6 @@ def make_shadow_compatible(orig_word):
             word = '_'+word[1:]
         else:
             word = '_' + word
-
-    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
-    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
-    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
-    # aber nur *ganz* am Ende ...
-    word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
-
 
     # usernames and group names can only be 32 characters long.
     # My fix is to remove characters a) after the first '_' if there is one.
