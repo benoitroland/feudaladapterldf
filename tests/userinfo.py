@@ -193,27 +193,24 @@ def test_groups(userinfo, groups):
 
 
 @pytest.mark.parametrize('data,group', [
-    # (settings.INPUT_UNITY, "h-df-de_imk-tro-ewcc"),
+    (settings.INPUT_UNITY, "h-df-de_hdf"),
     (settings.INPUT_EGI, None),
-    # (settings.INPUT_DEEP_IAM, "kit-cloud"),
-    # (settings.INPUT_INDIGO_IAM, "users"),
+    (settings.INPUT_DEEP_IAM, "kit-cloud"),
+    (settings.INPUT_INDIGO_IAM, "developers"),
     (settings.INPUT_KIT, None),
 ])
-def test_primary_group_no_fallback_or_primary_configured(userinfo, group, monkeypatch):
-    # monkeypatch.delitem(CONFIG['ldf_adapter'], "primary_group")
-    monkeypatch.delitem(CONFIG['ldf_adapter'], "fallback_group")
+def test_primary_group_no_fallback_or_primary_configured(userinfo, group):
     assert userinfo.primary_group == group
 
 
 @pytest.mark.parametrize('data,group', [
-    # (settings.INPUT_UNITY, "h-df-de_imk-tro-ewcc"),
+    (settings.INPUT_UNITY, "h-df-de_hdf"),
     (settings.INPUT_EGI, "nogroup"),
-    # (settings.INPUT_DEEP_IAM, "kit-cloud"),
-    # (settings.INPUT_INDIGO_IAM, "users"),
+    (settings.INPUT_DEEP_IAM, "kit-cloud"),
+    (settings.INPUT_INDIGO_IAM, "developers"),
     (settings.INPUT_KIT, "nogroup"),
 ])
 def test_primary_group_fallback_configured_no_primary(userinfo, group, monkeypatch):
-    # monkeypatch.delitem(CONFIG['ldf_adapter'], "primary_group")
     monkeypatch.setitem(CONFIG['ldf_adapter'], "fallback_group", "nogroup")
     assert userinfo.primary_group == group
 
