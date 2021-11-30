@@ -45,6 +45,12 @@ class User:
         self.primary_group = Group(userinfo.primary_group)
         self.credentials = {}
 
+    @staticmethod
+    def ROOT():
+        """ROOT directory for user db
+        only used for testing purposes, defaults to '/' otherwise"""
+        return '/'
+
     def exists(self):
         """Check wheter a user (identified by the unique_id) exists"""
         # x = bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
@@ -145,6 +151,9 @@ class User:
             self.credentials['ssh_user'], self.credentials['ssh_host'])
 
     def delete(self):
+        if not self.exists():
+            raise Failure(message=F"Cannot delete user: no user found for {self.unique_id}.")
+
         name = self.__passwd_entry['login']
 
         try:
@@ -161,6 +170,9 @@ class User:
             raise Failure(message=F"Cannot delete user: {msg or '<no output>'}")
 
     def mod(self, supplementary_groups=None):
+        """Adds user to given groups.
+        param list supplementary_groups: a list of Group objects; the corresponding unix groups are assumed to exist.
+        """
         options = []
         if supplementary_groups is not None:
             logger.debug("Ensuring user '{}' is member of these groups {}".format(self.name, [g.name for g in supplementary_groups]))
@@ -255,7 +267,7 @@ class User:
         return User.__all_passwd_entries('gecos').get(self.unique_id, {})
 
     def __all_passwd_entries(ID_FIELD='gecos'):
-        PASSWD_PATH = Path('/')/'etc'/'passwd'
+        PASSWD_PATH = Path(User.ROOT())/'etc'/'passwd'
         PASSWD_FIELDS = ['login', 'pw', 'uid', 'gid', 'gecos', 'home', 'shell']
 
         try:
@@ -277,6 +289,12 @@ class User:
 class Group:
     def __init__(self, name):
         self.name = make_shadow_compatible(name)
+
+    @staticmethod
+    def ROOT():
+        """ROOT directory for user db
+        only used for testing purposes, defaults to '/' otherwise"""
+        return '/'
 
     def exists(self):
         return bool(self.__group_entry)
@@ -307,7 +325,7 @@ class Group:
         return Group.__all_group_entries().get(self.name, {})
 
     def __all_group_entries():
-        GROUP_PATH = Path('/')/'etc'/'group'
+        GROUP_PATH = Path(Group.ROOT())/'etc'/'group'
         GROUP_FIELDS = ['name', 'password', 'gid', 'members']
         ID_FIELD = 'name'
         LIST_FIELD = 'members'
