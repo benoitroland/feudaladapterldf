@@ -930,7 +930,7 @@ class UserInfo(Mapping):
                     nl="\n                            "
                     # logger.warning(F"    Available groups are: {nl}{nl.join(self.groups)}")
                     logger.warning("\\--------------------------------------------------------------------------------/")
-                return list(self.groups)[0]
+                return sorted(list(self.groups))[0]
 
         else:
             old_answer = self.answers.get("primary_group", None)
