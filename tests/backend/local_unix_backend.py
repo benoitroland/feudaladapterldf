@@ -25,7 +25,6 @@ INPUT_UNIX = {
 def test_create(local_unix_user, input):
     """Test that create method adds the appropriate entry in /etc/passwd.
     """
-    (Path(input["new_root"])/"etc"/"group").write_text(input["group_entry"])
     local_unix_user.create()
     assert input["passwd_entry"] in (Path(input["new_root"])/"etc"/"passwd").read_text()
 
@@ -35,7 +34,6 @@ def test_create_taken(local_unix_user, input):
     """Test that create raises a Failure if the username is already taken.
     User's primary group needs to exist.
     """
-    (Path(input["new_root"])/"etc"/"group").write_text(input["group_entry"])
     with pytest.raises(Failure):
         local_unix_user.create()
 
@@ -124,6 +122,40 @@ def test_delete_doesnt_exist(local_unix_user, input, taken):
     assert input["userinfo"]["unique_id"] not in passwd_content
     if taken:
         assert input["userinfo"]["username"] in passwd_content
+
+
+INPUT_UNIX_GROUP = {
+    "new_root": f"/tmp/newroot{random.randint(1000, 9999)}",
+    "name": "testgroup",
+    "group_entry": "testgroup:x:1000:",
+}
+
+
+@pytest.mark.parametrize('input,exists', [(INPUT_UNIX_GROUP, False)])
+def test_group_create(local_unix_group, input):
+    """Test that create method adds the appropriate entry in /etc/group.
+    """
+    local_unix_group.create()
+    assert input["group_entry"] in (Path(input["new_root"])/"etc"/"group").read_text()
+
+
+@pytest.mark.parametrize('input,exists', [(INPUT_UNIX_GROUP, True)])
+def test_group_create_exists(local_unix_group):
+    """Test that create raises a Failure if the group exists.
+    """
+    with pytest.raises(Failure):
+        local_unix_group.create()
+
+
+@pytest.mark.parametrize('input,exists', [
+        (INPUT_UNIX_GROUP, False),
+        (INPUT_UNIX_GROUP, True)
+    ])
+def test_group_exist(local_unix_group, exists):
+    """Tests that exists returns True if there is an entry for the given name,
+    and False otherwise.
+    """
+    assert local_unix_group.exists() == exists
 
 
 

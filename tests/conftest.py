@@ -41,7 +41,7 @@ def local_unix_user(input, exists, taken, monkeypatch):
 
     def mock_subprocess_run(*args, **kwargs):
         """patches calls to system utilities:
-        - only for: useradd, userdel, usermod, chage, groupadd
+        - only for: useradd, userdel, usermod, chage
         - add sudo command for chroot option
         - add prefix argument to command
         - patch pkill to do nothing
@@ -49,7 +49,7 @@ def local_unix_user(input, exists, taken, monkeypatch):
         """
         logger.debug(args)
         command = args[0]
-        if command[0] in ["useradd", "userdel", "usermod", "chage", "groupadd"]:
+        if command[0] in ["useradd", "userdel", "usermod", "chage"]:
             new_command = ["sudo", command[0], "--prefix", mock_root()] + command[1:]
         elif command[0] == "/usr/bin/pkill":
             return None
@@ -83,12 +83,12 @@ def local_unix_user(input, exists, taken, monkeypatch):
     (Path(mock_root())/"etc"/"passwd").touch()
     (Path(mock_root())/"etc"/"group").touch()
     (Path(mock_root())/"etc"/"shadow").touch()
-    (Path(mock_root())/"etc"/"passwd").write_text("root:x:0:0::/root:/bin/bash\n")
 
     if exists:
         (Path(mock_root())/"etc"/"passwd").write_text(input["passwd_entry"])
     elif taken:
         (Path(mock_root())/"etc"/"passwd").write_text(input["passwd_taken"])
+    (Path(mock_root())/"etc"/"group").write_text(input["group_entry"])
 
 
     # init service user from unix backend
@@ -98,6 +98,57 @@ def local_unix_user(input, exists, taken, monkeypatch):
 
     # clean up files
     old_subprocess_run(['sudo', 'rm', '-rf', mock_root()])
+
+
+@pytest.fixture(scope="function")
+def local_unix_group(input, exists, monkeypatch):
+    """Creates a backend user from provided dict data.
+    input should contain:
+        - name: the group name (no constraints on allowed names)
+        - new_root: the folder relative to which the user and group dbs will be stored
+    If exists=True, also adds an entry to the group database in /etc/group
+    """
+    # save original subprocess.run for calling inside the mocked one
+    old_subprocess_run = subprocess.run
+
+    def mock_root():
+        return input["new_root"]
+
+    def mock_subprocess_run(*args, **kwargs):
+        """patches calls to system utilities:
+        - only for: groupadd
+        - add sudo command for chroot option
+        - add prefix argument to command
+        - lett all other system calls go through
+        """
+        logger.debug(args)
+        command = args[0]
+        if command[0] in ["groupadd"]:
+            new_command = ["sudo", command[0], "--prefix", mock_root()] + command[1:]
+        else:
+            new_command = command
+        return old_subprocess_run(new_command, *args[1:], **kwargs)
+
+    monkeypatch.setitem(CONFIG['ldf_adapter'], "backend", "local_unix")
+    monkeypatch.setattr("subprocess.run", mock_subprocess_run)
+    backend.Group.ROOT = mock_root
+
+    # init root and necessary files in new root directory (/etc/{passwd,group,shadow})
+    os.mkdir(mock_root())
+    os.mkdir(Path(mock_root())/"etc")
+    (Path(mock_root())/"etc"/"group").touch()
+
+    if exists:
+        (Path(mock_root())/"etc"/"group").write_text(input["group_entry"])
+
+    # init service user from unix backend
+    service_group = backend.Group(input["name"])
+
+    yield service_group
+
+    # clean up files
+    old_subprocess_run(['sudo', 'rm', '-rf', mock_root()])
+
 
 
 class MockBackendUserDB():
