@@ -276,6 +276,9 @@ class User:
             logger.error(e)
             raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
         else:
+            # for empty file return empty dict
+            if raw.strip() == "":
+                return {}
             users = [dict(zip(PASSWD_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
 
             # import json
@@ -336,6 +339,9 @@ class Group:
             logger.error(e)
             raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
         else:
+            # for empty file return empty dict
+            if raw.strip() == "":
+                return {}
             users = [dict(zip(GROUP_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
 
             for user in users:
