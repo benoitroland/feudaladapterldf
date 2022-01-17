@@ -46,7 +46,7 @@ class Mode(Enum):
             msg = f"Unknown mode '{label}'. Supported modes: "\
                   f"{[name for name, member in Mode.__members__.items()]}."
             logger.error(msg)
-            raise Failure(msg)
+            raise Failure(message=msg)
 
 
 class LdapConnection:
@@ -96,7 +96,7 @@ class LdapConnection:
         except Exception as e:
             msg = f"Could not connect to server ldap://{host}:{port}/"
             logger.error(f"{msg}: {e}")
-            raise Failure(msg)
+            raise Failure(message=msg)
 
     def search_user_by_oidc_uid(self, oidc_uid):
         try:
@@ -125,10 +125,10 @@ class LdapConnection:
             return self.connection.search(
                 f"{self.group_base}",
                 f"(&(cn={group_name})(objectClass=posixGroup))",
-                # attributes=["memberUid", "gidNumber"]
+                attributes=["memberUid", "gidNumber"]
             )
         except Exception as e:
-            logger.warning(f"Error searching for group {group_name}, assuming not found:{e}")
+            logger.warning(f"Error searching for group {group_name}, assuming not found: {e}")
             return False
 
     def get_username_by_id(self, oidc_uid):
@@ -137,7 +137,7 @@ class LdapConnection:
                 entry = self.connection.entries[0]
                 return entry[self.attr_local_uid].value
         except Exception as e:
-            logger.warning(f"Error retrieving entry for uid {oidc_uid}, assuming not found:{e}")
+            logger.warning(f"Error retrieving entry for uid {oidc_uid}, assuming not found: {e}")
         return None
 
     def get_id_by_username(self, name):
@@ -146,10 +146,59 @@ class LdapConnection:
                 entry = self.connection.entries[0]
                 return entry[self.attr_oidc_uid].value
         except Exception as e:
-            logger.warning(f"Error retrieving entry for local_username {name}, assuming not found:{e}")
+            logger.warning(f"Error retrieving entry for local_username {name}, assuming not found: {e}")
         return None
 
-    def add_user(self, userinfo, local_username):
+    def get_gid_by_name(self, name):
+        try:
+            if self.search_group(name):
+                return self.connection.entries[0]["gidNumber"].value
+        except Exception as e:
+            msg = f"Error retrieving entry for group {name}: {e}"
+            logger.error(msg)
+            raise Failure(message=msg)
+
+    def get_next_uid(self):
+        try:
+            if self.connection.search(
+                f"{self.user_base}",
+                "(&(cn=uidNext)(objectClass=uidNext))",
+                attributes=["uidNumber"]
+            ):
+                uid = self.connection.entries[0]["uidNumber"].value
+                # specify uid in MODIFY_DELETE operation to avoid race conditions
+                # the operation will fail if the value has been modified in the meantime
+                result = self.connection.modify(f"cn=uidNext,{self.user_base}", {
+                    "uidNumber": [(MODIFY_DELETE, [uid]), (MODIFY_ADD, [uid+1])]
+                })
+                return uid
+        except Exception as e:
+            logger.error(e)
+        msg = "Error retrieving next UID."
+        logger.error(msg)
+        raise Failure(message=msg)
+
+    def get_next_gid(self):
+        try:
+            if self.connection.search(
+                f"{self.group_base}",
+                "(&(cn=gidNext)(objectClass=gidNext))",
+                attributes=["gidNumber"]
+            ):
+                gid = self.connection.entries[0]["gidNumber"].value
+                # specify gid in MODIFY_DELETE operation to avoid race conditions
+                # the operation will fail if the value has been modified in the meantime
+                result = self.connection.modify(f"cn=gidNext,{self.group_base}", {
+                    "gidNumber": [(MODIFY_DELETE, [gid]), (MODIFY_ADD, [gid+1])]
+                })
+                return gid
+        except Exception as e:
+            logger.error(e)
+        msg = "Error retrieving next GID."
+        logger.error(msg)
+        raise Failure(message=msg)
+
+    def add_user(self, userinfo, local_username, primary_group_name):
         """Add an LDAP entry for `local_username` with
         all information from `userinfo`.
         If user exists, a Failure exception is raised.
@@ -164,8 +213,8 @@ class LdapConnection:
                     "cn": userinfo.full_name,
                     "mail": userinfo.email,
                     "uid": local_username,
-                    "uidNumber": 10000,    # TODO: configure uid range and manage nextUid in LDAP
-                    "gidNumber": 10000,
+                    "uidNumber": self.get_next_uid(),
+                    "gidNumber": self.get_gid_by_name(primary_group_name),
                     "homeDirectory": f"{self.home_base}/{local_username}",
                     "loginShell": self.shell,
                     self.attr_local_uid: local_username,
@@ -174,7 +223,7 @@ class LdapConnection:
         except Exception as e:
             msg = f"Failed to add an LDAP entry for uid {userinfo.unique_id} with local username {local_username}."
             logger.error(f"{msg}: {e}")
-            raise Failure(msg)
+            raise Failure(message=msg)
 
     def map_user(self, userinfo, local_username):
         """Update the LDAP entry for given `local_username` with
@@ -190,7 +239,7 @@ class LdapConnection:
         except Exception as e:
             msg = f"Failed to modify the LDAP entry for uid {userinfo.unique_id} with local username {local_username}."
             logger.error(f"{msg}: {e}")
-            raise Failure(msg)
+            raise Failure(message=msg)
 
     def update_user(self, userinfo, local_username):
         """Update the LDAP entry for given `local_username` with
@@ -214,7 +263,7 @@ class LdapConnection:
         except Exception as e:
             msg = f"Failed to modify the LDAP entry for uid {userinfo.unique_id} with local username {local_username}."
             logger.error(f"{msg}: {e}")
-            raise Failure(msg)
+            raise Failure(message=msg)
 
     def delete_user(self, local_username):
         """Delete the LDAP entry for given `local_username`.
@@ -225,7 +274,7 @@ class LdapConnection:
         except Exception as e:
             msg = f"Failed to delete the LDAP entry for local username {local_username}."
             logger.error(f"{msg}: {e}")
-            raise Failure(msg)
+            raise Failure(message=msg)
 
     def add_user_to_group(self, local_username, group_name):
         """Add a user to group.
@@ -241,7 +290,24 @@ class LdapConnection:
         except Exception as e:
             msg = f"Failed to modify the LDAP entry for group {group_name} with local username {local_username}."
             logger.error(f"{msg}: {e}")
-            raise Failure(msg)
+            raise Failure(message=msg)
+
+    def add_group(self, group_name):
+        """Add an LDAP entry for `group_name`.
+        If group exists, a warning is issued.
+        """
+        try:
+            return self.connection.add(
+                f"cn={group_name},{self.group_base}",
+                object_class=["top", "posixGroup"],
+                attributes={
+                    "cn": group_name,
+                    "gidNumber": self.get_next_gid(),
+                })
+        except Exception as e:
+            msg = f"Failed to add an LDAP entry for group {group_name}."
+            logger.error(f"{msg}: {e}")
+            raise Failure(message=msg)
 
     @staticmethod
     def load():
@@ -286,8 +352,9 @@ class User:
         self.unique_id = userinfo.unique_id
         logger.debug(F"backend processing: {userinfo.unique_id}")
         if self.exists():
-            logger.debug(F"This user does actually exist. The name is: {self.get_username()}")
-            self.set_username(self.get_username())
+            username = self.get_username()
+            logger.debug(F"This user does actually exist. The name is: {username}")
+            self.set_username(username)
         else:
             self.set_username(userinfo.username)
 
@@ -342,10 +409,7 @@ class User:
             else:
                 LDAP.map_user(self.userinfo, self.name)
         else:  # Mode.FULL_ACCESS
-            msg = "LDAP mode 'full_access' not yet implemented."
-            logger.error(msg)
-            raise Failure(message=msg)
-            # LDAP.add_user(self.userinfo, self.name)
+            LDAP.add_user(self.userinfo, self.name, self.primary_group.name)
 
     def update(self):
         """Update all relevant information about the user on the service.
@@ -366,10 +430,7 @@ class User:
                   f"cannot be modified."
             logger.warning(msg)
         else:  # Mode.FULL_ACCESS
-            msg = "LDAP mode 'full_access' not yet implemented."
-            logger.error(msg)
-            raise Failure(message=msg)
-            # LDAP.update_user(self.userinfo, self.name)
+            LDAP.update_user(self.userinfo, self.name)
 
     def delete(self):
         """Delete the user on the service.
@@ -385,10 +446,7 @@ class User:
             logger.error(msg)
             raise Failure(message=msg)
         else:  # Mode.FULL_ACCESS
-            msg = "LDAP mode 'full_access' not yet implemented."
-            logger.error(msg)
-            raise Failure(message=msg)
-            # LDAP.delete_user(self.name)
+            LDAP.delete_user(self.name)
 
     def mod(self, supplementary_groups=None):
         """Modify the user on the service.
@@ -413,11 +471,8 @@ class User:
                 for group in supplementary_groups:
                     LDAP.add_user_to_group(self.name, group.name)
             else:  # Mode.FULL_ACCESS
-                msg = "LDAP mode 'full_access' not yet implemented."
-                logger.error(msg)
-                raise Failure(message=msg)
-                # for group in supplementary_groups:
-                #     LDAP.add_user_to_group()
+                for group in supplementary_groups:
+                    LDAP.add_user_to_group(self.name, group.name)
     def install_ssh_keys(self):
         """Install users SSH keys on the service.
 
@@ -449,28 +504,25 @@ class Group:
         self.name = name
     def exists(self):
         """Return whether the group already exists."""
-        logger.info(F"Check if group exists: {self.name}")
+        logger.debug(F"Check if group exists: {self.name}")
         if LDAP.search_group(self.name):
-            logger.info(f"Group {self.name} exists.")
+            logger.debug(f"Group {self.name} exists.")
             return True
         else:
-            logger.info(f"Group {self.name} doesn't exist.")
+            logger.debug(f"Group {self.name} doesn't exist.")
             return False
     def create(self):
         """Create the group on the service.
 
-        If the group already exists, behaviour is undefined.
+        If the group already exists, nothing happens.
         """
-        if LDAP.mode == Mode.READ_ONLY:
-            if self.exists():
-                logger.info(f"Group {self.name} exists.")
-            else:
-                msg = f"LDAP backend in read_only mode, new entry cannot be added for group {self.name}."
-                logger.warning(msg)
+        if self.exists():
+            logger.info(f"Group {self.name} exists.")
+        elif LDAP.mode == Mode.READ_ONLY:
+            msg = f"LDAP backend in read_only mode, new entry cannot be added for group {self.name}."
+            logger.warning(msg)
         elif LDAP.mode == Mode.PRE_CREATED:
             msg = f"LDAP backend in pre_created mode, new entry cannot be added for group {self.name}."
             logger.warning(msg)
         else:  # Mode.FULL_ACCESS
-            msg = "LDAP mode 'full_access' not yet implemented."
-            logger.error(msg)
-            raise Failure(message=msg)
+            LDAP.add_group(self.name)
