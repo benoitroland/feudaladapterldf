@@ -59,6 +59,9 @@ def setup_logging():
     if not os.path.isdir(os.path.dirname(logfile)):
         try:
             os.mkdir(dirname, 755)
+        except FileExistsError as e:
+            # ignore this error
+            print(F"Warning file exists: {e}")
         except IOError as e:
             print(F"Error creating dir for logfile: {e}")
             raise
