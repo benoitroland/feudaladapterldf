@@ -27,6 +27,11 @@ DEFAULT_ATTR_OIDC_UID = "gecos"
 DEFAULT_ATTR_LOCAL_UID = "uid"
 DEFAULT_SHELL="/bin/sh"
 DEFAULT_HOME_BASE="/home"
+DEFAULT_UID_MIN = 1000
+DEFAULT_UID_MAX = 60000
+DEFAULT_GID_MIN = 1000
+DEFAULT_GID_MAX = 60000
+
 
 class Mode(Enum):
     READ_ONLY = auto()
@@ -50,9 +55,14 @@ class Mode(Enum):
 
 class LdapSearchResult:
     def __init__(self, ldap_connection, args, kwargs):
-        """Perform a search with given arguments.
-        Initialise fields from the return value of the search (SAFE_SYNC),
-        where the return value is a tuple (status, result, response, request)
+        """Perform a search with given arguments and create LdapSearchResult object.
+
+        Initialise fields from the return value of search (connection in SAFE_SYNC mode),
+        where the return value is a tuple (status, result, response, request).
+
+        @param ldap_connection: an active ldap3.Connection object
+        @param args: list of arguments for ldap3.Connection.search method
+        @param kwargs: dictionary of key-value arguments for ldap3.Connection.search method
         """
         try:
             search_result = ldap_connection.search(*args, **kwargs)
@@ -61,11 +71,9 @@ class LdapSearchResult:
             self.response = search_result[2]
             self.request = search_result[3]
         except Exception as e:
-            logger.warning(f"Error searching in LDAP, assuming not found: {e}")
-            self.status = False
-            self.result = {}
-            self.response = []
-            self.request = None
+            msg = "Error searching in LDAP"
+            logger.error(f"{msg}: {e}")
+            raise Failure(message=msg)
 
     def found(self):
         return self.status
@@ -96,7 +104,11 @@ class LdapConnection:
                  attr_oidc_uid=DEFAULT_ATTR_OIDC_UID,
                  attr_local_uid=DEFAULT_ATTR_LOCAL_UID,
                  shell=DEFAULT_SHELL,
-                 home_base=DEFAULT_HOME_BASE):
+                 home_base=DEFAULT_HOME_BASE,
+                 uid_min=DEFAULT_UID_MIN,
+                 uid_max=DEFAULT_UID_MAX,
+                 gid_min=DEFAULT_GID_MIN,
+                 gid_max=DEFAULT_GID_MAX):
         """Initialise connection to LDAP server.
 
         :param str host: host where LDAP server is running, default localhost
@@ -119,7 +131,12 @@ class LdapConnection:
         self.attr_local_uid = attr_local_uid
         self.shell = shell
         self.home_base = home_base
+        self.uid_min = uid_min
+        self.uid_max = uid_max
+        self.gid_min = gid_min
+        self.gid_max = gid_max
 
+        # initialise and bind connection to LDAP
         try:
             server = Server(f"ldap://{host}:{port}", get_info=ALL)
             if admin_user and admin_password:
@@ -130,6 +147,41 @@ class LdapConnection:
                 self.connection = Connection(server, auto_bind=True, client_strategy=SAFE_SYNC)
         except Exception as e:
             msg = f"Could not connect to server ldap://{host}:{port}/"
+            logger.error(f"{msg}: {e}")
+            raise Failure(message=msg)
+
+    def init_nextuidgid(self):
+        """Initialise uidNext and gidNext entries in FULL_ACCESS mode
+        with values starting in configured range.
+        """
+        try:
+            if self.mode == Mode.FULL_ACCESS:
+                logger.info(">>>>>> INITIALIZING!!")
+                search_uid = self.search_next_uid()
+                if not search_uid.found():
+                    self.connection.add(
+                        f"cn=uidNext,{self.user_base}",
+                        object_class=["uidNext"],
+                        attributes={
+                            "cn": "uidNext",
+                            "uidNumber": self.uid_min
+                    })
+                else:
+                    logger.info("Using existing uidNext value.")
+
+                search_gid = self.search_next_gid()
+                if not search_gid.found():
+                    self.connection.add(
+                        f"cn=gidNext,{self.group_base}",
+                        object_class=["gidNext"],
+                        attributes={
+                            "cn": "gidNext",
+                            "gidNumber": self.gid_min
+                    })
+                else:
+                    logger.info("Using existing gidNext value.")
+        except Exception as e:
+            msg = "Error adding entries in LDAP for tracking available UID and GID values"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -163,16 +215,29 @@ class LdapConnection:
             }
         )
 
+    def search_next_uid(self):
+        return LdapSearchResult(
+            self.connection, [
+                f"{self.user_base}",
+                "(&(cn=uidNext)(objectClass=uidNext))",
+            ], {
+                "attributes": ["uidNumber"]
+            }
+        )
+    
+    def search_next_gid(self):
+        return LdapSearchResult(
+            self.connection, [
+                f"{self.group_base}",
+                "(&(cn=gidNext)(objectClass=gidNext))",
+            ], {
+                "attributes": ["gidNumber"]
+            }
+        )
+
     def get_next_uid(self):
         try:
-            search_result = LdapSearchResult(
-                self.connection, [
-                    f"{self.user_base}",
-                    "(&(cn=uidNext)(objectClass=uidNext))",
-                ], {
-                    "attributes": ["uidNumber"]
-                }
-            )
+            search_result = self.search_next_uid()
             if search_result.found():
                 uid = search_result.get_attribute("uidNumber")
                 # specify uid in MODIFY_DELETE operation to avoid race conditions
@@ -189,14 +254,7 @@ class LdapConnection:
 
     def get_next_gid(self):
         try:
-            search_result = LdapSearchResult(
-                self.connection, [
-                    f"{self.group_base}",
-                    "(&(cn=gidNext)(objectClass=gidNext))",
-                ], {
-                    "attributes": ["gidNumber"]
-                }
-            )
+            search_result = self.search_next_gid()
             if search_result.found():
                 gid = search_result.get_attribute("gidNumber")
                 # specify gid in MODIFY_DELETE operation to avoid race conditions
@@ -298,8 +356,7 @@ class LdapConnection:
                 f"cn={group_name},{self.group_base}",
                 {
                     "memberUid": [(MODIFY_ADD, [local_username])],
-                }
-            )
+                })
         except Exception as e:
             msg = f"Failed to modify the LDAP entry for group {group_name} with local username {local_username}."
             logger.error(f"{msg}: {e}")
@@ -339,15 +396,24 @@ class LdapConnection:
             group_base = config.get("group_base", DEFAULT_GROUP_BASE)
             attr_oidc_uid = config.get("attribute_oidc_uid", DEFAULT_ATTR_OIDC_UID)
             attr_local_uid = config.get("attribute_local_uid", DEFAULT_ATTR_LOCAL_UID)
+
+            # only needed in FULL_ACCESS mode
             shell = config.get("shell", DEFAULT_SHELL)
             home_base = config.get("home_base", DEFAULT_HOME_BASE).rstrip("/")
+            uid_min = config.getint("uid_min", DEFAULT_UID_MIN)
+            uid_max = config.getint("uid_max", DEFAULT_UID_MAX)
+            gid_min = config.getint("gid_min", DEFAULT_GID_MIN)
+            gid_max = config.getint("gid_max", DEFAULT_GID_MAX)
 
-            return LdapConnection(mode, host, port, tls, admin_user, admin_password,
-                                  user_base, group_base, attr_oidc_uid,
-                                  attr_local_uid, shell, home_base)
+            ldap = LdapConnection(mode, host, port, tls, admin_user, admin_password,
+                                  user_base, group_base, attr_oidc_uid, attr_local_uid,
+                                  shell, home_base, uid_min, uid_max, gid_min, gid_max)
         except Exception:
-            logger.warning("Could not find [backend.ldap] section in feudalt config, using defaults...")
-            return LdapConnection()
+            logger.warning("Could not find [backend.ldap] section in feudal config, using defaults...")
+            ldap = LdapConnection()
+        # init uidNext and gidNext entries in LDAP
+        ldap.init_nextuidgid()
+        return ldap
 
 
 LDAP = LdapConnection.load()
