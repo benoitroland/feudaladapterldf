@@ -235,17 +235,37 @@ class LdapConnection:
             }
         )
 
+    def is_uid_taken(self, uid):
+        return LdapSearchResult(
+            self.connection, [
+                f"{self.user_base}",
+                f"(&(uidNumber={uid})(objectClass=posixAccount))",
+            ], {}).found()
+
+    def is_gid_taken(self, gid):
+        return LdapSearchResult(
+            self.connection, [
+                f"{self.group_base}",
+                f"(&(gidNumber={gid})(objectClass=posixGroup))",
+            ], {}).found()
+
     def get_next_uid(self):
         try:
             search_result = self.search_next_uid()
             if search_result.found():
                 uid = search_result.get_attribute("uidNumber")
+
+                # make sure uid is not taken already
+                next_uid = uid
+                while self.is_uid_taken(next_uid):
+                    next_uid += 1
+
                 # specify uid in MODIFY_DELETE operation to avoid race conditions
                 # the operation will fail if the value has been modified in the meantime
                 result = self.connection.modify(f"cn=uidNext,{self.user_base}", {
-                    "uidNumber": [(MODIFY_DELETE, [uid]), (MODIFY_ADD, [uid+1])]
+                    "uidNumber": [(MODIFY_DELETE, [uid]), (MODIFY_ADD, [next_uid+1])]
                 })
-                return uid
+                return next_uid
         except Exception as e:
             logger.error(e)
         msg = "Error retrieving next UID."
@@ -257,12 +277,18 @@ class LdapConnection:
             search_result = self.search_next_gid()
             if search_result.found():
                 gid = search_result.get_attribute("gidNumber")
+
+                # make sure gid is not taken already
+                next_gid = gid
+                while self.is_gid_taken(next_gid):
+                    next_gid += 1
+
                 # specify gid in MODIFY_DELETE operation to avoid race conditions
                 # the operation will fail if the value has been modified in the meantime
                 result = self.connection.modify(f"cn=gidNext,{self.group_base}", {
-                    "gidNumber": [(MODIFY_DELETE, [gid]), (MODIFY_ADD, [gid+1])]
+                    "gidNumber": [(MODIFY_DELETE, [gid]), (MODIFY_ADD, [next_gid+1])]
                 })
-                return gid
+                return next_gid
         except Exception as e:
             logger.error(e)
         msg = "Error retrieving next GID."
