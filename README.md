@@ -105,17 +105,21 @@ its own sections therein.
 [ldf_adapter]
 backend = my_backend
 
-[ldf_adapter.my_backend]
+[backend.my_backend]
 foo = bar
 # Configuration for your backend goes here
 
-[ldf_adapter.my_backend.login_info]
+[backend.my_backend.login_info]
 login_host = example.org
 login_help = To login, ask your mama for help.
 # Here goes a bunch of arbitrary static information to be included in the credentials section
 # in the feudalClient webinterface
 ```
 
+Supported backends:
+- local UNIX
+- [LDAP](LDAP.md)
+- bwIDM
 
 # Unit Tests
 There are unit tests, located under [tests](tests) (The package structure in `tests` corresponds to
