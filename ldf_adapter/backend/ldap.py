@@ -13,26 +13,6 @@ from ..results import Failure, Rejection
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODE = "read_only"
-DEFAULT_HOST = "localhost"
-DEFAULT_PORT = 1389
-DEFAULT_TLS_PORT = 636
-DEFAULT_ANONYMOUS = True
-DEFAULT_ADMIN_USER = None
-DEFAULT_ADMIN_PASSWORD = None
-DEFAULT_TLS = False
-DEFAULT_USER_BASE = "ou=users,dc=example"
-DEFAULT_GROUP_BASE = "ou=groups,dc=example"
-DEFAULT_ATTR_OIDC_UID = "gecos"
-DEFAULT_ATTR_LOCAL_UID = "uid"
-DEFAULT_SHELL="/bin/sh"
-DEFAULT_HOME_BASE="/home"
-DEFAULT_UID_MIN = 1000
-DEFAULT_UID_MAX = 60000
-DEFAULT_GID_MIN = 1000
-DEFAULT_GID_MAX = 60000
-
-
 class Mode(Enum):
     READ_ONLY = auto()
     PRE_CREATED = auto()
@@ -52,6 +32,27 @@ class Mode(Enum):
                   f"{[name for name, member in Mode.__members__.items()]}."
             logger.error(msg)
             raise Failure(message=msg)
+
+
+DEFAULT_MODE = Mode.READ_ONLY
+DEFAULT_HOST = "localhost"
+DEFAULT_PORT = 1389
+DEFAULT_TLS_PORT = 636
+DEFAULT_ANONYMOUS = True
+DEFAULT_ADMIN_USER = None
+DEFAULT_ADMIN_PASSWORD = None
+DEFAULT_TLS = False
+DEFAULT_USER_BASE = "ou=users,dc=example"
+DEFAULT_GROUP_BASE = "ou=groups,dc=example"
+DEFAULT_ATTR_OIDC_UID = "gecos"
+DEFAULT_ATTR_LOCAL_UID = "uid"
+DEFAULT_SHELL="/bin/sh"
+DEFAULT_HOME_BASE="/home"
+DEFAULT_UID_MIN = 1000
+DEFAULT_UID_MAX = 60000
+DEFAULT_GID_MIN = 1000
+DEFAULT_GID_MAX = 60000
+
 
 class LdapSearchResult:
     def __init__(self, ldap_connection, args, kwargs):
@@ -124,7 +125,7 @@ class LdapConnection:
         :param str home_base: base directory for users' home directories
                          local username will be appended to this to create homedir
         """
-        self.mode = Mode.from_str(mode)
+        self.mode = mode
         self.user_base = user_base
         self.group_base = group_base
         self.attr_oidc_uid = attr_oidc_uid
@@ -404,13 +405,13 @@ class LdapConnection:
     def load():
         try:
             config = CONFIG["backend.ldap"]
-            mode = config.get("mode", DEFAULT_MODE)
+            mode = Mode.from_str(config.get("mode", DEFAULT_MODE))
             host = config.get("host", DEFAULT_HOST)
             tls = config.get("tls", DEFAULT_TLS)
             if tls:
-                port = config.get("port", DEFAULT_TLS_PORT)
+                port = config.getint("port", DEFAULT_TLS_PORT)
             else:
-                port = config.get("port", DEFAULT_PORT)
+                port = config.getint("port", DEFAULT_PORT)
             admin_user = config.get("admin_user", DEFAULT_ADMIN_USER)
             admin_password = config.get("admin_password", DEFAULT_ADMIN_PASSWORD)
             user_base = config.get("user_base", DEFAULT_USER_BASE)
@@ -429,7 +430,7 @@ class LdapConnection:
             ldap = LdapConnection(mode, host, port, tls, admin_user, admin_password,
                                   user_base, group_base, attr_oidc_uid, attr_local_uid,
                                   shell, home_base, uid_min, uid_max, gid_min, gid_max)
-        except Exception:
+        except KeyError:
             logger.warning("Could not find [backend.ldap] section in feudal config, using defaults...")
             ldap = LdapConnection()
         # init uidNext and gidNext entries in LDAP
