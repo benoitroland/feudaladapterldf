@@ -17,7 +17,7 @@ from . import logsetup
 from . import backend
 from .config import CONFIG
 from .results import Deployed, NotDeployed, Rejection, Failure, Question, raise_question, Status
-from .name_generators import FriendlyNameGenerator, PooledNameGenerator
+from .name_generators import FriendlyNameGenerator, PooledNameGenerator, NameGenerator
 from .userinfo import UserInfo
 
 logger = logging.getLogger(__name__)
@@ -396,13 +396,14 @@ class User:
 
         Return True, if the user didn't exist before.
         """
-        logger.debug(F'Ensuring user {self.data.unique_id} exits')
+        logger.debug(F'Ensuring a local user mapping for {self.data.unique_id} exits')
 
         is_new_user = not self.service_user.exists()
 
         if is_new_user:
             unique_id= self.data.unique_id
             username = self.data.username
+            primary_group_name = None
 
             # Raise question in case of existing username in case we're interactive
             if CONFIG.getboolean('ldf_adapter', 'interactive', fallback=False): # interactive
@@ -414,36 +415,31 @@ class User:
                         text=F'Username "{username}" already taken on this service. Please enter another one.'
                     )
 
-            else: # non-interactive
+            else:  # non-interactive
                 logger.debug("noninteractive mode")
-                username_mode = CONFIG.get('username_generator','mode', fallback='friendly')
+                username_mode = CONFIG.get('username_generator', 'mode', fallback='friendly')
                 logger.debug(F"username_mode: {username_mode}")
                 primary_group_name = self.data.primary_group
-                # set reasonable defaults:
-                proposed_name = None
+                pool_prefix = CONFIG.get('username_generator', 'pool_prefix',
+                                         fallback=primary_group_name)
 
-                if username_mode == 'friendly':
-                    try:
-                        logger.info(F"Trying username: {username}")
-                    except AttributeError:
-                        pass
-                    name_generator = FriendlyNameGenerator(self.data)
-                    # Propose an initial name
-                    proposed_name = username if username is not None else name_generator.suggest_name()
-
-                elif username_mode == 'pooled':
-                    name_generator = PooledNameGenerator(pool_prefix = primary_group_name)
-                    # Propose an initial name
-                    proposed_name = name_generator.suggest_name()
+                name_generator = NameGenerator(username_mode,
+                                               userinfo=self.data,
+                                               pool_prefix=pool_prefix)
+                proposed_name = name_generator.suggest_name()
+                logger.debug(F"initially proposed_name: {proposed_name}")
 
                 while self.service_user.name_taken(proposed_name):
                     proposed_name = name_generator.suggest_name()
                 if proposed_name is None:
-                    raise Rejection(message=F"I cannot create usernames. "
-                                    F"The list of tried ones is: {', '.join(name_generator.tried_names())}.")
+                    raise Rejection(
+                        message=f"I cannot create usernames. "
+                        f"The list of tried ones is: {', '.join(name_generator.tried_names())}."
+                    )
                 self.service_user.set_username(proposed_name)
 
-                logger.info(F"Creating user '{proposed_name}' for {unique_id}")
+                logger.info(F"Chose username '{proposed_name}' for {unique_id}")
+
             # Sanity check to ensure user has a primary group:
             if primary_group_name is None:
                 config_file_name = globalconfig.info['config_files_read']
