@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name, superfluous-parens
-# pylint: disable=mixed-indentation, wrong-import-order
+# pylint: disable=wrong-import-order
 # pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation
 # pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
 import os

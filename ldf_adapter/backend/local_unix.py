@@ -266,6 +266,7 @@ class User:
     def __passwd_entry(self):
         return User.__all_passwd_entries('gecos').get(self.unique_id, {})
 
+    @staticmethod
     def __all_passwd_entries(ID_FIELD='gecos'):
         PASSWD_PATH = Path(User.ROOT())/'etc'/'passwd'
         PASSWD_FIELDS = ['login', 'pw', 'uid', 'gid', 'gecos', 'home', 'shell']
@@ -327,6 +328,7 @@ class Group:
     def __group_entry(self):
         return Group.__all_group_entries().get(self.name, {})
 
+    @staticmethod
     def __all_group_entries():
         GROUP_PATH = Path(Group.ROOT())/'etc'/'group'
         GROUP_FIELDS = ['name', 'password', 'gid', 'members']

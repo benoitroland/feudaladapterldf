@@ -166,7 +166,7 @@ class User:
             '''Safely convert a response to json'''
             if resp.status_code != 200:
                 logger.debug ('Error %d reading from remote: \n%s\n'% (resp.status_code, str(resp.text)))
-                s_exit(1) # or raise or return None?
+                os._exit(1) # or raise or return None?
             try:
                 resp_json = resp.json()
             except json.JSONDecodeError:

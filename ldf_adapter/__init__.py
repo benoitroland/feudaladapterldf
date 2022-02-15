@@ -7,7 +7,7 @@ name = 'ldf_adapter'
 import logging
 import sys
 from feudal_globalconfig import globalconfig
-from collections import Mapping
+from collections.abc import Mapping
 from functools import lru_cache
 from datetime import timedelta
 from itertools import chain
@@ -76,8 +76,8 @@ class User:
 
         # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
-        self.service_user = backend.User(self.data)
-        self.service_groups = [backend.Group(grp) for grp in self.data.groups]
+        self.service_user = backend.User(self.data)  # pylint: disable=maybe-no-member
+        self.service_groups = [backend.Group(grp) for grp in self.data.groups]  # pylint: disable=maybe-no-member
 
         if CONFIG.get('ldf_adapter', 'backend_supports_preferring_existing_user', fallback = False):
             logger.debug("trying to update user from existing")
@@ -977,7 +977,10 @@ class UserInfo(Mapping):
         return (k for k in dir(UserInfo) if type(getattr(UserInfo, k)) is property)
 
     def __len__(self):
-        sum(1 for _ in filter(lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo)))
+        try:
+            sum(1 for _ in filter(lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo)))
+        except Exception:
+            return 0
 
     def __hash__(self):
         return id(self) # Good enough for lru_cache
