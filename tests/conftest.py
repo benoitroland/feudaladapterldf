@@ -1,6 +1,5 @@
 import pytest
 import subprocess
-import inspect
 import os
 from pathlib import Path
 
@@ -42,7 +41,6 @@ def local_unix_user(input, exists, taken, monkeypatch):
     def mock_subprocess_run(*args, **kwargs):
         """patches calls to system utilities:
         - only for: useradd, userdel, usermod, chage
-        - add sudo command for chroot option
         - add prefix argument to command
         - patch pkill to do nothing
         - lett all other system calls go through
@@ -50,7 +48,7 @@ def local_unix_user(input, exists, taken, monkeypatch):
         logger.debug(args)
         command = args[0]
         if command[0] in ["useradd", "userdel", "usermod", "chage"]:
-            new_command = ["sudo", command[0], "--prefix", mock_root()] + command[1:]
+            new_command = [command[0], "--prefix", mock_root()] + command[1:]
         elif command[0] == "/usr/bin/pkill":
             return None
         else:
@@ -78,8 +76,8 @@ def local_unix_user(input, exists, taken, monkeypatch):
     backend.Group.ROOT = mock_root
 
     # init root and necessary files in new root directory (/etc/{passwd,group,shadow})
-    os.mkdir(mock_root())
-    os.mkdir(Path(mock_root())/"etc")
+    os.makedirs(mock_root())
+    os.makedirs(Path(mock_root())/"etc")
     (Path(mock_root())/"etc"/"passwd").touch()
     (Path(mock_root())/"etc"/"group").touch()
     (Path(mock_root())/"etc"/"shadow").touch()
@@ -97,7 +95,7 @@ def local_unix_user(input, exists, taken, monkeypatch):
     yield service_user
 
     # clean up files
-    old_subprocess_run(['sudo', 'rm', '-rf', mock_root()])
+    old_subprocess_run(['rm', '-rf', mock_root()])
 
 
 @pytest.fixture(scope="function")
@@ -117,14 +115,13 @@ def local_unix_group(input, exists, monkeypatch):
     def mock_subprocess_run(*args, **kwargs):
         """patches calls to system utilities:
         - only for: groupadd
-        - add sudo command for chroot option
         - add prefix argument to command
         - lett all other system calls go through
         """
         logger.debug(args)
         command = args[0]
         if command[0] in ["groupadd"]:
-            new_command = ["sudo", command[0], "--prefix", mock_root()] + command[1:]
+            new_command = [command[0], "--prefix", mock_root()] + command[1:]
         else:
             new_command = command
         return old_subprocess_run(new_command, *args[1:], **kwargs)
@@ -134,8 +131,8 @@ def local_unix_group(input, exists, monkeypatch):
     backend.Group.ROOT = mock_root
 
     # init root and necessary files in new root directory (/etc/{passwd,group,shadow})
-    os.mkdir(mock_root())
-    os.mkdir(Path(mock_root())/"etc")
+    os.makedirs(mock_root())
+    os.makedirs(Path(mock_root())/"etc")
     (Path(mock_root())/"etc"/"group").touch()
 
     if exists:
@@ -147,7 +144,7 @@ def local_unix_group(input, exists, monkeypatch):
     yield service_group
 
     # clean up files
-    old_subprocess_run(['sudo', 'rm', '-rf', mock_root()])
+    old_subprocess_run(['rm', '-rf', mock_root()])
 
 
 
