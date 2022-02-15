@@ -48,6 +48,7 @@ class FriendlyNameGenerator:
         self.userinfo = userinfo
 
     def suggest_name(self, suggestion=None, forbidden_names=None):
+        '''suggest a valid username'''
         # Copy forbidden names:
         for name in forbidden_names or []:
             if name.lower() not in self.dont_use_these_names:
@@ -63,20 +64,19 @@ class FriendlyNameGenerator:
                     .lower()
                     .replace("@", "-")
                 )
-            except KeyError as e:
+            except KeyError:
                 pass
                 continue
-            except AttributeError as e:
+            except AttributeError:
                 pass
                 continue
             except IndexError:
                 NL = "\n    "
-                logger.error(f"Ran out of strategies for generating a friendly username")
+                logger.error("Ran out of strategies for generating a friendly username")
                 logger.error(
                     f"The list of tried usernames is: \n {NL.join(self.dont_use_these_names)}"
                 )
                 raise
-                return None
 
             if candidate_name.lower() not in self.dont_use_these_names:
                 self.dont_use_these_names.append(candidate_name)
@@ -86,7 +86,6 @@ class FriendlyNameGenerator:
             else:
                 self.dont_use_these_names.append(candidate_name.lower())
 
-        return None
 
     def tried_names(self):
         return self.dont_use_these_names
@@ -105,6 +104,7 @@ class PooledNameGenerator:
             self.username_prefix = "pool"
 
     def suggest_name(self, **kwargs):
+        '''suggest a valid username'''
         self.index += 1
         candidate_name = f"{self.username_prefix}%0{self.digits}d" % self.index
         return candidate_name
