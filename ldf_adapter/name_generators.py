@@ -48,7 +48,7 @@ class FriendlyNameGenerator:
         self.userinfo = userinfo
 
     def suggest_name(self, suggestion=None, forbidden_names=None):
-        '''suggest a valid username'''
+        """suggest a valid username"""
         # Copy forbidden names:
         for name in forbidden_names or []:
             if name.lower() not in self.dont_use_these_names:
@@ -86,7 +86,6 @@ class FriendlyNameGenerator:
             else:
                 self.dont_use_these_names.append(candidate_name.lower())
 
-
     def tried_names(self):
         return self.dont_use_these_names
 
@@ -104,7 +103,7 @@ class PooledNameGenerator:
             self.username_prefix = "pool"
 
     def suggest_name(self, **kwargs):
-        '''suggest a valid username'''
+        """suggest a valid username"""
         self.index += 1
         candidate_name = f"{self.username_prefix}%0{self.digits}d" % self.index
         return candidate_name
