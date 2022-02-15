@@ -72,8 +72,8 @@ class User:
 
         # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
-        self.service_user = backend.User(self.data)
-        self.service_groups = [backend.Group(grp) for grp in self.data.groups]
+        self.service_user = backend.User(self.data)  # pylint: disable=maybe-no-member
+        self.service_groups = [backend.Group(grp) for grp in self.data.groups]  # pylint: disable=maybe-no-member
 
         if CONFIG.get('ldf_adapter', 'backend_supports_preferring_existing_user', fallback = False):
             logger.debug("trying to update user from existing")
