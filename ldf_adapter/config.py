@@ -73,7 +73,8 @@ def reload():
         Path('ldf_adapter.conf'),
         Path.home()/'.config'/'ldf_adapter.conf',
         Path.home()/'.config'/'feudal'/'ldf_adapter.conf',
-        Path('/etc/feudal/ldf_adapter.conf')
+        Path('/etc/feudal/ldf_adapter.conf'),
+        Path('ldf_adapter/tests/feudal_adapter_pytest.conf')
     ]
 
     config_loaded = False
