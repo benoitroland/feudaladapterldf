@@ -8,9 +8,31 @@ Generate useful user or group names
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
 import logging
+from typing import Union
 from .config import CONFIG
 
 logger = logging.getLogger(__name__)
+
+
+class NameGenerator:
+    """
+    Meta class that returns one of the actual classes, depending on preference
+    """
+
+    def __init__(self, generator_mode: str = "friendly", **kwargs):
+        if generator_mode == "friendly":
+            self.generator = FriendlyNameGenerator(kwargs["userinfo"])
+        else:
+            self.generator = PooledNameGenerator(kwargs["pool_prefix"])
+
+    def suggest_name(self, *args, **kwargs) -> str:
+        return self.generator.suggest_name(*args, **kwargs)
+
+    def tried_names(self) -> Union[list, None]:
+        try:
+            return self.generator.tried_names()
+        except AttributeError:
+            return None
 
 
 class FriendlyNameGenerator:
@@ -47,7 +69,7 @@ class FriendlyNameGenerator:
         """Generate a useful name"""
         self.userinfo = userinfo
 
-    def suggest_name(self, suggestion=None, forbidden_names=None):
+    def suggest_name(self, forbidden_names: list = None) -> str:
         """suggest a valid username"""
         # Copy forbidden names:
         for name in forbidden_names or []:
@@ -67,7 +89,8 @@ class FriendlyNameGenerator:
             except KeyError:
                 pass
                 continue
-            except AttributeError:
+            except AttributeError as e:
+                print(f"ATTRIBUTE ERROR: {e}")
                 pass
                 continue
             except IndexError:
@@ -86,7 +109,7 @@ class FriendlyNameGenerator:
             else:
                 self.dont_use_these_names.append(candidate_name.lower())
 
-    def tried_names(self):
+    def tried_names(self) -> list:
         return self.dont_use_these_names
 
 
@@ -97,12 +120,12 @@ class PooledNameGenerator:
     digits = CONFIG.getint("username_generator", "pool_digits", fallback=3)
     username_prefix = ""
 
-    def __init__(self, pool_prefix="pool"):
+    def __init__(self, pool_prefix: str = "pool"):
         self.username_prefix = CONFIG.get("username_generator", "pool_prefix", fallback=pool_prefix)
         if self.username_prefix is None:
             self.username_prefix = "pool"
 
-    def suggest_name(self, **kwargs):
+    def suggest_name(self, **kwargs) -> str:
         """suggest a valid username"""
         self.index += 1
         candidate_name = f"{self.username_prefix}%0{self.digits}d" % self.index
