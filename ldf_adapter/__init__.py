@@ -7,10 +7,6 @@ name = 'ldf_adapter'
 import logging
 import sys
 from feudal_globalconfig import globalconfig
-# from functools import lru_cache
-# from datetime import timedelta
-# from itertools import chain
-import urllib
 
 import regex
 # from unidecode import unidecode
