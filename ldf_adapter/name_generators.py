@@ -42,9 +42,6 @@ class FriendlyNameGenerator:
     Don't return the same name twice per run
     """
 
-    dont_use_these_names = []
-    dont_use_these_names.append("[]")
-    dont_use_these_names.append("none")
     strategies = [
         "{self.userinfo.preferred_username}",
         "{self.userinfo.given_name}",
@@ -69,6 +66,7 @@ class FriendlyNameGenerator:
     def __init__(self, userinfo):
         """Generate a useful name"""
         self.userinfo = userinfo
+        self.dont_use_these_names = []
 
     def suggest_name(self, forbidden_names: list = None) -> str:
         """suggest a valid username"""
@@ -88,11 +86,9 @@ class FriendlyNameGenerator:
                     .replace("@", "-")
                 )
             except KeyError:
-                pass
                 continue
             except AttributeError as e:
                 print(f"ATTRIBUTE ERROR: {e}")
-                pass
                 continue
             except IndexError:
                 NL = "\n    "
@@ -126,7 +122,7 @@ class PooledNameGenerator:
         if self.username_prefix is None:
             self.username_prefix = "pool"
 
-    def suggest_name(self, **kwargs) -> str:
+    def suggest_name(self) -> str:
         """suggest a valid username"""
         self.index += 1
         candidate_name = f"{self.username_prefix}%0{self.digits}d" % self.index
