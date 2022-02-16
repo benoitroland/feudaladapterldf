@@ -56,7 +56,7 @@ def setup_logging():
     loglevel = CONFIG.get('messages', 'log_level', fallback = loglevel_env)
     logger.setLevel(loglevel)
 
-    if not os.path.isdir(os.path.dirname(logfile)):
+    if not os.path.isdir(os.path.dirname(logfile)) and os.path.dirname(logfile) != '':
         try:
             os.mkdir(dirname, 755)
         except FileExistsError as e:

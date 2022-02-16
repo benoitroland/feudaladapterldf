@@ -45,6 +45,12 @@ class User:
         self.primary_group = Group(userinfo.primary_group)
         self.credentials = {}
 
+    @staticmethod
+    def ROOT():
+        """ROOT directory for user db
+        only used for testing purposes, defaults to '/' otherwise"""
+        return '/'
+
     def exists(self):
         """Check wheter a user (identified by the unique_id) exists"""
         # x = bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
@@ -145,6 +151,9 @@ class User:
             self.credentials['ssh_user'], self.credentials['ssh_host'])
 
     def delete(self):
+        if not self.exists():
+            raise Failure(message=F"Cannot delete user: no user found for {self.unique_id}.")
+
         name = self.__passwd_entry['login']
 
         try:
@@ -161,6 +170,9 @@ class User:
             raise Failure(message=F"Cannot delete user: {msg or '<no output>'}")
 
     def mod(self, supplementary_groups=None):
+        """Adds user to given groups.
+        param list supplementary_groups: a list of Group objects; the corresponding unix groups are assumed to exist.
+        """
         options = []
         if supplementary_groups is not None:
             logger.debug("Ensuring user '{}' is member of these groups {}".format(self.name, [g.name for g in supplementary_groups]))
@@ -254,8 +266,9 @@ class User:
     def __passwd_entry(self):
         return User.__all_passwd_entries('gecos').get(self.unique_id, {})
 
+    @staticmethod
     def __all_passwd_entries(ID_FIELD='gecos'):
-        PASSWD_PATH = Path('/')/'etc'/'passwd'
+        PASSWD_PATH = Path(User.ROOT())/'etc'/'passwd'
         PASSWD_FIELDS = ['login', 'pw', 'uid', 'gid', 'gecos', 'home', 'shell']
 
         try:
@@ -264,6 +277,9 @@ class User:
             logger.error(e)
             raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
         else:
+            # for empty file return empty dict
+            if raw.strip() == "":
+                return {}
             users = [dict(zip(PASSWD_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
 
             # import json
@@ -277,6 +293,12 @@ class User:
 class Group:
     def __init__(self, name):
         self.name = make_shadow_compatible(name)
+
+    @staticmethod
+    def ROOT():
+        """ROOT directory for user db
+        only used for testing purposes, defaults to '/' otherwise"""
+        return '/'
 
     def exists(self):
         return bool(self.__group_entry)
@@ -306,8 +328,9 @@ class Group:
     def __group_entry(self):
         return Group.__all_group_entries().get(self.name, {})
 
+    @staticmethod
     def __all_group_entries():
-        GROUP_PATH = Path('/')/'etc'/'group'
+        GROUP_PATH = Path(Group.ROOT())/'etc'/'group'
         GROUP_FIELDS = ['name', 'password', 'gid', 'members']
         ID_FIELD = 'name'
         LIST_FIELD = 'members'
@@ -318,6 +341,9 @@ class Group:
             logger.error(e)
             raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
         else:
+            # for empty file return empty dict
+            if raw.strip() == "":
+                return {}
             users = [dict(zip(GROUP_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
 
             for user in users:
@@ -347,11 +373,19 @@ def make_shadow_compatible(orig_word):
         '*': 'x', '@': '_at_',
     }))
 
+    # Unicode -> Ascii
+    word = unidecode(word)
+
     # Downcase
     word = word.lower()
 
-    # Unicode -> Ascii
-    word = unidecode(word)
+    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
+    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
+    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
+    # aber nur *ganz* am Ende ...
+    # word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
+    # since we already replace $ with s, no need to check for $ at the end
+    word = regex.sub(r'[^-0-9_a-z]', '_', word)
 
     # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
     if regex.match(r'^[a-z_]', word):
@@ -361,13 +395,6 @@ def make_shadow_compatible(orig_word):
             word = '_'+word[1:]
         else:
             word = '_' + word
-
-    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
-    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
-    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
-    # aber nur *ganz* am Ende ...
-    word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
-
 
     # usernames and group names can only be 32 characters long.
     # My fix is to remove characters a) after the first '_' if there is one.
@@ -385,10 +412,13 @@ def make_shadow_compatible(orig_word):
             fragments = word.split('_')
             if len(fragments[1]) > excess_chars: # we're fine, we can cut excess chars from fragments alone
                 fragments[1]=".."+fragments[1][excess_chars+2:]
+                # TODO: fix case when len(fragments[1]) == excess_chars + 1
                 word = '_'.join(fragments)
             else:
                 logger.error(F"User or group name is too long: {word} ({len(word)})")
                 raise(ValueError)
+                # TODO: fix case when removing chars from one fragment is not enough to shorten the word
+                # i.e. len(fragments[1] <= excess_chars)
             # logger.warning(F"shortened {orig_word} to {word}")
 
     if word != orig_word:

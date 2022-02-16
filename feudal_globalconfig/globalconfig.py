@@ -2,3 +2,4 @@
 
 if not "config" in globals():
     config = {}
+    info = {}

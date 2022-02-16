@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name, superfluous-parens
-# pylint: disable=mixed-indentation, wrong-import-order
+# pylint: disable=wrong-import-order
 # pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation
 # pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
 import os
@@ -73,7 +73,8 @@ def reload():
         Path('ldf_adapter.conf'),
         Path.home()/'.config'/'ldf_adapter.conf',
         Path.home()/'.config'/'feudal'/'ldf_adapter.conf',
-        Path('/etc/feudal/ldf_adapter.conf')
+        Path('/etc/feudal/ldf_adapter.conf'),
+        Path('ldf_adapter/tests/feudal_adapter_pytest.conf')
     ]
 
     config_loaded = False
