@@ -1,5 +1,5 @@
 name = "ldf_adapter"
-# vim: tw=100 foldmethod=indent
+# vim: tw=100 foldmethod=expr
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation, logging-fstring-interpolation
 # pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
@@ -95,10 +95,10 @@ class User:
 
         # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
-        self.service_user = backend.User(self.data)  # pylint: disable=maybe-no-member
+        self.service_user = backend.User(self.data)  # type: ignore
         self.service_groups = [
-            backend.Group(grp) for grp in self.data.groups
-        ]  # pylint: disable=maybe-no-member
+            backend.Group(grp) for grp in self.data.groups  # type:ignore
+        ]
 
         if CONFIG.get("ldf_adapter", "backend_supports_preferring_existing_user", fallback=False):
             logger.debug("trying to update user from existing")
