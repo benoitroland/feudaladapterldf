@@ -1,5 +1,6 @@
 import copy
 
+
 def dictdiff(old, new):
     """Return the difference between two dicts.
 
@@ -13,6 +14,7 @@ def dictdiff(old, new):
     old -- The first dictionary (type: dict)
     new -- The other dictionary (type: dict)
     """
+
     def _dictdiff(old, new):
         for k in new:
             if isinstance(new.get(k), dict) and isinstance(old.get(k), dict):
@@ -24,14 +26,15 @@ def dictdiff(old, new):
 
     return dict(_dictdiff(old, new))
 
-def log_dictdiff(diff, log_function=print, prefix=''):
+
+def log_dictdiff(diff, log_function=print, prefix=""):
     """Print the given dict-difference.
 
     Arguments:
     diff -- The dict diff as returned by `dictdiff` (type: dict)
     log_function -- The function to be used for printing (type: lambda str: None)
     """
-    for k,v in diff.items():
+    for k, v in diff.items():
         if isinstance(v, dict):
             log_dictdiff(v, log_function, "{}/".format(k))
         else:
@@ -40,6 +43,7 @@ def log_dictdiff(diff, log_function=print, prefix=''):
                 log_function("Updating {}{} from '{}' to '{}'".format(prefix, k, old, new))
             else:
                 log_function("Setting {}{} to '{}'".format(prefix, k, new))
+
 
 def dictmerge(lhs, rhs):
     """Merge two dicts recusively."""

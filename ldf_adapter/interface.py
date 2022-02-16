@@ -22,14 +22,17 @@ from ldf_adapter.results import ExceptionalResult
 
 logger = logging.getLogger(__name__)
 
+
 class PathTruncatingFormatter(logging.Formatter):
-    '''formatter for logging'''
+    """formatter for logging"""
+
     def format(self, record):
         pathname = record.pathname
         if len(pathname) > 23:
-            pathname = '...{}'.format( pathname[-19:])
+            pathname = "...{}".format(pathname[-19:])
         record.pathname = pathname
         return super(PathTruncatingFormatter, self).format(record)
+
 
 def main():
 
@@ -41,12 +44,12 @@ def main():
 
     logger.debug(f"Attempting to reach state '{data['state_target']}'")
 
-    if data['user']['userinfo'] is None:
+    if data["user"]["userinfo"] is None:
         logger.error("Cannot process null input")
         sys.exit(2)
 
     try:
-        result = User(data).reach_state(data['state_target'])
+        result = User(data).reach_state(data["state_target"])
     except ExceptionalResult as result:
         result = result.attributes
         logger.debug("Reached state '{state}': {message}".format(**result))
@@ -58,5 +61,6 @@ def main():
 
     return 0
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     sys.exit(main())
