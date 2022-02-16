@@ -1,7 +1,7 @@
 """
 Manages a user and groups via standard UNIX shadow-utils(8).
 """
-# vim: foldmethod=indent : tw=100
+# vim: foldmethod=expr : tw=100
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
@@ -14,6 +14,8 @@ from os import chown
 from datetime import date, datetime
 import json
 import logging
+
+# from typing import Union
 
 import regex
 from unidecode import unidecode
@@ -288,7 +290,7 @@ class User:
         return User.__all_passwd_entries("gecos").get(self.unique_id, {})
 
     @staticmethod
-    def __all_passwd_entries(ID_FIELD="gecos"):
+    def __all_passwd_entries(ID_FIELD="gecos") -> dict:
         PASSWD_PATH = Path(User.ROOT()) / "etc" / "passwd"
         PASSWD_FIELDS = ["login", "pw", "uid", "gid", "gecos", "home", "shell"]
 
@@ -374,10 +376,13 @@ class Group:
             for user in users:
                 user[LIST_FIELD] = user[LIST_FIELD].split(",")
 
-            return {user[ID_FIELD]: user for user in users}
+            retval = {user[ID_FIELD]: user for user in users}
+            logger.debug(f"retval: {retval}")
+
+            return retval
 
 
-def make_shadow_compatible(orig_word):
+def make_shadow_compatible(orig_word) -> str:
     """Ensure that orig_word is a valid user/group name for standard shadow utils.
 
     While this could in theory be achived by simply substituting all non-allowed chars with a valid
@@ -388,7 +393,7 @@ def make_shadow_compatible(orig_word):
 
     """
     if orig_word is None:
-        return None
+        raise Failure(message="Cannot user username 'None' in make_shadow_compatible")
     # Encode German Umlauts
     word = orig_word.translate(
         str.maketrans(
