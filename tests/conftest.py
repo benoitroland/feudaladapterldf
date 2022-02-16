@@ -72,8 +72,8 @@ def local_unix_user(input, exists, taken, monkeypatch):
     monkeypatch.setitem(CONFIG['ldf_adapter'], "backend", "local_unix")
     monkeypatch.setitem(CONFIG['backend.local_unix'], "shell", "/bin/bash")
     monkeypatch.setattr("subprocess.run", mock_subprocess_run)
-    backend.User.ROOT = mock_root
-    backend.Group.ROOT = mock_root
+    backend.User.ROOT = mock_root  # type: ignore
+    backend.Group.ROOT = mock_root  # type: ignore
 
     # init root and necessary files in new root directory (/etc/{passwd,group,shadow})
     os.makedirs(mock_root())
@@ -90,7 +90,7 @@ def local_unix_user(input, exists, taken, monkeypatch):
 
 
     # init service user from unix backend
-    service_user = backend.User(MockUserInfo(input["userinfo"]))
+    service_user = backend.User(MockUserInfo(input["userinfo"]))  # type:ignore
 
     yield service_user
 
@@ -128,7 +128,7 @@ def local_unix_group(input, exists, monkeypatch):
 
     monkeypatch.setitem(CONFIG['ldf_adapter'], "backend", "local_unix")
     monkeypatch.setattr("subprocess.run", mock_subprocess_run)
-    backend.Group.ROOT = mock_root
+    backend.Group.ROOT = mock_root  # type:ignore
 
     # init root and necessary files in new root directory (/etc/{passwd,group,shadow})
     os.makedirs(mock_root())
@@ -139,7 +139,7 @@ def local_unix_group(input, exists, monkeypatch):
         (Path(mock_root())/"etc"/"group").write_text(input["group_entry"])
 
     # init service user from unix backend
-    service_group = backend.Group(input["name"])
+    service_group = backend.Group(input["name"])  # type:ignore
 
     yield service_group
 
@@ -158,3 +158,5 @@ class MockBackendUser():
     """Mock user for the backend"""
     def __init__(self):
         pass
+
+# vim: tw=100
