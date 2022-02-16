@@ -4,6 +4,7 @@
 # pylint: disable=missing-docstring, too-few-public-methods
 """Results for feudalClient"""
 
+
 class Result:
     """A Result returned by the adapter to the feudalClient.
 
@@ -28,11 +29,14 @@ class Result:
 ## Sucessful
 class Success(Result):
     """Indicates a successful result (i.e. user was deployed or undeployed)."""
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+
 class Deployed(Success):
     """Indicates that the user was successfully deployed to the service."""
+
     def __init__(self, credentials, **kwargs):
         """Initialises this Result with a state of 'deployed'.
 
@@ -40,16 +44,20 @@ class Deployed(Success):
         credentials -- A dictionary displayed to the user in the feudalClient webinterface.
         **kwargs -- Any additional keyword arguments are passed to Success.__init__
         """
-        super().__init__(state='deployed', **kwargs)
+        super().__init__(state="deployed", **kwargs)
         self.credentials = credentials
+
 
 class NotDeployed(Success):
     """Indicates that the user was successfully undeployed from the service."""
+
     def __init__(self, **kwargs):
-        super().__init__(state='not_deployed', **kwargs)
+        super().__init__(state="not_deployed", **kwargs)
+
 
 class Status(Success):
     """Indicates the status of the user."""
+
     def __init__(self, state, **kwargs):
         super().__init__(state=state, **kwargs)
 
@@ -57,23 +65,29 @@ class Status(Success):
 ## Exceptional (Error or Questionnaire)
 class ExceptionalResult(Result, Exception):
     """Raise a subclass of this to abort and directly return this Result to the feudalClient"""
+
     pass
+
 
 class Failure(ExceptionalResult):
     """Indicates a failure in attempting to deploy/undeploy the user.
 
     The previous state should be retained, but might also be inconsistent
     """
+
     def __init__(self, **kwargs):
-        super().__init__(state='failed', **kwargs)
+        super().__init__(state="failed", **kwargs)
+
 
 class Rejection(ExceptionalResult):
     """Indicates that the user is not allowed to access the requested resource.
 
     A reason for this might be an insufficient assurance level.
     """
+
     def __init__(self, **kwargs):
-        super().__init__(state='rejected', **kwargs)
+        super().__init__(state="rejected", **kwargs)
+
 
 class Questionnaire(ExceptionalResult):
     """Additional information is needed to reach the desired state.
@@ -97,13 +111,16 @@ class Questionnaire(ExceptionalResult):
                 of the given values.
     **kwargs -- Any additional keyword arguments ar passed to ExceptionalResult.__init__
     """
+
     def __init__(self, questions, defaults, **kwargs):
-         super().__init__(state='questionnaire', message='There are unanswered questions.', **kwargs)
-         self.questionnaire = questions
-         self.questionnaire_answers = defaults
+        super().__init__(state="questionnaire", message="There are unanswered questions.", **kwargs)
+        self.questionnaire = questions
+        self.questionnaire_answers = defaults
+
 
 class Question(Questionnaire):
     """Convenience class to ask a single question."""
+
     def __init__(self, name, text, default=None, **kwargs):
         """See Questionaire.__init__ for details.
 
@@ -119,6 +136,7 @@ class Question(Questionnaire):
 
         super().__init__(questions={name: text}, defaults=defaults, **kwargs)
 
+
 def raise_question(*args, **kwargs):
     """Convenice function needed in places where an expression is required.
 
@@ -126,4 +144,3 @@ def raise_question(*args, **kwargs):
     but `userinfo.get_value() or raise_question(...)` is.
     """
     raise Question(*args, **kwargs)
-

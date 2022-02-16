@@ -68,7 +68,8 @@ class UserInfo(Mapping):
 
         """
         return "{sub}@{iss}".format(
-            sub=self._sub_masked_for_bwidm_extid(), iss=self._iss_masked_for_bwidm_extid()
+            sub=self._sub_masked_for_bwidm_extid(),
+            iss=self._iss_masked_for_bwidm_extid(),
         )
 
     def _sub_masked_for_bwidm_extid(self):
@@ -253,7 +254,10 @@ class UserInfo(Mapping):
                         "{}_{}".format(ns, grp)
                         for (ns, grp) in chain.from_iterable(
                             (
-                                ("-".join([ent.delegated_namespace] + ent.subnamespaces), grp)
+                                (
+                                    "-".join([ent.delegated_namespace] + ent.subnamespaces),
+                                    grp,
+                                )
                                 for grp in ent.all_toplevel_groups
                             )
                             for ent in self.entitlement
@@ -268,7 +272,10 @@ class UserInfo(Mapping):
                     "{}_{}".format(ns, grp)
                     for (ns, grp) in chain.from_iterable(
                         (
-                            ("-".join([ent.delegated_namespace] + ent.subnamespaces), grp)
+                            (
+                                "-".join([ent.delegated_namespace] + ent.subnamespaces),
+                                grp,
+                            )
                             for grp in ent.all_groups
                         )
                         for ent in self.entitlement
@@ -287,7 +294,9 @@ class UserInfo(Mapping):
 
         # camelCase to snake_case
         grp = regex.sub(
-            "([a-z])([A-Z])", lambda m: "{}_{}".format(m.group(1), m.group(2).lower()), grp
+            "([a-z])([A-Z])",
+            lambda m: "{}_{}".format(m.group(1), m.group(2).lower()),
+            grp,
         )
 
         # Lowercase all

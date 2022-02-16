@@ -23,28 +23,31 @@ from .. import utils
 from time import sleep
 
 from ldf_adapter.logsetup import jsonlogger
+
 logger = logging.getLogger(__name__)
+
 
 class BwIdmConnection:
     """Connection to the BWIDM API."""
+
     def __init__(self, config=None):
         self.session = requests.Session()
         if config:
             self.session.auth = (
-                config['backend.bwidm.auth']['http_user'],
-                config['backend.bwidm.auth']['http_pass']
+                config["backend.bwidm.auth"]["http_user"],
+                config["backend.bwidm.auth"]["http_pass"],
             )
 
-        if not CONFIG['backend.bwidm'].getboolean('log_outgoing_http_requests', fallback=False):
+        if not CONFIG["backend.bwidm"].getboolean("log_outgoing_http_requests", fallback=False):
             logging.getLogger("requests").setLevel(logging.CRITICAL)
             logging.getLogger("werkzeug").setLevel(logging.CRITICAL)
             logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 
     def get(self, *url_fragments, **kwargs):
-        return self._request('GET', url_fragments, **kwargs)
+        return self._request("GET", url_fragments, **kwargs)
 
     def post(self, *url_fragments, **kwargs):
-        return self._request('POST', url_fragments, **kwargs)
+        return self._request("POST", url_fragments, **kwargs)
 
     def _request(self, method, url_fragments, **kwargs):
         """
@@ -55,31 +58,35 @@ class BwIdmConnection:
         fail=True -- Raise exception on non-200 HTTP status
         **kwargs -- Passed to `requests.Request.__init__`
         """
-        fail = kwargs.pop('fail', True)
+        fail = kwargs.pop("fail", True)
 
         url_fragments = map(str, url_fragments)
-        url_fragments = map(lambda frag: requests.utils.quote(frag, safe=''), url_fragments)
-        url = reduce(lambda acc, frag: urljoin(acc, frag) if acc.endswith('/') else urljoin(acc+'/', frag),
-                     url_fragments,
-                     CONFIG['backend.bwidm']['url'])
+        url_fragments = map(lambda frag: requests.utils.quote(frag, safe=""), url_fragments)
+        url = reduce(
+            lambda acc, frag: urljoin(acc, frag) if acc.endswith("/") else urljoin(acc + "/", frag),
+            url_fragments,
+            CONFIG["backend.bwidm"]["url"],
+        )
 
         req = requests.Request(method, url, **kwargs)
         rsp = self.session.send(self.session.prepare_request(req))
 
         if fail:
             if not rsp.ok:
-                logger.error("Server responded with: {}".format(rsp.content.decode('utf-8')))
+                logger.error("Server responded with: {}".format(rsp.content.decode("utf-8")))
             rsp.raise_for_status()
 
         return rsp
 
+
 BWIDM = BwIdmConnection(CONFIG)
 
+
 class User:
-    ATTR_USERNAME = 'urn:oid:0.9.2342.19200300.100.1.1'
-    ATTR_ORG_ID = 'http://bwidm.de/bwidmOrgId'
-    VALUE_USER_ACTIVE = 'ACTIVE'
-    VALUE_USER_INACTIVE = 'ON_HOLD'
+    ATTR_USERNAME = "urn:oid:0.9.2342.19200300.100.1.1"
+    ATTR_ORG_ID = "http://bwidm.de/bwidmOrgId"
+    VALUE_USER_ACTIVE = "ACTIVE"
+    VALUE_USER_INACTIVE = "ON_HOLD"
 
     def __init__(self, userinfo):
         self.info = userinfo
@@ -94,39 +101,41 @@ class User:
         return self._exists() and self._is_active()
 
     def _exists(self):
-        exists = b'no such user' not in self.reg_info(json=False, fail=False)
-        logger.debug('User {} {} on service BWIDM'.format(
-            self.info.unique_id, 'exists' if exists else "doesn't exist"
-        ))
+        exists = b"no such user" not in self.reg_info(json=False, fail=False)
+        logger.debug(
+            "User {} {} on service BWIDM".format(
+                self.info.unique_id, "exists" if exists else "doesn't exist"
+            )
+        )
         return exists
 
     def _is_active(self):
-        status = self.reg_info()['userStatus']
-        logger.debug('User {} is {} on service BWIDM'.format(
-            self.info.unique_id, status
-        ))
+        status = self.reg_info()["userStatus"]
+        logger.debug("User {} is {} on service BWIDM".format(self.info.unique_id, status))
         return status == self.VALUE_USER_ACTIVE
+
     def _is_registered(self):
         """
         find if the user is already registered for a given
         service, identified by its service short name
         """
         # FIXME: Consider putting this request into the global user object (to reduce load on regapp)
-        ssn = CONFIG['backend.bwidm.service']['name']
-        registrations = BWIDM.get ('external-reg', 'find', 'externalId',
-                                    self.info.unique_id)
+        ssn = CONFIG["backend.bwidm.service"]["name"]
+        registrations = BWIDM.get("external-reg", "find", "externalId", self.info.unique_id)
         # find registrations
         number_of_registrations = 0
         try:
             logger.debug("logging registrations to jsonlog")
-            jsonlogger.debug(json.dumps(registrations.json, sort_keys=True, indent=4, separators=(',', ': ')))
+            jsonlogger.debug(
+                json.dumps(registrations.json, sort_keys=True, indent=4, separators=(",", ": "))
+            )
         except TypeError:
             pass
         for reg in registrations.json():
             if reg["serviceShortName"] == ssn:
                 if reg["registryStatus"] == "ACTIVE":
                     number_of_registrations += 1
-        logger.debug(F"Number of registrations found: {number_of_registrations}")
+        logger.debug(f"Number of registrations found: {number_of_registrations}")
         if number_of_registrations > 0:
             return True
         return False
@@ -137,24 +146,27 @@ class User:
         might happen if the our user is ON_HOLD on the service.
         """
         # TODO: argument "name" was added, check if given "name" (instead of info.username) is taken by *another* user
-        logger.debug(F"checking for name taken of {name}")
+        logger.debug(f"checking for name taken of {name}")
         users_with_name = BWIDM.get(
-            'external-user', 'find',
-            'attribute', self.ATTR_USERNAME, name
+            "external-user", "find", "attribute", self.ATTR_USERNAME, name
         ).json()
 
-        other_users_with_name = [user for user in users_with_name if user['externalId'] != self.info.unique_id]
+        other_users_with_name = [
+            user for user in users_with_name if user["externalId"] != self.info.unique_id
+        ]
         # logger.debug (F"other_users: {other_users_with_name}")
-        logger.debug(F"Found {len(other_users_with_name)} with same username")
+        logger.debug(f"Found {len(other_users_with_name)} with same username")
         # FIXME: Why < ?
         if len(other_users_with_name) < len(users_with_name):
             logger.debug("Username '{}' is reserved for us".format(self.info.username))
 
         if other_users_with_name:
-            logger.error("Username '{}' is already used by\n    {}".format(
-                self.info.username,
-                ",\n    ".join(map(lambda u: u['externalId'], other_users_with_name))
-            ))
+            logger.error(
+                "Username '{}' is already used by\n    {}".format(
+                    self.info.username,
+                    ",\n    ".join(map(lambda u: u["externalId"], other_users_with_name)),
+                )
+            )
         else:
             logger.debug("Username '{}' is available".format(name))
 
@@ -162,31 +174,35 @@ class User:
 
     def get_username(self):
         """Check if a user exists based on unique_id and return the name"""
+
         def safe_resp_conversion(resp):
-            '''Safely convert a response to json'''
+            """Safely convert a response to json"""
             if resp.status_code != 200:
-                logger.debug ('Error %d reading from remote: \n%s\n'% (resp.status_code, str(resp.text)))
-                os._exit(1) # or raise or return None?
+                logger.debug(
+                    "Error %d reading from remote: \n%s\n" % (resp.status_code, str(resp.text))
+                )
+                os._exit(1)  # or raise or return None?
             try:
                 resp_json = resp.json()
             except json.JSONDecodeError:
-                logging.error ('Could not decode json that I obtained from rest server')
+                logging.error("Could not decode json that I obtained from rest server")
                 raise
             return resp_json
+
         full_username = None
-        resp          = BWIDM.get ('external-user', 'find', 'externalId', self.info.unique_id)
-        resp_json     = safe_resp_conversion(resp)
+        resp = BWIDM.get("external-user", "find", "externalId", self.info.unique_id)
+        resp_json = safe_resp_conversion(resp)
 
         try:
-            username = resp_json['attributeStore']['urn:oid:0.9.2342.19200300.100.1.1']
-            bwIdmOrgId = resp_json['attributeStore']['http://bwidm.de/bwidmOrgId']
-            full_username = F"{bwIdmOrgId}_{username}"
+            username = resp_json["attributeStore"]["urn:oid:0.9.2342.19200300.100.1.1"]
+            bwIdmOrgId = resp_json["attributeStore"]["http://bwidm.de/bwidmOrgId"]
+            full_username = f"{bwIdmOrgId}_{username}"
         except KeyError as e:
-            logger.error('Error: I could not find the username in the database.')
-            logger.error('  Most likely the user is not registered for this service\n')
-            logger.error(F"  {e}")
-            logger.error(json.dumps(resp_json, sort_keys=True, indent=4, separators=(',', ': ')))
-        logger.debug(F"Found existing username: {full_username}")
+            logger.error("Error: I could not find the username in the database.")
+            logger.error("  Most likely the user is not registered for this service\n")
+            logger.error(f"  {e}")
+            logger.error(json.dumps(resp_json, sort_keys=True, indent=4, separators=(",", ": ")))
+        logger.debug(f"Found existing username: {full_username}")
         return full_username
 
     def set_username(self, username):
@@ -199,38 +215,35 @@ class User:
         """Create or activate user."""
         if self._exists() and not self._is_active():
             logger.info("Activating user {unique_id}".format(**self.info))
-            BWIDM.get('external-user', 'activate', 'externalId', self.info.unique_id)
+            BWIDM.get("external-user", "activate", "externalId", self.info.unique_id)
         else:
             logger.info("Creating user {unique_id}".format(**self.info))
-            BWIDM.post('external-user', 'create', json={
-                'externalId': self.info.unique_id
-            })
+            BWIDM.post("external-user", "create", json={"externalId": self.info.unique_id})
 
     def update(self):
         # FIXME: Consider putting this request into the global user object (to reduce load on regapp)
         def get_active_reg_info(ext_id):
-            rsp = BWIDM.get('external-reg', 'find',
-                            'externalId', ext_id)
+            rsp = BWIDM.get("external-reg", "find", "externalId", ext_id)
 
             try:
-                return next(filter(lambda reg: reg['registryStatus'] == "ACTIVE", rsp.json()))
+                return next(filter(lambda reg: reg["registryStatus"] == "ACTIVE", rsp.json()))
             except StopIteration:
-                return {'lastReconcile': None}
+                return {"lastReconcile": None}
 
-        self.external_user_update({
-            'externalId': self.info.unique_id,
-            'eppn': self.info.eppn,
-            'email': self.info.email,
-            'givenName': self.info.given_name,
-            'surName': self.info.family_name,
-            'primaryGroup': {
-                'id': self.primary_group.reg_info()['id']
-            },
-            'attributeStore': {
-                self.ATTR_USERNAME: self.force_username or self.info.username,
-                self.ATTR_ORG_ID: CONFIG['backend.bwidm']['org_id'],
+        self.external_user_update(
+            {
+                "externalId": self.info.unique_id,
+                "eppn": self.info.eppn,
+                "email": self.info.email,
+                "givenName": self.info.given_name,
+                "surName": self.info.family_name,
+                "primaryGroup": {"id": self.primary_group.reg_info()["id"]},
+                "attributeStore": {
+                    self.ATTR_USERNAME: self.force_username or self.info.username,
+                    self.ATTR_ORG_ID: CONFIG["backend.bwidm"]["org_id"],
+                },
             }
-        })
+        )
         # if the user is already registered for the service, we're done here
         if self._is_registered():
             return
@@ -238,88 +251,140 @@ class User:
         old_reg = get_active_reg_info(self.info.unique_id)
         # We wait until the 'lastReconciled' timestamp changes, which means that our update was sucessfully deployed
         reg = old_reg
-        while reg['lastReconcile'] == old_reg['lastReconcile']:
+        while reg["lastReconcile"] == old_reg["lastReconcile"]:
             sleep(0.3)
-            logger.debug("Received registration reconciled at {}. That is not up-to-date. Checking again.".format(
-                reg['lastReconcile']))
+            logger.debug(
+                "Received registration reconciled at {}. That is not up-to-date. Checking again.".format(
+                    reg["lastReconcile"]
+                )
+            )
 
-            rsp = BWIDM.get('external-reg', 'register',
-                            'externalId', self.info.unique_id,
-                            'ssn', CONFIG['backend.bwidm.service']['name'])
+            rsp = BWIDM.get(
+                "external-reg",
+                "register",
+                "externalId",
+                self.info.unique_id,
+                "ssn",
+                CONFIG["backend.bwidm.service"]["name"],
+            )
 
             if rsp.status_code == 204:
                 reg = get_active_reg_info(self.info.unique_id)
             else:
                 reg = rsp.json()
 
-        logger.debug("Registration confirmed reconciled at {}. Looks like the update went through.".format(reg['lastReconcile']))
+        logger.debug(
+            "Registration confirmed reconciled at {}. Looks like the update went through.".format(
+                reg["lastReconcile"]
+            )
+        )
 
-        self.credentials['ssh_user'] = reg['registryValues']['localUid']
-        self.credentials['ssh_host'] = CONFIG['backend.bwidm.login_info'].get('ssh_host', 'undefined')
-        self.credentials['commandline'] = "ssh {}@{}".format(
-            self.credentials['ssh_user'], self.credentials['ssh_host'])
+        self.credentials["ssh_user"] = reg["registryValues"]["localUid"]
+        self.credentials["ssh_host"] = CONFIG["backend.bwidm.login_info"].get(
+            "ssh_host", "undefined"
+        )
+        self.credentials["commandline"] = "ssh {}@{}".format(
+            self.credentials["ssh_user"], self.credentials["ssh_host"]
+        )
 
     def delete(self):
         """Deregister the user from the given service in BWIDM."""
-        BWIDM.get('external-reg', 'deregister', 'externalId', self.info.unique_id,\
-                  'ssn', CONFIG['backend.bwidm.service']['name'])
+        BWIDM.get(
+            "external-reg",
+            "deregister",
+            "externalId",
+            self.info.unique_id,
+            "ssn",
+            CONFIG["backend.bwidm.service"]["name"],
+        )
 
     def deactivate(self):
         """Deactivate the user, this does not delete from BWIDM, but sets
         the status to ON_HOLD, thereby disabling the user from ALL
         services."""
-        BWIDM.get('external-user', 'deactivate', 'externalId', self.info.unique_id)
+        BWIDM.get("external-user", "deactivate", "externalId", self.info.unique_id)
 
     def mod(self, supplementary_groups=None):
         reg_info = self.reg_info()
 
         if supplementary_groups is not None:
-            current_groups = [grp for grp in reg_info['secondaryGroups']]
+            current_groups = [grp for grp in reg_info["secondaryGroups"]]
             new_groups = [grp.reg_info(short=True) for grp in supplementary_groups]
             new_groups += [self.primary_group.reg_info()]
 
-            NL='\n    '
-            logger.debug(F"Groups according to BWIDM: {NL}{NL.join([g['name'] for g in current_groups])}")
-            logger.debug(F"Groups according to FEUDAL: {NL}{NL.join([g['name'] for g in new_groups])}")
+            NL = "\n    "
+            logger.debug(
+                f"Groups according to BWIDM: {NL}{NL.join([g['name'] for g in current_groups])}"
+            )
+            logger.debug(
+                f"Groups according to FEUDAL: {NL}{NL.join([g['name'] for g in new_groups])}"
+            )
 
             # Remove user from groups he should not be a member of
-            to_be_removed_from = [g for g in current_groups
-                                  if g['id'] not in (ng['id'] for ng in new_groups)]
+            to_be_removed_from = [
+                g for g in current_groups if g["id"] not in (ng["id"] for ng in new_groups)
+            ]
 
             # Only add user to groups she is not already a member of
-            to_be_added_to = [g for g in new_groups
-                              if g['id'] not in (cg['id'] for cg in current_groups)]
+            to_be_added_to = [
+                g for g in new_groups if g["id"] not in (cg["id"] for cg in current_groups)
+            ]
 
             if to_be_removed_from:
-                logger.info('Remove user {} from groups {}'.format(
-                    self.info.username, ",".join(g['name'] for g in to_be_removed_from)))
+                logger.info(
+                    "Remove user {} from groups {}".format(
+                        self.info.username,
+                        ",".join(g["name"] for g in to_be_removed_from),
+                    )
+                )
             for grp in to_be_removed_from:
-                BWIDM.get('group-admin', 'remove', 'groupId', grp['id'], 'userId', reg_info['id'])
+                BWIDM.get(
+                    "group-admin",
+                    "remove",
+                    "groupId",
+                    grp["id"],
+                    "userId",
+                    reg_info["id"],
+                )
 
             if to_be_added_to:
-                logger.info('Add user {} to groups {}'.format(
-                    self.info.username, ",".join(g['name'] for g in to_be_added_to)))
+                logger.info(
+                    "Add user {} to groups {}".format(
+                        self.info.username, ",".join(g["name"] for g in to_be_added_to)
+                    )
+                )
             grp_add_retvals = []
             for grp in to_be_added_to:
-                grp_add_retvals.append(BWIDM.get('group-admin', 'add', 'groupId', grp['id'], 'userId', reg_info['id'], fail=False))
+                grp_add_retvals.append(
+                    BWIDM.get(
+                        "group-admin",
+                        "add",
+                        "groupId",
+                        grp["id"],
+                        "userId",
+                        reg_info["id"],
+                        fail=False,
+                    )
+                )
             if len(grp_add_retvals) > 0:
-                logger.debug(F"Group add retvals: {grp_add_retvals}")
+                logger.debug(f"Group add retvals: {grp_add_retvals}")
 
     def install_ssh_keys(self):
-        self.external_user_update({
-            'externalId': self.info.unique_id,
-            'genericStore': {
-                **self.reg_info()['genericStore'],
-                'ssh_key': json.dumps(self.info.ssh_keys)
+        self.external_user_update(
+            {
+                "externalId": self.info.unique_id,
+                "genericStore": {
+                    **self.reg_info()["genericStore"],
+                    "ssh_key": json.dumps(self.info.ssh_keys),
+                },
             }
-        })
+        )
 
     def uninstall_ssh_keys(self):
         """Uninstall any SSH keys stored in BWIDM."""
-        self.external_user_update({
-            'externalId': self.info.unique_id,
-            'genericStore': {'ssh_key': None}
-        })
+        self.external_user_update(
+            {"externalId": self.info.unique_id, "genericStore": {"ssh_key": None}}
+        )
 
     def external_user_update(self, state_updates):
         """Apply new attributes to the user, performing sensible merging of dicts.
@@ -337,33 +402,37 @@ class User:
         """
         current_state = self.reg_info()
         new_state = utils.dictmerge(current_state, state_updates)
-        utils.log_dictdiff(utils.dictdiff(current_state, new_state),
-                           log_function=logger.info)
+        utils.log_dictdiff(utils.dictdiff(current_state, new_state), log_function=logger.info)
 
         for k in list(new_state):
             if new_state[k] is None:
                 new_state[k] = {}
 
         try:
-            formatted_json = (json.dumps(state_updates, sort_keys=True, indent=4, separators=(',', ': ')))
+            formatted_json = json.dumps(
+                state_updates, sort_keys=True, indent=4, separators=(",", ": ")
+            )
             logger.debug("  logging state_updates to jsonlog")
-            jsonlogger.debug(F"state_updates:  {formatted_json}")
+            jsonlogger.debug(f"state_updates:  {formatted_json}")
 
-            formatted_json = (json.dumps(current_state, sort_keys=True, indent=4, separators=(',', ': ')))
+            formatted_json = json.dumps(
+                current_state, sort_keys=True, indent=4, separators=(",", ": ")
+            )
             logger.debug("  logging current_state_updates to jsonlog")
-            jsonlogger.debug(F"current_state: {formatted_json}")
+            jsonlogger.debug(f"current_state: {formatted_json}")
 
             logger.debug("  logging new_to jsonlog")
-            formatted_json = (json.dumps(new_state, sort_keys=True, indent=4, separators=(',', ': ')))
-            jsonlogger.debug(F"new state for regapp:  {formatted_json}")
+            formatted_json = json.dumps(new_state, sort_keys=True, indent=4, separators=(",", ": "))
+            jsonlogger.debug(f"new state for regapp:  {formatted_json}")
         except:
             pass
-        BWIDM.post('external-user', 'update', json=new_state)
+        BWIDM.post("external-user", "update", json=new_state)
 
     def reg_info(self, json=True, **kwargs):
         # FIXME: Cache this functions results!
-        rsp = BWIDM.get('external-user', 'find', 'externalId', self.info.unique_id, **kwargs)
+        rsp = BWIDM.get("external-user", "find", "externalId", self.info.unique_id, **kwargs)
         return rsp.json() if json else rsp.content
+
 
 class Group:
     def __init__(self, name):
@@ -372,30 +441,42 @@ class Group:
     def exists(self):
         # FIXME: Group existence needs to be checked with using also
         # CONFIG['backend.bwidm.service']['name']
-        return b'no such group' not in BWIDM.get('group-admin', 'find', 'name', self.name, fail=False).content
+        return (
+            b"no such group"
+            not in BWIDM.get("group-admin", "find", "name", self.name, fail=False).content
+        )
 
     def create(self):
-        rsp = BWIDM.get('group-admin', 'create', CONFIG['backend.bwidm.service']['name'], self.name).json()
+        rsp = BWIDM.get(
+            "group-admin", "create", CONFIG["backend.bwidm.service"]["name"], self.name
+        ).json()
 
-        if self.name != rsp['name']:
-            logger.warning("Groupname changed from {} to {} by BWIDM".format(self.name, rsp['name']))
-            self.name = rsp['name']
+        if self.name != rsp["name"]:
+            logger.warning(
+                "Groupname changed from {} to {} by BWIDM".format(self.name, rsp["name"])
+            )
+            self.name = rsp["name"]
 
-        self.id = rsp['id']
+        self.id = rsp["id"]
 
     def delete(self):
         # groupdel
-        raise NotImplementedError('Do we even need this function?')
+        raise NotImplementedError("Do we even need this function?")
 
     def mod(self):
         # groupmod
-        raise NotImplementedError('Do we even need this function?')
+        raise NotImplementedError("Do we even need this function?")
 
     def reg_info(self, json=True, short=False, **kwargs):
-        rsp = BWIDM.get('group-admin', 'find' if short else 'find-detail', 'name', self.name, **kwargs)
+        rsp = BWIDM.get(
+            "group-admin",
+            "find" if short else "find-detail",
+            "name",
+            self.name,
+            **kwargs,
+        )
         return rsp.json() if json else rsp.content
 
     @property
     def members(self):
-        raise NotImplementedError('Do we even need this function?')
-
+        raise NotImplementedError("Do we even need this function?")

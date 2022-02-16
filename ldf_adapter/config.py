@@ -13,11 +13,11 @@ import logging
 from .results import Failure
 
 PARSE_CMDLINE_PARAMETERS = True
-if 'pytest' in sys.modules:
+if "pytest" in sys.modules:
     PARSE_CMDLINE_PARAMETERS = False
 else:
     try:
-        PARSE_CMDLINE_PARAMETERS = globalconfig.config['parse_commandline_args']
+        PARSE_CMDLINE_PARAMETERS = globalconfig.config["parse_commandline_args"]
     except KeyError as e:
         pass
 
@@ -48,15 +48,15 @@ def reload():
         files.insert(0, Path(args.config_file))
 
     # If the caller of the library has provided a configfile: prefer it:
-    logger.debug(F"Files: {files}")
+    logger.debug(f"Files: {files}")
     try:
-        globalconf_conf_file = Path(globalconfig.config['CONFIGFILE'])
-        logger.debug(F"Trying config of globalconfig: {globalconfig.config['CONFIGFILE']}")
+        globalconf_conf_file = Path(globalconfig.config["CONFIGFILE"])
+        logger.debug(f"Trying config of globalconfig: {globalconfig.config['CONFIGFILE']}")
         if globalconf_conf_file.exists():
             files.insert(0, globalconf_conf_file)
     except KeyError:
         pass
-    
+
     # Finally, check the environment (last means highes priority)
     filename = os.environ.get("FEUDAL_ADAPTER_CONFIG")
     if filename is None:
@@ -66,36 +66,37 @@ def reload():
 
     # default files
     files += [
-        Path('feudal_adapter.conf'),
-        Path.home()/'.config'/'feudal_adapter.conf',
-        Path.home()/'.config'/'feudal'/'feudal_adapter.conf',
-        Path('/etc/feudal/feudal_adapter.conf'),
-        Path('ldf_adapter.conf'),
-        Path.home()/'.config'/'ldf_adapter.conf',
-        Path.home()/'.config'/'feudal'/'ldf_adapter.conf',
-        Path('/etc/feudal/ldf_adapter.conf'),
-        Path('ldf_adapter/tests/feudal_adapter_pytest.conf')
+        Path("feudal_adapter.conf"),
+        Path.home() / ".config" / "feudal_adapter.conf",
+        Path.home() / ".config" / "feudal" / "feudal_adapter.conf",
+        Path("/etc/feudal/feudal_adapter.conf"),
+        Path("ldf_adapter.conf"),
+        Path.home() / ".config" / "ldf_adapter.conf",
+        Path.home() / ".config" / "feudal" / "ldf_adapter.conf",
+        Path("/etc/feudal/ldf_adapter.conf"),
+        Path("ldf_adapter/tests/feudal_adapter_pytest.conf"),
     ]
 
     config_loaded = False
     for f in files:
         if f.exists():
             files_read = CONFIG.read(f)
-            logger.debug(F"Using this config file: {files_read}")
+            logger.debug(f"Using this config file: {files_read}")
             globalconfig.info = {}
-            globalconfig.info['config_files_read'] = files_read
+            globalconfig.info["config_files_read"] = files_read
             config_loaded = True
             break
     if not config_loaded:
         logger.warning("Could not find any config file")
         logger.debug("Trying to copy config from globalconfig")
-        logger.debug(F"type of CONFIG: {type(CONFIG)}")
+        logger.debug(f"type of CONFIG: {type(CONFIG)}")
         # try:
         #     logger.debug(F"type of globalconfig.config['CONFIG']: {type(globalconfig.config['CONFIG'])}")
         # except KeyError:
         # raise Failure(message="Could not find any config (neither file not in globalconfig)")
         logger.error("Could not find any config (neither file not in globalconfig")
         exit(4)
+
 
 # Load config on import
 reload()

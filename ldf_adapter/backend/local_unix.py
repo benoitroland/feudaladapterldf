@@ -23,6 +23,7 @@ from ..results import Failure
 
 logger = logging.getLogger(__name__)
 
+
 class User:
     def __init__(self, userinfo):
         """
@@ -34,14 +35,14 @@ class User:
                 `ssh_keys`
         """
         self.unique_id = userinfo.unique_id
-        logger.debug(F"backend processing: {userinfo.unique_id}")
+        logger.debug(f"backend processing: {userinfo.unique_id}")
         if self.exists():
-            logger.debug(F"This user does actually exist. The name is: {self.get_username()}")
+            logger.debug(f"This user does actually exist. The name is: {self.get_username()}")
             self.set_username(self.get_username())
         else:
             self.set_username(userinfo.username)
 
-        self.ssh_keys = [key['value'] for key in userinfo.ssh_keys]
+        self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
         self.primary_group = Group(userinfo.primary_group)
         self.credentials = {}
 
@@ -49,45 +50,54 @@ class User:
     def ROOT():
         """ROOT directory for user db
         only used for testing purposes, defaults to '/' otherwise"""
-        return '/'
+        return "/"
 
     def exists(self):
         """Check wheter a user (identified by the unique_id) exists"""
         # x = bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
         # logger.debug(F"user exists: {x}")
-        return bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
+        return bool(
+            self.unique_id
+            in [entry["gecos"] for entry in User.__all_passwd_entries("gecos").values()]
+        )
 
     def is_rejected(self):
         """Optional, only if the backend supports it.
         Inform the user whether a user was rejected"""
         return False
-    
+
     def is_suspended(self):
         """Optional, only if the backend supports it.
         Inform the user whether a user was suspended (e.g. due to a security incident)"""
         if self.exists():
-            options = ['-l']
+            options = ["-l"]
             try:
-                result = subprocess.run(['chage'] + options + [self.name],
-                                        stdout=subprocess.PIPE, check=True)
+                result = subprocess.run(
+                    ["chage"] + options + [self.name],
+                    stdout=subprocess.PIPE,
+                    check=True,
+                )
             except CalledProcessError as e:
-                msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
-                logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-                raise Failure(message=F"Cannot get info for user: {msg or '<no output>'}")
+                msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+                logger.error(
+                    "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+                )
+                raise Failure(message=f"Cannot get info for user: {msg or '<no output>'}")
             try:
-                pattern = regex.compile(r'Account expires\s+: (.*)')
+                pattern = regex.compile(r"Account expires\s+: (.*)")
                 match = pattern.search(result.stdout.decode("utf-8"))
                 if match:
                     expiration_date = match.group(1)
-                    if expiration_date == 'never':
+                    if expiration_date == "never":
                         return False
                     expiration_date_sec = int(
-                        datetime.strptime(expiration_date, '%b %d, %Y').strftime("%s"))
+                        datetime.strptime(expiration_date, "%b %d, %Y").strftime("%s")
+                    )
                     if expiration_date_sec - datetime.now().timestamp() <= 0:
                         return True
             except Exception as e:
                 logger.error(e)
-                raise Failure(message=F"Could not get: {e or '<no output>'}")
+                raise Failure(message=f"Could not get: {e or '<no output>'}")
         return False
 
     def is_pending(self):
@@ -100,28 +110,27 @@ class User:
         Inform the user whether a user has limited access"""
         # if shell is nologin
         try:
-            shell = self.__passwd_entry.get('shell', None)
+            shell = self.__passwd_entry.get("shell", None)
             return (
-                shell == '/sbin/nologin' or
-                shell == '/usr/bin/nologin' or
-                shell == '/bin/nologin'
-                )
+                shell == "/sbin/nologin" or shell == "/usr/bin/nologin" or shell == "/bin/nologin"
+            )
         except KeyError:
             return False
 
     def name_taken(self, name):
         """Check if a username is already taken by *another* user"""
         name = make_shadow_compatible(name)
-        taken = name in [entry['login'] for entry in User.__all_passwd_entries('login').values()]
-        logger.debug(F"name_taken: {taken}")
+        taken = name in [entry["login"] for entry in User.__all_passwd_entries("login").values()]
+        logger.debug(f"name_taken: {taken}")
         return taken and name != self.get_username()
 
     def get_username(self):
         """Return username based on unique_id"""
-        gecos_user_map = {entry['gecos']: entry['login']
-                for entry in User.__all_passwd_entries('gecos').values()}
+        gecos_user_map = {
+            entry["gecos"]: entry["login"] for entry in User.__all_passwd_entries("gecos").values()
+        }
         try:
-            return User.__all_passwd_entries('gecos')[self.unique_id]['login']
+            return User.__all_passwd_entries("gecos")[self.unique_id]["login"]
         except KeyError:
             return None
 
@@ -130,44 +139,53 @@ class User:
         self.name = make_shadow_compatible(username)
 
     def create(self):
-        logger.debug(F"Creating user '{self.name}' for {self.unique_id} ")
+        logger.debug(f"Creating user '{self.name}' for {self.unique_id} ")
         try:
-            shell = CONFIG['backend.local_unix'].get('shell', '/bin/sh')
-            subprocess.run(['useradd', '--comment', self.unique_id,
-                            '-g', self.primary_group.name,
-                            '--shell', shell,
-                            '-m',
-                           self.name],
-                           check=True)
+            shell = CONFIG["backend.local_unix"].get("shell", "/bin/sh")
+            subprocess.run(
+                [
+                    "useradd",
+                    "--comment",
+                    self.unique_id,
+                    "-g",
+                    self.primary_group.name,
+                    "--shell",
+                    shell,
+                    "-m",
+                    self.name,
+                ],
+                check=True,
+            )
         except CalledProcessError as e:
-            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
-            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F"Cannot create user ({msg or '<no output>'})")
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
 
     def update(self):
-        self.credentials['ssh_user'] = self.name
-        self.credentials['ssh_host'] = CONFIG['backend.local_unix.login_info'].get('ssh_host', 'undefined')
-        self.credentials['commandline'] = "ssh {}@{}".format(
-            self.credentials['ssh_user'], self.credentials['ssh_host'])
+        self.credentials["ssh_user"] = self.name
+        self.credentials["ssh_host"] = CONFIG["backend.local_unix.login_info"].get(
+            "ssh_host", "undefined"
+        )
+        self.credentials["commandline"] = "ssh {}@{}".format(
+            self.credentials["ssh_user"], self.credentials["ssh_host"]
+        )
 
     def delete(self):
         if not self.exists():
-            raise Failure(message=F"Cannot delete user: no user found for {self.unique_id}.")
+            raise Failure(message=f"Cannot delete user: no user found for {self.unique_id}.")
 
-        name = self.__passwd_entry['login']
+        name = self.__passwd_entry["login"]
 
         try:
-            subprocess.run(['/usr/bin/pkill', '-u', name],
-                           check=True)
+            subprocess.run(["/usr/bin/pkill", "-u", name], check=True)
         except CalledProcessError:
             pass
         try:
-            subprocess.run(['userdel', name],
-                           check=True)
+            subprocess.run(["userdel", name], check=True)
         except CalledProcessError as e:
-            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
-            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F"Cannot delete user: {msg or '<no output>'}")
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot delete user: {msg or '<no output>'}")
 
     def mod(self, supplementary_groups=None):
         """Adds user to given groups.
@@ -175,52 +193,55 @@ class User:
         """
         options = []
         if supplementary_groups is not None:
-            logger.debug("Ensuring user '{}' is member of these groups {}".format(self.name, [g.name for g in supplementary_groups]))
-            options += ['--groups', ",".join([g.name for g in supplementary_groups])]
+            logger.debug(
+                "Ensuring user '{}' is member of these groups {}".format(
+                    self.name, [g.name for g in supplementary_groups]
+                )
+            )
+            options += ["--groups", ",".join([g.name for g in supplementary_groups])]
 
         try:
-            subprocess.run(['usermod'] + options + [self.name],
-                           check=True)
+            subprocess.run(["usermod"] + options + [self.name], check=True)
         except CalledProcessError as e:
-            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
-            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F"Cannot modify user: {msg or '<no output>'}")
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
 
     def __expire(self, expiration_date=datetime.today().strftime("%Y-%m-%d")):
-        options = ['-E', expiration_date]
+        options = ["-E", expiration_date]
         try:
-            subprocess.run(['chage'] + options + [self.name], check=True)
+            subprocess.run(["chage"] + options + [self.name], check=True)
         except CalledProcessError as e:
-            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
-            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F"Cannot set expiration date for user: {msg or '<no output>'}")
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot set expiration date for user: {msg or '<no output>'}")
 
     def suspend(self):
         self.__expire(datetime.today().strftime("%Y-%m-%d"))
 
     def resume(self):
-        self.__expire('-1')
+        self.__expire("-1")
 
     def __set_shell(self, shell):
         try:
-            subprocess.run(['usermod', '-s', shell, self.name], check=True)
+            subprocess.run(["usermod", "-s", shell, self.name], check=True)
         except CalledProcessError as e:
-            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
-            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F"Cannot modify user: {msg or '<no output>'}")
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
 
     def limit(self):
-        self.__set_shell('/sbin/nologin')
+        self.__set_shell("/sbin/nologin")
 
     def unlimit(self):
-        shell = CONFIG['backend.local_unix'].get('shell', '/bin/sh')
+        shell = CONFIG["backend.local_unix"].get("shell", "/bin/sh")
         self.__set_shell(shell)
 
     def install_ssh_keys(self):
         try:
-            if len (self.ssh_keys) > 0:
-                if CONFIG['backend.local_unix'].getboolean('deploy_user_ssh_keys', True):
-                    logger.debug(F"Deploying these ssh keys: {self.ssh_keys}")
+            if len(self.ssh_keys) > 0:
+                if CONFIG["backend.local_unix"].getboolean("deploy_user_ssh_keys", True):
+                    logger.debug(f"Deploying these ssh keys: {self.ssh_keys}")
                     self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
                     self.__authorized_keys.parent.chmod(0o700)
                     chown(self.__authorized_keys.parent, self.__uid, self.__gid)
@@ -230,10 +251,10 @@ class User:
                     chown(self.__authorized_keys, self.__uid, self.__gid)
         except IOError as e:
             logger.error(e)
-            raise Failure(message=F"Could not write new ssh keys: {e or '<no output>'}")
+            raise Failure(message=f"Could not write new ssh keys: {e or '<no output>'}")
         except Exception as e:
             logger.error(e)
-            raise Failure(message=F"Cannot change owner or permissions: {e or '<no output>'}")
+            raise Failure(message=f"Cannot change owner or permissions: {e or '<no output>'}")
 
     def uninstall_ssh_keys(self):
         """Remove any SSH keys stored in the users .authorized_keys file."""
@@ -244,43 +265,45 @@ class User:
 
     @property
     def __authorized_keys(self):
-        return Path(self.__passwd_entry['home'])/'.ssh'/'authorized_keys'
+        return Path(self.__passwd_entry["home"]) / ".ssh" / "authorized_keys"
 
     @property
     def __uid(self):
         try:
-            return int(self.__passwd_entry.get('uid', None))
+            return int(self.__passwd_entry.get("uid", None))
         except TypeError as e:
             logger.error(e)
-            raise Failure(message=F"Could not get uid: {e or '<no output>'}")
+            raise Failure(message=f"Could not get uid: {e or '<no output>'}")
 
     @property
     def __gid(self):
         try:
-            return int(self.__passwd_entry.get('gid', None))
+            return int(self.__passwd_entry.get("gid", None))
         except TypeError as e:
             logger.error(e)
-            raise Failure(message=F"Could not get gid: {e or '<no output>'}")
+            raise Failure(message=f"Could not get gid: {e or '<no output>'}")
 
     @property
     def __passwd_entry(self):
-        return User.__all_passwd_entries('gecos').get(self.unique_id, {})
+        return User.__all_passwd_entries("gecos").get(self.unique_id, {})
 
     @staticmethod
-    def __all_passwd_entries(ID_FIELD='gecos'):
-        PASSWD_PATH = Path(User.ROOT())/'etc'/'passwd'
-        PASSWD_FIELDS = ['login', 'pw', 'uid', 'gid', 'gecos', 'home', 'shell']
+    def __all_passwd_entries(ID_FIELD="gecos"):
+        PASSWD_PATH = Path(User.ROOT()) / "etc" / "passwd"
+        PASSWD_FIELDS = ["login", "pw", "uid", "gid", "gecos", "home", "shell"]
 
         try:
             raw = PASSWD_PATH.read_text()
         except IOError as e:
             logger.error(e)
-            raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
+            raise Failure(
+                message=f"Could not get information about existing users on system: {e or '<no output>'}"
+            )
         else:
             # for empty file return empty dict
             if raw.strip() == "":
                 return {}
-            users = [dict(zip(PASSWD_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
+            users = [dict(zip(PASSWD_FIELDS, line.split(":"))) for line in raw.strip().split("\n")]
 
             # import json
             # thedata={user[ID_FIELD]: user for user in users}
@@ -290,6 +313,7 @@ class User:
             # logger.debug(F"whattttt: {x}")
             return {user[ID_FIELD]: user for user in users}
 
+
 class Group:
     def __init__(self, name):
         self.name = make_shadow_compatible(name)
@@ -298,31 +322,30 @@ class Group:
     def ROOT():
         """ROOT directory for user db
         only used for testing purposes, defaults to '/' otherwise"""
-        return '/'
+        return "/"
 
     def exists(self):
         return bool(self.__group_entry)
 
     def create(self):
         try:
-            subprocess.run(['groupadd', self.name],
-                           check=True)
+            subprocess.run(["groupadd", self.name], check=True)
         except CalledProcessError as e:
-            msg = (e.stderr or e.stdout or b'').decode('utf-8').strip()
-            logger.error('Error executing \'{}\': {}'.format(' '.join(e.cmd), msg or "<no output>"))
-            raise Failure(message=F"Cannot create group: {msg or '<no output>'}")
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create group: {msg or '<no output>'}")
 
     def delete(self):
         # groupdel
-        raise NotImplementedError('Do we even need this function?')
+        raise NotImplementedError("Do we even need this function?")
 
     def mod(self):
         # groupmod
-        raise NotImplementedError('Do we even need this function?')
+        raise NotImplementedError("Do we even need this function?")
 
     @property
     def members(self):
-        return self.__group_entry.get('members', [])
+        return self.__group_entry.get("members", [])
 
     @property
     def __group_entry(self):
@@ -330,24 +353,26 @@ class Group:
 
     @staticmethod
     def __all_group_entries():
-        GROUP_PATH = Path(Group.ROOT())/'etc'/'group'
-        GROUP_FIELDS = ['name', 'password', 'gid', 'members']
-        ID_FIELD = 'name'
-        LIST_FIELD = 'members'
+        GROUP_PATH = Path(Group.ROOT()) / "etc" / "group"
+        GROUP_FIELDS = ["name", "password", "gid", "members"]
+        ID_FIELD = "name"
+        LIST_FIELD = "members"
 
         try:
             raw = GROUP_PATH.read_text()
         except IOError as e:
             logger.error(e)
-            raise Failure(message=F"Could not get information about existing users on system: {e or '<no output>'}")
+            raise Failure(
+                message=f"Could not get information about existing users on system: {e or '<no output>'}"
+            )
         else:
             # for empty file return empty dict
             if raw.strip() == "":
                 return {}
-            users = [dict(zip(GROUP_FIELDS, line.split(':'))) for line in raw.strip().split('\n')]
+            users = [dict(zip(GROUP_FIELDS, line.split(":"))) for line in raw.strip().split("\n")]
 
             for user in users:
-                user[LIST_FIELD] = user[LIST_FIELD].split(',')
+                user[LIST_FIELD] = user[LIST_FIELD].split(",")
 
             return {user[ID_FIELD]: user for user in users}
 
@@ -365,13 +390,23 @@ def make_shadow_compatible(orig_word):
     if orig_word is None:
         return None
     # Encode German Umlauts
-    word = orig_word.translate(str.maketrans({
-        'ä': 'ae', 'ö': 'oe', 'ü': 'ue',
-        'Ä': 'Ae', 'Ö': 'Oe', 'Ü': 'Ue',
-        'ß': 'ss',
-        '!': 'i', '$': 's',
-        '*': 'x', '@': '_at_',
-    }))
+    word = orig_word.translate(
+        str.maketrans(
+            {
+                "ä": "ae",
+                "ö": "oe",
+                "ü": "ue",
+                "Ä": "Ae",
+                "Ö": "Oe",
+                "Ü": "Ue",
+                "ß": "ss",
+                "!": "i",
+                "$": "s",
+                "*": "x",
+                "@": "_at_",
+            }
+        )
+    )
 
     # Unicode -> Ascii
     word = unidecode(word)
@@ -385,16 +420,16 @@ def make_shadow_compatible(orig_word):
     # aber nur *ganz* am Ende ...
     # word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
     # since we already replace $ with s, no need to check for $ at the end
-    word = regex.sub(r'[^-0-9_a-z]', '_', word)
+    word = regex.sub(r"[^-0-9_a-z]", "_", word)
 
     # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
-    if regex.match(r'^[a-z_]', word):
+    if regex.match(r"^[a-z_]", word):
         word = word
     else:
         if len(word) >= 32:
-            word = '_'+word[1:]
+            word = "_" + word[1:]
         else:
-            word = '_' + word
+            word = "_" + word
 
     # usernames and group names can only be 32 characters long.
     # My fix is to remove characters a) after the first '_' if there is one.
@@ -404,19 +439,21 @@ def make_shadow_compatible(orig_word):
     excess_chars = len(word) - 32
     if excess_chars > 0:
 
-        if len(word.split('_')) == 1: # no '_' found:
-            word = '__' + word[excess_chars+2:]
+        if len(word.split("_")) == 1:  # no '_' found:
+            word = "__" + word[excess_chars + 2 :]
             # logger.warning(F"shortened {orig_word} to {word}")
 
-        elif len(word.split('_')) > 1: # at least one '_' found:
-            fragments = word.split('_')
-            if len(fragments[1]) > excess_chars: # we're fine, we can cut excess chars from fragments alone
-                fragments[1]=".."+fragments[1][excess_chars+2:]
+        elif len(word.split("_")) > 1:  # at least one '_' found:
+            fragments = word.split("_")
+            if (
+                len(fragments[1]) > excess_chars
+            ):  # we're fine, we can cut excess chars from fragments alone
+                fragments[1] = ".." + fragments[1][excess_chars + 2 :]
                 # TODO: fix case when len(fragments[1]) == excess_chars + 1
-                word = '_'.join(fragments)
+                word = "_".join(fragments)
             else:
-                logger.error(F"User or group name is too long: {word} ({len(word)})")
-                raise(ValueError)
+                logger.error(f"User or group name is too long: {word} ({len(word)})")
+                raise (ValueError)
                 # TODO: fix case when removing chars from one fragment is not enough to shorten the word
                 # i.e. len(fragments[1] <= excess_chars)
             # logger.warning(F"shortened {orig_word} to {word}")
