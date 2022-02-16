@@ -220,6 +220,21 @@ def test_new_pooled_generic(userinfo):
     name = name_generator.suggest_name()
     assert name == "pytest001"
 
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_multiple_calls(userinfo):
+    """test returning the tried names"""
+    name_generator = name_generators.NameGenerator(
+        "friendly", userinfo=userinfo, pool_prefix="pytest"
+    )
+    old_name = ""
+    for i in range(0,17):
+        new_name = name_generator.suggest_name()
+        assert old_name != new_name
+        old_name = new_name
+    tried_names = name_generator.tried_names()
+    print (F"TRIED NAMES:{tried_names}")
+    assert isinstance(tried_names, list)
+
 
 @pytest.mark.parametrize("data", [marcus_userinfo_json])
 def test_tried_names_friendly(userinfo):
