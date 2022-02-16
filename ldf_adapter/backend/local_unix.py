@@ -390,7 +390,9 @@ def make_shadow_compatible(orig_word) -> str:
 
     """
     if orig_word is None:
-        raise Failure(message="Cannot use username 'None' in make_shadow_compatible")
+        return None
+        # For some reason "None" still comes in on the docker-compose setup. 
+        # raise Failure(message="Cannot use username 'None' in make_shadow_compatible")
     # Encode German Umlauts
     word = orig_word.translate(
         str.maketrans(
