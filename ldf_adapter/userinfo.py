@@ -355,14 +355,14 @@ class UserInfo(Mapping):
                         f"    Furthermore, we are in non-interactive mode, so we can't ask the user."
                     )
                     logger.warning(
-                        f"    Therefore, we just take the first group: '{list(self.groups)[0]}'"
+                        f"    Therefore, we just take the first group: '{sorted(list(self.groups))[0]}'"
                     )
                     nl = "\n                            "
                     # logger.warning(F"    Available groups are: {nl}{nl.join(self.groups)}")
                     logger.warning(
                         "\\--------------------------------------------------------------------------------/"
                     )
-                return list(self.groups)[0]
+                return sorted(list(self.groups))[0]
 
         else:
             old_answer = self.answers.get("primary_group", None)
