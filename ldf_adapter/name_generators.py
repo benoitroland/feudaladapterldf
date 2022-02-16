@@ -8,7 +8,6 @@ Generate useful user or group names
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
 import logging
-from typing import Union
 from .config import CONFIG
 
 logger = logging.getLogger(__name__)
@@ -28,11 +27,13 @@ class NameGenerator:
     def suggest_name(self, *args, **kwargs) -> str:
         return self.generator.suggest_name(*args, **kwargs)
 
-    def tried_names(self) -> Union[list, None]:
-        try:
+    def tried_names(self) -> list:
+        if isinstance(
+            self.generator,
+            FriendlyNameGenerator,
+        ):
             return self.generator.tried_names()
-        except AttributeError:
-            return None
+        return []
 
 
 class FriendlyNameGenerator:
