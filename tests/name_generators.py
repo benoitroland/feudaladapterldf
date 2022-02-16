@@ -133,10 +133,10 @@ def test_friendly_name_again():
     marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
     name_generator = name_generators.FriendlyNameGenerator(marcus_userinfo)
     name = name_generator.suggest_name()
-    assert name == "marhar"
+    assert name == "mhardt"
 
     name = name_generator.suggest_name()
-    assert name == "hardt"
+    assert name == "marcus"
 
 
 def test_pooled_name_one():
@@ -168,10 +168,10 @@ def test_new_friendly():
     marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
     name_generator = name_generators.NameGenerator("friendly", userinfo=marcus_userinfo)
     name = name_generator.suggest_name()
-    assert name == "marchar"
+    assert name == "mhardt"
 
     name = name_generator.suggest_name()
-    assert name == "marcuhar"
+    assert name == "marcus"
 
 
 def test_new_pooled():
@@ -189,10 +189,10 @@ def test_new_friendly_simpler():
     marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
     name_generator = name_generators.NameGenerator("friendly", userinfo=marcus_userinfo)
     name = name_generator.suggest_name()
-    assert name == "mahar"
+    assert name == "mhardt"
 
     name = name_generator.suggest_name()
-    assert name == "marchard"
+    assert name == "marcus"
 
 
 def test_new_pooled_simpler():
@@ -212,7 +212,7 @@ def test_new_pooled_generic():
         "friendly", userinfo=marcus_userinfo, pool_prefix="pytest"
     )
     name = name_generator.suggest_name()
-    assert name == "marcuhard"
+    assert name == "mhardt"
 
     name_generator = name_generators.NameGenerator(
         "pooled", userinfo=marcus_userinfo, pool_prefix="pytest"
