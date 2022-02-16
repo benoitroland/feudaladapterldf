@@ -221,7 +221,7 @@ def test_new_pooled_generic():
     assert name == "pytest001"
 
 
-def test_tried_names():
+def test_tried_names_friendly():
     marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
     name_generator = name_generators.NameGenerator(
         "friendly", userinfo=marcus_userinfo, pool_prefix="pytest"
@@ -229,13 +229,13 @@ def test_tried_names():
     tried_names = name_generator.tried_names()
     assert isinstance(tried_names, list)
 
-def test_tried_names():
+def test_tried_names_pooled():
     marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
     name_generator = name_generators.NameGenerator(
         "pooled", userinfo=marcus_userinfo, pool_prefix="pytest"
     )
     tried_names = name_generator.tried_names()
-    assert tried_names == None
+    assert tried_names == []
 
 
 # vim: foldmethod=indent
