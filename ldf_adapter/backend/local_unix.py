@@ -6,13 +6,11 @@ Manages a user and groups via standard UNIX shadow-utils(8).
 # pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
-import sys
 import subprocess
 from subprocess import CalledProcessError
 from pathlib import Path
 from os import chown
-from datetime import date, datetime
-import json
+from datetime import datetime
 import logging
 
 # from typing import Union
@@ -56,8 +54,6 @@ class User:
 
     def exists(self):
         """Check wheter a user (identified by the unique_id) exists"""
-        # x = bool(self.unique_id in [entry['gecos'] for entry in User.__all_passwd_entries('gecos').values()])
-        # logger.debug(F"user exists: {x}")
         return bool(
             self.unique_id
             in [entry["gecos"] for entry in User.__all_passwd_entries("gecos").values()]
@@ -113,9 +109,7 @@ class User:
         # if shell is nologin
         try:
             shell = self.__passwd_entry.get("shell", None)
-            return (
-                shell == "/sbin/nologin" or shell == "/usr/bin/nologin" or shell == "/bin/nologin"
-            )
+            return shell in ["/sbin/nologin", "/usr/bin/nologin", "/bin/nologin"]
         except KeyError:
             return False
 
@@ -128,9 +122,6 @@ class User:
 
     def get_username(self):
         """Return username based on unique_id"""
-        gecos_user_map = {
-            entry["gecos"]: entry["login"] for entry in User.__all_passwd_entries("gecos").values()
-        }
         try:
             return User.__all_passwd_entries("gecos")[self.unique_id]["login"]
         except KeyError:
@@ -191,7 +182,8 @@ class User:
 
     def mod(self, supplementary_groups=None):
         """Adds user to given groups.
-        param list supplementary_groups: a list of Group objects; the corresponding unix groups are assumed to exist.
+        param list supplementary_groups: a list of Group objects;
+        the corresponding unix groups are assumed to exist.
         """
         options = []
         if supplementary_groups is not None:
@@ -299,7 +291,8 @@ class User:
         except IOError as e:
             logger.error(e)
             raise Failure(
-                message=f"Could not get information about existing users on system: {e or '<no output>'}"
+                message="Could not get information about "
+                f"existing users on system: {e or '<no output>'}"
             )
         else:
             # for empty file return empty dict
@@ -318,7 +311,11 @@ class User:
 
 class Group:
     def __init__(self, name):
-        self.name = make_shadow_compatible(name)
+        logger.debug(F"my own group name: {name}")
+        if name is None:
+            self.name = None
+        else:
+            self.name = make_shadow_compatible(name)
 
     @staticmethod
     def ROOT():
@@ -347,6 +344,8 @@ class Group:
 
     @property
     def members(self):
+        members = self.__group_entry.get("members", [])
+        logger.debug(f"GROUP MEMBERS: {members}")
         return self.__group_entry.get("members", [])
 
     @property
@@ -365,7 +364,8 @@ class Group:
         except IOError as e:
             logger.error(e)
             raise Failure(
-                message=f"Could not get information about existing users on system: {e or '<no output>'}"
+                message="Could not get information about "
+                f"existing users on system: {e or '<no output>'}"
             )
         else:
             # for empty file return empty dict
@@ -374,12 +374,9 @@ class Group:
             users = [dict(zip(GROUP_FIELDS, line.split(":"))) for line in raw.strip().split("\n")]
 
             for user in users:
-                user[LIST_FIELD] = user[LIST_FIELD].split(",")
+                user[LIST_FIELD] = user[LIST_FIELD].split(",")  # type: ignore
 
-            retval = {user[ID_FIELD]: user for user in users}
-            logger.debug(f"retval: {retval}")
-
-            return retval
+            return {user[ID_FIELD]: user for user in users}
 
 
 def make_shadow_compatible(orig_word) -> str:
@@ -393,7 +390,7 @@ def make_shadow_compatible(orig_word) -> str:
 
     """
     if orig_word is None:
-        raise Failure(message="Cannot user username 'None' in make_shadow_compatible")
+        raise Failure(message="Cannot use username 'None' in make_shadow_compatible")
     # Encode German Umlauts
     word = orig_word.translate(
         str.maketrans(
@@ -459,11 +456,12 @@ def make_shadow_compatible(orig_word) -> str:
             else:
                 logger.error(f"User or group name is too long: {word} ({len(word)})")
                 raise (ValueError)
-                # TODO: fix case when removing chars from one fragment is not enough to shorten the word
+                # TODO: fix case when removing chars from one fragment is not enough
+                # to shorten the word
                 # i.e. len(fragments[1] <= excess_chars)
             # logger.warning(F"shortened {orig_word} to {word}")
 
     if word != orig_word:
-        logger.warning("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
+        logger.debug("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
 
     return word
