@@ -1,6 +1,6 @@
 """test name_generators"""
+import pytest
 from ldf_adapter import name_generators
-from ldf_adapter import userinfo
 
 marcus_userinfo_json = {
     "state_target": "deployed",
@@ -114,11 +114,11 @@ marcus_userinfo_json = {
 }
 
 
-def test_friendly_name():
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_friendly_name(userinfo):
     """test friendly name generator with provided userinfo json
     Depends on the hardcoded strategies"""
-    marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
-    name_generator = name_generators.FriendlyNameGenerator(userinfo=marcus_userinfo)
+    name_generator = name_generators.FriendlyNameGenerator(userinfo=userinfo)
     name = name_generator.suggest_name()
     assert name == "mhardt"
 
@@ -126,17 +126,17 @@ def test_friendly_name():
     assert name == "marcus"
 
 
-def test_friendly_name_again():
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_friendly_name_again(userinfo):
     """test friendly name generator with provided userinfo json
     run for a 2nd time, to verify internal state works
     Depends on the hardcoded strategies"""
-    marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
-    name_generator = name_generators.FriendlyNameGenerator(marcus_userinfo)
+    name_generator = name_generators.FriendlyNameGenerator(userinfo)
     name = name_generator.suggest_name()
-    assert name == "marhar"
+    assert name == "mhardt"
 
     name = name_generator.suggest_name()
-    assert name == "hardt"
+    assert name == "marcus"
 
 
 def test_pooled_name_one():
@@ -163,15 +163,15 @@ def test_pooled_name():
     assert name == "pytest002"
 
 
-def test_new_friendly():
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_new_friendly(userinfo):
     """test new invocation method"""
-    marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
-    name_generator = name_generators.NameGenerator("friendly", userinfo=marcus_userinfo)
+    name_generator = name_generators.NameGenerator("friendly", userinfo=userinfo)
     name = name_generator.suggest_name()
-    assert name == "marchar"
+    assert name == "mhardt"
 
     name = name_generator.suggest_name()
-    assert name == "marcuhar"
+    assert name == "marcus"
 
 
 def test_new_pooled():
@@ -184,15 +184,15 @@ def test_new_pooled():
     assert name == "pytest002"
 
 
-def test_new_friendly_simpler():
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_new_friendly_simpler(userinfo):
     """test new invocation method"""
-    marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
-    name_generator = name_generators.NameGenerator("friendly", userinfo=marcus_userinfo)
+    name_generator = name_generators.NameGenerator("friendly", userinfo=userinfo)
     name = name_generator.suggest_name()
-    assert name == "mahar"
+    assert name == "mhardt"
 
     name = name_generator.suggest_name()
-    assert name == "marchard"
+    assert name == "marcus"
 
 
 def test_new_pooled_simpler():
@@ -205,37 +205,56 @@ def test_new_pooled_simpler():
     assert name == "pytest002"
 
 
-def test_new_pooled_generic():
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_new_pooled_generic(userinfo):
     """test new invocation method"""
-    marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
     name_generator = name_generators.NameGenerator(
-        "friendly", userinfo=marcus_userinfo, pool_prefix="pytest"
+        "friendly", userinfo=userinfo, pool_prefix="pytest"
     )
     name = name_generator.suggest_name()
-    assert name == "marcuhard"
+    assert name == "mhardt"
 
     name_generator = name_generators.NameGenerator(
-        "pooled", userinfo=marcus_userinfo, pool_prefix="pytest"
+        "pooled", userinfo=userinfo, pool_prefix="pytest"
     )
     name = name_generator.suggest_name()
     assert name == "pytest001"
 
 
-def test_tried_names_friendly():
-    marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_multiple_calls(userinfo):
+    """test returning the tried names"""
     name_generator = name_generators.NameGenerator(
-        "friendly", userinfo=marcus_userinfo, pool_prefix="pytest"
+        "friendly", userinfo=userinfo, pool_prefix="pytest"
+    )
+    old_name = ""
+    for i in range(0, 17):
+        new_name = name_generator.suggest_name()
+        assert old_name != new_name
+        old_name = new_name
+    tried_names = name_generator.tried_names()
+    print(f"TRIED NAMES:{tried_names}")
+    assert isinstance(tried_names, list)
+
+
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_tried_names_friendly(userinfo):
+    """test returning the tried names"""
+    name_generator = name_generators.NameGenerator(
+        "friendly", userinfo=userinfo, pool_prefix="pytest"
     )
     tried_names = name_generator.tried_names()
     assert isinstance(tried_names, list)
 
-def test_tried_names_pooled():
-    marcus_userinfo = userinfo.UserInfo(marcus_userinfo_json)
+
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_tried_names_pooled(userinfo):
+    """test returning the tried names"""
     name_generator = name_generators.NameGenerator(
-        "pooled", userinfo=marcus_userinfo, pool_prefix="pytest"
+        "pooled", userinfo=userinfo, pool_prefix="pytest"
     )
     tried_names = name_generator.tried_names()
     assert tried_names == []
 
 
-# vim: foldmethod=indent
+# vim: tw=100
