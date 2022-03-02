@@ -38,7 +38,9 @@ class BwIdmConnection:
                 config["backend.bwidm.auth"]["http_pass"],
             )
 
-        if not CONFIG["backend.bwidm"].getboolean("log_outgoing_http_requests", fallback=False):
+        if not CONFIG["backend.bwidm"].getboolean(
+            "log_outgoing_http_requests", fallback=False
+        ):
             logging.getLogger("requests").setLevel(logging.CRITICAL)
             logging.getLogger("werkzeug").setLevel(logging.CRITICAL)
             logging.getLogger("urllib3").setLevel(logging.CRITICAL)
@@ -61,9 +63,13 @@ class BwIdmConnection:
         fail = kwargs.pop("fail", True)
 
         url_fragments = map(str, url_fragments)
-        url_fragments = map(lambda frag: requests.utils.quote(frag, safe=""), url_fragments)
+        url_fragments = map(
+            lambda frag: requests.utils.quote(frag, safe=""), url_fragments
+        )
         url = reduce(
-            lambda acc, frag: urljoin(acc, frag) if acc.endswith("/") else urljoin(acc + "/", frag),
+            lambda acc, frag: urljoin(acc, frag)
+            if acc.endswith("/")
+            else urljoin(acc + "/", frag),
             url_fragments,
             CONFIG["backend.bwidm"]["url"],
         )
@@ -73,7 +79,9 @@ class BwIdmConnection:
 
         if fail:
             if not rsp.ok:
-                logger.error("Server responded with: {}".format(rsp.content.decode("utf-8")))
+                logger.error(
+                    "Server responded with: {}".format(rsp.content.decode("utf-8"))
+                )
             rsp.raise_for_status()
 
         return rsp
@@ -111,7 +119,9 @@ class User:
 
     def _is_active(self):
         status = self.reg_info()["userStatus"]
-        logger.debug("User {} is {} on service BWIDM".format(self.info.unique_id, status))
+        logger.debug(
+            "User {} is {} on service BWIDM".format(self.info.unique_id, status)
+        )
         return status == self.VALUE_USER_ACTIVE
 
     def _is_registered(self):
@@ -121,13 +131,17 @@ class User:
         """
         # FIXME: Consider putting this request into the global user object (to reduce load on regapp)
         ssn = CONFIG["backend.bwidm.service"]["name"]
-        registrations = BWIDM.get("external-reg", "find", "externalId", self.info.unique_id)
+        registrations = BWIDM.get(
+            "external-reg", "find", "externalId", self.info.unique_id
+        )
         # find registrations
         number_of_registrations = 0
         try:
             logger.debug("logging registrations to jsonlog")
             jsonlogger.debug(
-                json.dumps(registrations.json, sort_keys=True, indent=4, separators=(",", ": "))
+                json.dumps(
+                    registrations.json, sort_keys=True, indent=4, separators=(",", ": ")
+                )
             )
         except TypeError:
             pass
@@ -152,7 +166,9 @@ class User:
         ).json()
 
         other_users_with_name = [
-            user for user in users_with_name if user["externalId"] != self.info.unique_id
+            user
+            for user in users_with_name
+            if user["externalId"] != self.info.unique_id
         ]
         # logger.debug (F"other_users: {other_users_with_name}")
         logger.debug(f"Found {len(other_users_with_name)} with same username")
@@ -164,7 +180,9 @@ class User:
             logger.error(
                 "Username '{}' is already used by\n    {}".format(
                     self.info.username,
-                    ",\n    ".join(map(lambda u: u["externalId"], other_users_with_name)),
+                    ",\n    ".join(
+                        map(lambda u: u["externalId"], other_users_with_name)
+                    ),
                 )
             )
         else:
@@ -179,7 +197,8 @@ class User:
             """Safely convert a response to json"""
             if resp.status_code != 200:
                 logger.debug(
-                    "Error %d reading from remote: \n%s\n" % (resp.status_code, str(resp.text))
+                    "Error %d reading from remote: \n%s\n"
+                    % (resp.status_code, str(resp.text))
                 )
                 os._exit(1)  # or raise or return None?
             try:
@@ -201,7 +220,9 @@ class User:
             logger.error("Error: I could not find the username in the database.")
             logger.error("  Most likely the user is not registered for this service\n")
             logger.error(f"  {e}")
-            logger.error(json.dumps(resp_json, sort_keys=True, indent=4, separators=(",", ": ")))
+            logger.error(
+                json.dumps(resp_json, sort_keys=True, indent=4, separators=(",", ": "))
+            )
         logger.debug(f"Found existing username: {full_username}")
         return full_username
 
@@ -216,7 +237,9 @@ class User:
             BWIDM.get("external-user", "activate", "externalId", self.info.unique_id)
         else:
             logger.info("Creating user {unique_id}".format(**self.info))
-            BWIDM.post("external-user", "create", json={"externalId": self.info.unique_id})
+            BWIDM.post(
+                "external-user", "create", json={"externalId": self.info.unique_id}
+            )
 
     def update(self):
         # FIXME: Consider putting this request into the global user object (to reduce load on regapp)
@@ -224,7 +247,9 @@ class User:
             rsp = BWIDM.get("external-reg", "find", "externalId", ext_id)
 
             try:
-                return next(filter(lambda reg: reg["registryStatus"] == "ACTIVE", rsp.json()))
+                return next(
+                    filter(lambda reg: reg["registryStatus"] == "ACTIVE", rsp.json())
+                )
             except StopIteration:
                 return {"lastReconcile": None}
 
@@ -310,22 +335,23 @@ class User:
             new_groups = [grp.reg_info(short=True) for grp in supplementary_groups]
             new_groups += [self.primary_group.reg_info()]
 
-            NL = "\n    "
+            # NL = "\n    "
             logger.debug(
-                f"Groups according to BWIDM: {NL}{NL.join([g['name'] for g in current_groups])}"
-            )
-            logger.debug(
-                f"Groups according to FEUDAL: {NL}{NL.join([g['name'] for g in new_groups])}"
+                f"Incoming groups: {NL}{NL.join([g['name'] for g in new_groups])}"
             )
 
             # Remove user from groups he should not be a member of
             to_be_removed_from = [
-                g for g in current_groups if g["id"] not in (ng["id"] for ng in new_groups)
+                g
+                for g in current_groups
+                if g["id"] not in (ng["id"] for ng in new_groups)
             ]
 
             # Only add user to groups she is not already a member of
             to_be_added_to = [
-                g for g in new_groups if g["id"] not in (cg["id"] for cg in current_groups)
+                g
+                for g in new_groups
+                if g["id"] not in (cg["id"] for cg in current_groups)
             ]
 
             if to_be_removed_from:
@@ -400,7 +426,9 @@ class User:
         """
         current_state = self.reg_info()
         new_state = utils.dictmerge(current_state, state_updates)
-        utils.log_dictdiff(utils.dictdiff(current_state, new_state), log_function=logger.info)
+        utils.log_dictdiff(
+            utils.dictdiff(current_state, new_state), log_function=logger.info
+        )
 
         for k in list(new_state):
             if new_state[k] is None:
@@ -420,7 +448,9 @@ class User:
             jsonlogger.debug(f"current_state: {formatted_json}")
 
             logger.debug("  logging new_to jsonlog")
-            formatted_json = json.dumps(new_state, sort_keys=True, indent=4, separators=(",", ": "))
+            formatted_json = json.dumps(
+                new_state, sort_keys=True, indent=4, separators=(",", ": ")
+            )
             jsonlogger.debug(f"new state for regapp:  {formatted_json}")
         except:
             pass
@@ -428,7 +458,9 @@ class User:
 
     def reg_info(self, json=True, **kwargs):
         # FIXME: Cache this functions results!
-        rsp = BWIDM.get("external-user", "find", "externalId", self.info.unique_id, **kwargs)
+        rsp = BWIDM.get(
+            "external-user", "find", "externalId", self.info.unique_id, **kwargs
+        )
         return rsp.json() if json else rsp.content
 
 
@@ -441,7 +473,9 @@ class Group:
         # CONFIG['backend.bwidm.service']['name']
         return (
             b"no such group"
-            not in BWIDM.get("group-admin", "find", "name", self.name, fail=False).content
+            not in BWIDM.get(
+                "group-admin", "find", "name", self.name, fail=False
+            ).content
         )
 
     def create(self):
@@ -451,7 +485,9 @@ class Group:
 
         if self.name != rsp["name"]:
             logger.warning(
-                "Groupname changed from {} to {} by BWIDM".format(self.name, rsp["name"])
+                "Groupname changed from {} to {} by BWIDM".format(
+                    self.name, rsp["name"]
+                )
             )
             self.name = rsp["name"]
 
