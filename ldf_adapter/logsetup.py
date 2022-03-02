@@ -98,7 +98,7 @@ def setup_logging():
     else:
         stream_handler.setLevel(loglevel_env)
 
-    logger.debug(f"Running: ")
+    logger.debug(f"Running: ----------------------------------------------------------------------------------------------------")
     logger.debug(f'         {" ".join(sys.argv)} ')
 
     # JSON LOGGER

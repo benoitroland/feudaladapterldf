@@ -72,7 +72,9 @@ class User:
                         "filename",
                         fallback="/tmp/userinfo/userinfo.json",
                     )
-                    dirname = CONFIG.get("verbose-info-plugin", "dirname", fallback="/tmp/userinfo")
+                    dirname = CONFIG.get(
+                        "verbose-info-plugin", "dirname", fallback="/tmp/userinfo"
+                    )
                     try:
                         os.mkdir(dirname)
                         os.chmod(dirname, 0o0777)
@@ -100,7 +102,9 @@ class User:
             backend.Group(grp) for grp in self.data.groups  # type:ignore
         ]
 
-        if CONFIG.get("ldf_adapter", "backend_supports_preferring_existing_user", fallback=False):
+        if CONFIG.get(
+            "ldf_adapter", "backend_supports_preferring_existing_user", fallback=False
+        ):
             logger.debug("trying to update user from existing")
             if self.service_user.exists():
                 self.update_username_from_existing()
@@ -225,7 +229,10 @@ class User:
                 logger.warning(
                     "Assurance checking is disabled: Users with ANY assurance will be authorised"
                 )
-            if not CONFIG.get("assurance", "skip", fallback="No") == "Yes, do as I say!":
+            if (
+                not CONFIG.get("assurance", "skip", fallback="No")
+                == "Yes, do as I say!"
+            ):
                 if not self.assurance_verifier()(self.data.assurance):
                     raise Rejection(
                         message="Your assurance level is insufficient to access this resource"
@@ -237,10 +244,17 @@ class User:
 
             return self.deploy()
         elif target == "not_deployed":
-            if not CONFIG.get("assurance", "skip", fallback="No") == "Yes, do as I say!":
+            if (
+                not CONFIG.get("assurance", "skip", fallback="No")
+                == "Yes, do as I say!"
+            ):
                 if not self.assurance_verifier()(self.data.assurance):
-                    if not CONFIG.getboolean("assurance", "verified_undeploy", fallback=False):
-                        logger.warning("Assurance level is insufficient. Undeploying anyway.")
+                    if not CONFIG.getboolean(
+                        "assurance", "verified_undeploy", fallback=False
+                    ):
+                        logger.warning(
+                            "Assurance level is insufficient. Undeploying anyway."
+                        )
                     else:
                         raise Rejection(
                             message="Your assurance level is insufficient to access this resource"
@@ -285,7 +299,9 @@ class User:
         what_changed += "."
 
         if new_credentials:
-            what_changed += " Credentials {} were activated.".format(",".join(new_credentials))
+            what_changed += " Credentials {} were activated.".format(
+                ",".join(new_credentials)
+            )
 
         return Deployed(credentials=self.credentials, message=what_changed)
 
@@ -445,13 +461,15 @@ class User:
 
         is_new_user = not self.service_user.exists()
 
+        unique_id = self.data.unique_id
         if is_new_user:
-            unique_id = self.data.unique_id
             username = self.data.username
-            primary_group_name = None
+            primary_group_name = self.data.primary_group
 
             # Raise question in case of existing username in case we're interactive
-            if CONFIG.getboolean("ldf_adapter", "interactive", fallback=False):  # interactive
+            if CONFIG.getboolean(
+                "ldf_adapter", "interactive", fallback=False
+            ):  # interactive
                 logger.debug("interactive mode")
                 if self.service_user.name_taken(username):
                     logger.info(
@@ -464,9 +482,10 @@ class User:
 
             else:  # non-interactive
                 logger.debug("noninteractive mode")
-                username_mode = CONFIG.get("username_generator", "mode", fallback="friendly")
+                username_mode = CONFIG.get(
+                    "username_generator", "mode", fallback="friendly"
+                )
                 logger.debug(f"username_mode: {username_mode}")
-                primary_group_name = self.data.primary_group
                 pool_prefix = CONFIG.get(
                     "username_generator", "pool_prefix", fallback=primary_group_name
                 )
@@ -488,6 +507,9 @@ class User:
 
                 logger.info(f"Chose username '{proposed_name}' for {unique_id}")
 
+            logger.debug(f"Primary Group Name: {primary_group_name}")
+            logger.debug(f"Primary Group from userinfo: {self.data.primary_group}")
+
             # Sanity check to ensure user has a primary group:
             if primary_group_name is None:
                 config_file_name = globalconfig.info["config_files_read"]
@@ -502,8 +524,8 @@ class User:
             self.service_user.create()
         else:  # The user exists
             # Update service_user.name if unique_id already points to a username:
-            username = self.data.username
-            logger.info("User {username} for '{unique_id}' already exists.".format(**self.data))
+            username = self.service_user.get_username()
+            logger.info(f"User {username} for '{self.data.unique_id}' already exists.")
 
         logger.debug(f"This is a new user: {is_new_user}")
 
@@ -518,7 +540,9 @@ class User:
             existing_username = self.service_user.get_username()
             if existing_username is not None:
                 if hasattr(self.service_user, "set_username"):
-                    logger.debug(f"Setting username to {existing_username} ({self.data.unique_id})")
+                    logger.debug(
+                        f"Setting username to {existing_username} ({self.data.unique_id})"
+                    )
                     self.service_user.set_username(existing_username)
                 logger.debug(f"Found an existing username: {existing_username}")
         except AttributeError:
@@ -534,7 +558,9 @@ class User:
         """
         if self.service_user.exists():
             self.service_user.username = self.service_user.get_username()
-            logger.info(f"Deleting user '{self.service_user.username}' ({self.data.unique_id})")
+            logger.info(
+                f"Deleting user '{self.service_user.username}' ({self.data.unique_id})"
+            )
             # bwIDM requires prior removal of the user, because ssh-key removal triggers an
             # asyncronous process. If user is removed during that, the user might be only partially
             # removed...
@@ -546,7 +572,9 @@ class User:
                 self.service_user.delete()
             return True
         else:
-            logger.info(f"No user existed for {self.data.unique_id} did exist. Nothing to do.")
+            logger.info(
+                f"No user existed for {self.data.unique_id} did exist. Nothing to do."
+            )
             return False
 
     def ensure_suspended(self):
@@ -558,7 +586,9 @@ class User:
             if hasattr(self.service_user, "suspend"):
                 self.service_user.suspend()
                 return True
-        logger.debug(f"User {self.data.unique_id} in state {status.state}. Suspending not allowed.")
+        logger.debug(
+            f"User {self.data.unique_id} in state {status.state}. Suspending not allowed."
+        )
         return False
 
     def ensure_limited(self):
@@ -570,7 +600,9 @@ class User:
             if hasattr(self.service_user, "limit"):
                 self.service_user.limit()
                 return True
-        logger.debug(f"User {self.data.unique_id} in state {status.state}. Limiting not allowed.")
+        logger.debug(
+            f"User {self.data.unique_id} in state {status.state}. Limiting not allowed."
+        )
         return False
 
     def ensure_resumed(self):
@@ -582,7 +614,9 @@ class User:
             if hasattr(self.service_user, "resume"):
                 self.service_user.resume()
                 return True
-        logger.debug(f"User {self.data.unique_id} in state {status.state}. Resuming not allowed.")
+        logger.debug(
+            f"User {self.data.unique_id} in state {status.state}. Resuming not allowed."
+        )
         return False
 
     def ensure_unlimited(self):
@@ -594,7 +628,9 @@ class User:
             if hasattr(self.service_user, "unlimit"):
                 self.service_user.unlimit()
                 return True
-        logger.debug(f"User {self.data.unique_id} in state {status.state}. Unlimit not allowed.")
+        logger.debug(
+            f"User {self.data.unique_id} in state {status.state}. Unlimit not allowed."
+        )
         return False
 
     def ensure_groups_exist(self):
@@ -620,7 +656,9 @@ class User:
         # problem with some backends
 
         group_list = self.service_groups
-        if self.service_user.primary_group.name not in [grp.name for grp in self.service_groups]:
+        if self.service_user.primary_group.name not in [
+            grp.name for grp in self.service_groups
+        ]:
             group_list.append(self.service_user.primary_group)
 
         if group_list[0].name is None:
