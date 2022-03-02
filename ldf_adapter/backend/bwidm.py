@@ -208,14 +208,14 @@ class User:
                 raise
             return resp_json
 
-        full_username = None
+        username = None
+        bwidmOrgId = ""
         resp = BWIDM.get("external-user", "find", "externalId", self.info.unique_id)
         resp_json = safe_resp_conversion(resp)
 
         try:
             username = resp_json["attributeStore"]["urn:oid:0.9.2342.19200300.100.1.1"]
             bwIdmOrgId = resp_json["attributeStore"]["http://bwidm.de/bwidmOrgId"]
-            full_username = f"{bwIdmOrgId}_{username}"
         except KeyError as e:
             logger.error("Error: I could not find the username in the database.")
             logger.error("  Most likely the user is not registered for this service\n")
@@ -223,8 +223,8 @@ class User:
             logger.error(
                 json.dumps(resp_json, sort_keys=True, indent=4, separators=(",", ": "))
             )
-        logger.debug(f"Found existing username: {full_username}")
-        return full_username
+        logger.debug(f"Returning username {username} (without prefix {bwIdmOrgId})")
+        return username
 
     def set_username(self, username):
         """Update the internal representation of the user with the incoming username"""
