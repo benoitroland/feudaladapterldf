@@ -335,7 +335,7 @@ class User:
             new_groups = [grp.reg_info(short=True) for grp in supplementary_groups]
             new_groups += [self.primary_group.reg_info()]
 
-            # NL = "\n    "
+            NL = "\n    "
             logger.debug(
                 f"Incoming groups: {NL}{NL.join([g['name'] for g in new_groups])}"
             )
