@@ -207,9 +207,7 @@ class User:
 
     def set_username(self, username):
         """Update the internal representation of the user with the incoming username"""
-        logger.debug("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         self.force_username = username
-        logger.debug("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 
     def create(self):
         """Create or activate user."""
