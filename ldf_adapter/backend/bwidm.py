@@ -216,6 +216,7 @@ class User:
         try:
             username = resp_json["attributeStore"]["urn:oid:0.9.2342.19200300.100.1.1"]
             bwIdmOrgId = resp_json["attributeStore"]["http://bwidm.de/bwidmOrgId"]
+            logger.debug(f"retuning username: {bwIdmOrgId}_{username}")
             return f"{bwIdmOrgId}_{username}"
         except KeyError as e:
             logger.error("Error: I could not find the username in the database.")
