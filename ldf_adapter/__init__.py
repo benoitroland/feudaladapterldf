@@ -543,7 +543,12 @@ class User:
                     logger.debug(
                         f"Setting username to {existing_username} ({self.data.unique_id})"
                     )
-                    self.service_user.set_username(existing_username)
+                    if hasattr(self.service_user, "set_prefixed_username"):
+                        logger.debug("calling set_prefixed_username")
+                        self.service_user.set_prefixed_username(existing_username)
+                    else:
+                        logger.debug("calling set_username")
+                        self.service_user.set_username(existing_username)
                 logger.debug(f"Found an existing username: {existing_username}")
         except AttributeError:
             # the currently used service_user class has to method get_username

@@ -209,13 +209,15 @@ class User:
             return resp_json
 
         username = None
-        bwidmOrgId = ""
+        bwIdmOrgId = ""
         resp = BWIDM.get("external-user", "find", "externalId", self.info.unique_id)
         resp_json = safe_resp_conversion(resp)
 
         try:
             username = resp_json["attributeStore"]["urn:oid:0.9.2342.19200300.100.1.1"]
             bwIdmOrgId = resp_json["attributeStore"]["http://bwidm.de/bwidmOrgId"]
+            logger.debug(f"retuning username: {bwIdmOrgId}_{username}")
+            return f"{bwIdmOrgId}_{username}"
         except KeyError as e:
             logger.error("Error: I could not find the username in the database.")
             logger.error("  Most likely the user is not registered for this service\n")
@@ -223,12 +225,17 @@ class User:
             logger.error(
                 json.dumps(resp_json, sort_keys=True, indent=4, separators=(",", ": "))
             )
-        logger.debug(f"Returning username {username} (without prefix {bwIdmOrgId})")
-        return username
+        return None
 
     def set_username(self, username):
         """Update the internal representation of the user with the incoming username"""
         self.force_username = username
+
+    def set_prefixed_username(self, prefixed_username):
+        """Update the internal representation of the user with the incoming username"""
+        bwIdmOrgId = CONFIG["backend.bwidm"]["org_id"]
+        username = prefixed_username.lstrip(f"{bwIdmOrgId}_")
+        self.set_username(username)
 
     def create(self):
         """Create or activate user."""
