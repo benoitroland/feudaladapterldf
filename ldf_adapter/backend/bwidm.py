@@ -276,6 +276,10 @@ class User:
         )
         # if the user is already registered for the service, we're done here
         if self._is_registered():
+            self.credentials["ssh_user"] = self.get_username()
+            self.credentials["ssh_host"] = CONFIG["backend.bwidm.login_info"].get(
+                "ssh_host", "undefined"
+            )
             return
 
         old_reg = get_active_reg_info(self.info.unique_id)
@@ -309,7 +313,7 @@ class User:
             )
         )
 
-        self.credentials["ssh_user"] = reg["registryValues"]["localUid"]
+        self.credentials["ssh_user"] = self.get_username()
         self.credentials["ssh_host"] = CONFIG["backend.bwidm.login_info"].get(
             "ssh_host", "undefined"
         )
