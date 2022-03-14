@@ -74,6 +74,8 @@ class BwIdmConnection:
             CONFIG["backend.bwidm"]["url"],
         )
 
+        # logger.debug(f"BWIDM: {url}")
+        # logger.debug(f"BWIDM: {kwargs}")
         req = requests.Request(method, url, **kwargs)
         rsp = self.session.send(self.session.prepare_request(req))
 
@@ -229,6 +231,7 @@ class User:
 
     def set_username(self, username):
         """Update the internal representation of the user with the incoming username"""
+        logger.debug(f"set_username: setting {username}")
         self.force_username = username
 
     def set_prefixed_username(self, prefixed_username):
@@ -248,8 +251,9 @@ class User:
                 "external-user", "create", json={"externalId": self.info.unique_id}
             )
 
-    def update(self):
-        # FIXME: Consider putting this request into the global user object (to reduce load on regapp)
+    def register(self):
+        """register user for the configured service"""
+
         def get_active_reg_info(ext_id):
             rsp = BWIDM.get("external-reg", "find", "externalId", ext_id)
 
@@ -259,28 +263,6 @@ class User:
                 )
             except StopIteration:
                 return {"lastReconcile": None}
-
-        self.external_user_update(
-            {
-                "externalId": self.info.unique_id,
-                "eppn": self.info.eppn,
-                "email": self.info.email,
-                "givenName": self.info.given_name,
-                "surName": self.info.family_name,
-                "primaryGroup": {"id": self.primary_group.reg_info()["id"]},
-                "attributeStore": {
-                    self.ATTR_USERNAME: self.force_username or self.info.username,
-                    self.ATTR_ORG_ID: CONFIG["backend.bwidm"]["org_id"],
-                },
-            }
-        )
-        # if the user is already registered for the service, we're done here
-        if self._is_registered():
-            self.credentials["ssh_user"] = self.get_username()
-            self.credentials["ssh_host"] = CONFIG["backend.bwidm.login_info"].get(
-                "ssh_host", "undefined"
-            )
-            return
 
         old_reg = get_active_reg_info(self.info.unique_id)
         # We wait until the 'lastReconciled' timestamp changes, which means that our update was sucessfully deployed
@@ -312,6 +294,28 @@ class User:
                 reg["lastReconcile"]
             )
         )
+        logger.debug(f"user is now registered: {self._is_registered()}")
+
+    def update(self):
+        # FIXME: Consider putting this request into the global user object (to reduce load on regapp)
+
+        self.external_user_update(
+            {
+                "externalId": self.info.unique_id,
+                "eppn": self.info.eppn,
+                "email": self.info.email,
+                "givenName": self.info.given_name,
+                "surName": self.info.family_name,
+                "primaryGroup": {"id": self.primary_group.reg_info()["id"]},
+                "attributeStore": {
+                    self.ATTR_USERNAME: self.force_username or self.info.username,
+                    self.ATTR_ORG_ID: CONFIG["backend.bwidm"]["org_id"],
+                },
+            }
+        )
+        # if the user is already registered for the service, we're done here
+        if not self._is_registered():
+            self.register()
 
         self.credentials["ssh_user"] = self.get_username()
         self.credentials["ssh_host"] = CONFIG["backend.bwidm.login_info"].get(
@@ -320,6 +324,8 @@ class User:
         self.credentials["commandline"] = "ssh {}@{}".format(
             self.credentials["ssh_user"], self.credentials["ssh_host"]
         )
+        logger.debug(f"user is active: {self._is_active()}")
+        logger.debug(f"user is registered: {self._is_registered()}")
 
     def delete(self):
         """Deregister the user from the given service in BWIDM."""
@@ -346,10 +352,10 @@ class User:
             new_groups = [grp.reg_info(short=True) for grp in supplementary_groups]
             new_groups += [self.primary_group.reg_info()]
 
-            NL = "\n    "
-            logger.debug(
-                f"Incoming groups: {NL}{NL.join([g['name'] for g in new_groups])}"
-            )
+            # NL = "\n    "
+            # logger.debug(
+            #     f"Incoming groups: {NL}{NL.join([g['name'] for g in new_groups])}"
+            # )
 
             # Remove user from groups he should not be a member of
             to_be_removed_from = [
@@ -440,6 +446,20 @@ class User:
         utils.log_dictdiff(
             utils.dictdiff(current_state, new_state), log_function=logger.info
         )
+        try:
+            logger.debug(
+                f"current_state: {current_state['attributeStore']['urn:oid:0.9.2342.19200300.100.1.1']}"
+            )
+
+            logger.debug(
+                f"new_state:     {new_state['attributeStore']['urn:oid:0.9.2342.19200300.100.1.1']}    "
+            )
+            logger.debug(
+                f"state_updates: {state_updates['attributeStore']['urn:oid:0.9.2342.19200300.100.1.1']}"
+            )
+
+        except KeyError:
+            pass
 
         for k in list(new_state):
             if new_state[k] is None:
