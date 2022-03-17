@@ -22,12 +22,10 @@ from .results import (
     Deployed,
     NotDeployed,
     Rejection,
-    Failure,
     Question,
-    raise_question,
     Status,
 )
-from .name_generators import FriendlyNameGenerator, PooledNameGenerator, NameGenerator
+from .name_generators import NameGenerator
 from .userinfo import UserInfo
 
 logger = logging.getLogger(__name__)
@@ -100,6 +98,12 @@ class User:
         self.service_user = backend.User(self.data)  # type: ignore
         self.service_groups = [
             backend.Group(grp) for grp in self.data.groups  # type:ignore
+        ]
+
+        self.additional_groups = [
+            backend.Group(grp) for grp in list(set(  # type:ignore
+                CONFIG["ldf_adapter"].get("additional_groups", "").split()
+            ))
         ]
 
         if CONFIG.get(
@@ -645,7 +649,7 @@ class User:
         """
         group_list = filter(
             lambda grp: not grp.exists(),
-            [self.service_user.primary_group] + self.service_groups,
+            [self.service_user.primary_group] + self.service_groups + self.additional_groups,
         )
         for group in group_list:
             if group.name is not None:
@@ -665,6 +669,11 @@ class User:
             grp.name for grp in self.service_groups
         ]:
             group_list.append(self.service_user.primary_group)
+
+        group_list_names = [grp.name for grp in group_list]
+        for grp in self.additional_groups:
+            if grp.name not in group_list_names:
+                group_list.append(grp)
 
         if group_list[0].name is None:
             config_file_name = globalconfig.info["config_files_read"]

@@ -12,6 +12,7 @@ import regex
 from . import logsetup
 from . import eduperson
 from .config import CONFIG
+from .results import raise_question
 
 logger = logging.getLogger(__name__)
 
