@@ -29,6 +29,7 @@ def local_unix_user(input, exists, taken, monkeypatch):
     input should contain:
         - userinfo, which should contain: unique_id, username, primary_group and ssh_keys.
         - new_root: the folder relative to which the user and group dbs will be stored
+        - home_base (optional): the base directory for users' home directories
     If exists, it also adds an entry to the user database in /etc/passwd
     Otherwise, if taken, it adds an entry in the user db for this user's username
     """
@@ -71,6 +72,9 @@ def local_unix_user(input, exists, taken, monkeypatch):
     
     monkeypatch.setitem(CONFIG['ldf_adapter'], "backend", "local_unix")
     monkeypatch.setitem(CONFIG['backend.local_unix'], "shell", "/bin/bash")
+    home_base = input.get("home_base", None)
+    if home_base:
+        monkeypatch.setitem(CONFIG['backend.local_unix'], "home_base", home_base)
     monkeypatch.setattr("subprocess.run", mock_subprocess_run)
     backend.User.ROOT = mock_root  # type: ignore
     backend.Group.ROOT = mock_root  # type: ignore
@@ -96,6 +100,8 @@ def local_unix_user(input, exists, taken, monkeypatch):
 
     # clean up files
     old_subprocess_run(['rm', '-rf', mock_root()])
+    if home_base:
+        old_subprocess_run(['rm', '-rf', home_base])
 
 
 @pytest.fixture(scope="function")

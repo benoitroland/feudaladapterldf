@@ -23,6 +23,9 @@ from ..results import Failure
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_SHELL = "/bin/sh"
+DEFAULT_HOME_BASE = "/home"
+
 
 class User:
     def __init__(self, userinfo):
@@ -134,7 +137,8 @@ class User:
     def create(self):
         logger.debug(f"Creating user '{self.name}' for {self.unique_id} ")
         try:
-            shell = CONFIG["backend.local_unix"].get("shell", "/bin/sh")
+            shell = CONFIG["backend.local_unix"].get("shell", DEFAULT_SHELL)
+            home_base =  CONFIG["backend.local_unix"].get("home_base", DEFAULT_HOME_BASE).rstrip("/")
             subprocess.run(
                 [
                     "useradd",
@@ -144,6 +148,8 @@ class User:
                     self.primary_group.name,
                     "--shell",
                     shell,
+                    "-b",
+                    home_base,
                     "-m",
                     self.name,
                 ],
@@ -228,7 +234,7 @@ class User:
         self.__set_shell("/sbin/nologin")
 
     def unlimit(self):
-        shell = CONFIG["backend.local_unix"].get("shell", "/bin/sh")
+        shell = CONFIG["backend.local_unix"].get("shell", DEFAULT_SHELL)
         self.__set_shell(shell)
 
     def install_ssh_keys(self):
