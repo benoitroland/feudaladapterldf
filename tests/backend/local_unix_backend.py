@@ -20,6 +20,19 @@ INPUT_UNIX = {
     "group_entry": "testgroup:x:1000:",
 }
 
+INPUT_CUSTOM_HOME_BASE = {
+    "new_root": f"/tmp/newroot{random.randint(1000, 9999)}",
+    "userinfo": {
+        "unique_id": "subuid@issuer.domain",
+        "primary_group": "testgroup",
+        "username": "testuser",
+        "ssh_keys": {}
+    },
+    "home_base": "/tmp/custom/home/",
+    "passwd_entry": "testuser:x:1000:1000:subuid@issuer.domain:/tmp/custom/home/testuser:/bin/bash",
+    "group_entry": "testgroup:x:1000:",
+}
+
 
 @pytest.mark.parametrize('input,exists,taken', [(INPUT_UNIX, False, False)])
 def test_create(local_unix_user, input):
@@ -36,6 +49,13 @@ def test_create_taken(local_unix_user, input):
     """
     with pytest.raises(Failure):
         local_unix_user.create()
+
+
+@pytest.mark.parametrize('input,exists,taken', [(INPUT_CUSTOM_HOME_BASE, False, False)])
+def test_create_custom_home_base(local_unix_user, input):
+    """Test that create method adds the appropriate entry in /etc/passwd with custom home dir"""
+    local_unix_user.create()
+    assert input["passwd_entry"] in (Path(input["new_root"])/"etc"/"passwd").read_text()
 
 
 @pytest.mark.parametrize('input,exists,taken', [
