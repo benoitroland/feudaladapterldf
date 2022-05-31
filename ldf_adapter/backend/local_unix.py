@@ -62,11 +62,6 @@ class User:
             in [entry["gecos"] for entry in User.__all_passwd_entries("gecos").values()]
         )
 
-    def is_rejected(self):
-        """Optional, only if the backend supports it.
-        Inform the user whether a user was rejected"""
-        return False
-
     def is_suspended(self):
         """Optional, only if the backend supports it.
         Inform the user whether a user was suspended (e.g. due to a security incident)"""
@@ -101,11 +96,6 @@ class User:
                 raise Failure(message=f"Could not get: {e or '<no output>'}")
         return False
 
-    def is_pending(self):
-        """Optional, only if the backend supports it.
-        Inform the user whether his creation is pending"""
-        return False
-
     def is_limited(self):
         """Optional, only if the backend supports it.
         Inform the user whether a user has limited access"""
@@ -134,27 +124,47 @@ class User:
         """Set local username on the service."""
         self.name = make_shadow_compatible(username)
 
+    def _create_cmd(self):
+        shell = CONFIG["backend.local_unix"].get("shell", DEFAULT_SHELL)
+        home_base = CONFIG["backend.local_unix"].get("home_base", DEFAULT_HOME_BASE).rstrip("/")
+        return [
+            "useradd",
+            "--comment",
+            self.unique_id,
+            "-g",
+            self.primary_group.name,
+            "--shell",
+            shell,
+            "-b",
+            home_base,
+            "-m",
+            self.name,
+        ]
+
     def create(self):
         logger.debug(f"Creating user '{self.name}' for {self.unique_id} ")
         try:
-            shell = CONFIG["backend.local_unix"].get("shell", DEFAULT_SHELL)
-            home_base =  CONFIG["backend.local_unix"].get("home_base", DEFAULT_HOME_BASE).rstrip("/")
             subprocess.run(
-                [
-                    "useradd",
-                    "--comment",
-                    self.unique_id,
-                    "-g",
-                    self.primary_group.name,
-                    "--shell",
-                    shell,
-                    "-b",
-                    home_base,
-                    "-m",
-                    self.name,
-                ],
+                self._create_cmd(),
                 check=True,
             )
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
+
+    def create_tostring(self):
+        return " ".join(self._create_cmd())
+
+    @staticmethod
+    def create_fromstring(create_cmd):
+        # some sanity checks
+        if not create_cmd.startswith("useradd"):
+            raise Failure(
+                message=f"Cannot create user (command is not applicable to this backend): {create_cmd}"
+            )
+        try:
+            subprocess.run(create_cmd.split(" "), check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
@@ -186,26 +196,48 @@ class User:
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot delete user: {msg or '<no output>'}")
 
+    def _mod_cmd(self, supplementary_groups=None):
+        options = []
+        if supplementary_groups is not None:
+            options += ["--groups", ",".join([g.name for g in supplementary_groups])]
+
+        return ["usermod"] + options + [self.name]
+
     def mod(self, supplementary_groups=None):
         """Adds user to given groups.
         param list supplementary_groups: a list of Group objects;
         the corresponding unix groups are assumed to exist.
         """
-        options = []
         if supplementary_groups is not None:
             logger.debug(
                 "Ensuring user '{}' is member of these groups {}".format(
                     self.name, [g.name for g in supplementary_groups]
                 )
             )
-            options += ["--groups", ",".join([g.name for g in supplementary_groups])]
 
         try:
-            subprocess.run(["usermod"] + options + [self.name], check=True)
+            subprocess.run(self._mod_cmd(supplementary_groups=supplementary_groups), check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
+
+    def mod_tostring(self, supplementary_groups=None):
+        return " ".join(self._mod_cmd(supplementary_groups=supplementary_groups))
+
+    @staticmethod
+    def mod_fromstring(mod_cmd):
+        # some sanity checks
+        if not mod_cmd.startswith("usermod"):
+            raise Failure(
+                message=f"Cannot modify user (command is not applicable to this backend): {mod_cmd}"
+            )
+        try:
+            subprocess.run(mod_cmd.split(" "), check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
 
     def __expire(self, expiration_date=datetime.today().strftime("%Y-%m-%d")):
         options = ["-E", expiration_date]
@@ -317,7 +349,7 @@ class User:
 
 class Group:
     def __init__(self, name):
-        logger.debug(F"my own group name: {name}")
+        logger.debug(f"my own group name: {name}")
         if name is None:
             self.name = None
         else:
@@ -332,13 +364,33 @@ class Group:
     def exists(self):
         return bool(self.__group_entry)
 
+    def _create_cmd(self):
+        return ["groupadd", self.name]
+
     def create(self):
         try:
-            subprocess.run(["groupadd", self.name], check=True)
+            subprocess.run(self._create_cmd(), check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot create group: {msg or '<no output>'}")
+
+    def create_tostring(self):
+        return " ".join(self._create_cmd())
+
+    @staticmethod
+    def create_fromstring(create_cmd):
+        # some sanity checks
+        if not create_cmd.startswith("groupadd"):
+            raise Failure(
+                message=f"Cannot create group (command is not applicable to this backend): {create_cmd}"
+            )
+        try:
+            subprocess.run(create_cmd.split(" "), check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create group ({msg or '<no output>'})")
 
     def delete(self):
         # groupdel
@@ -397,7 +449,7 @@ def make_shadow_compatible(orig_word) -> str:
     """
     if orig_word is None:
         return None
-        # For some reason "None" still comes in on the docker-compose setup. 
+        # For some reason "None" still comes in on the docker-compose setup.
         # raise Failure(message="Cannot use username 'None' in make_shadow_compatible")
     # Encode German Umlauts
     word = orig_word.translate(

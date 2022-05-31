@@ -13,6 +13,7 @@ from ldap3 import (
     MODIFY_DELETE,
     MODIFY_ADD,
     SAFE_SYNC,
+    LDIF,
 )
 from enum import Enum, auto
 
@@ -315,30 +316,43 @@ class LdapConnection:
             )
             return next_gid
 
-    def add_user(self, userinfo, local_username, primary_group_name):
+    def add_user(self, userinfo, local_username, primary_group_name, ldif_repr=False):
         """Add an LDAP entry for `local_username` with
         all information from `userinfo`.
         If user exists, a Failure exception is raised.
         """
         try:
+            dn = f"uid={local_username},{self.user_base}"
+            object_class = ["top", "inetOrgPerson", "posixAccount"]
+            attributes = {
+                "sn": userinfo.family_name,
+                "givenName": userinfo.given_name,
+                "cn": userinfo.full_name,
+                "mail": userinfo.email,
+                "uid": local_username,
+                "uidNumber": self.get_next_uid(),
+                "gidNumber": self.search_group_by_name(primary_group_name).get_attribute(
+                    "gidNumber"
+                ),
+                "homeDirectory": f"{self.home_base}/{local_username}",
+                "loginShell": self.shell,
+                self.attr_local_uid: local_username,
+                self.attr_oidc_uid: userinfo.unique_id,
+            }
+            if ldif_repr:
+                connection = Connection(server=None, client_strategy=LDIF)
+                connection.open()
+                connection.add(
+                    dn,
+                    object_class=object_class,
+                    attributes=attributes,
+                )
+                return connection.response
+
             return self.connection.add(
-                f"uid={local_username},{self.user_base}",
-                object_class=["top", "inetOrgPerson", "posixAccount"],
-                attributes={
-                    "sn": userinfo.family_name,
-                    "givenName": userinfo.given_name,
-                    "cn": userinfo.full_name,
-                    "mail": userinfo.email,
-                    "uid": local_username,
-                    "uidNumber": self.get_next_uid(),
-                    "gidNumber": self.search_group_by_name(primary_group_name).get_attribute(
-                        "gidNumber"
-                    ),
-                    "homeDirectory": f"{self.home_base}/{local_username}",
-                    "loginShell": self.shell,
-                    self.attr_local_uid: local_username,
-                    self.attr_oidc_uid: userinfo.unique_id,
-                },
+                dn,
+                object_class=object_class,
+                attributes=attributes,
             )
         except Exception as e:
             msg = f"Failed to add an LDAP entry for uid {userinfo.unique_id} with local username {local_username}."
@@ -396,7 +410,7 @@ class LdapConnection:
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
-    def add_user_to_group(self, local_username, group_name):
+    def add_user_to_group(self, local_username, group_name, ldif_repr=False):
         """Add a user to group.
         If either of them does not exist, a Failure exception is raised.
         """
@@ -436,7 +450,7 @@ class LdapConnection:
             config = CONFIG["backend.ldap"]
             mode = Mode.from_str(config.get("mode", DEFAULT_MODE))
             host = config.get("host", DEFAULT_HOST)
-            tls = config.get("tls", DEFAULT_TLS)
+            tls = config.getboolean("tls", DEFAULT_TLS)
             if tls:
                 port = config.getint("port", DEFAULT_TLS_PORT)
             else:
@@ -568,6 +582,10 @@ class User:
         else:  # Mode.FULL_ACCESS
             LDAP.add_user(self.userinfo, self.name, self.primary_group.name)
 
+    def create_tostring(self):
+        """Return command (LDIF) for creating user in LDAP"""
+        return LDAP.add_user(self.userinfo, self.name, self.primary_group.name, ldif_repr=True)
+
     def update(self):
         """Update all relevant information about the user on the service.
 
@@ -639,6 +657,15 @@ class User:
             else:  # Mode.FULL_ACCESS
                 for group in supplementary_groups:
                     LDAP.add_user_to_group(self.name, group.name)
+
+    def mod_tostring(self, supplementary_groups=None):
+        if supplementary_groups is None or supplementary_groups == []:
+            logger.debug(f"Empty group list for user {self.name}. Nothing to do here.")
+            return ""
+        ldifs = []
+        for group in supplementary_groups:
+            ldifs += LDAP.add_user_to_group(self.name, group_name)
+        return "\n".join(ldifs)
 
     def install_ssh_keys(self):
         """Install users SSH keys on the service.

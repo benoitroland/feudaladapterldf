@@ -1,0 +1,9 @@
+{
+    "state_target": "accepted",
+    "user": {
+        "userinfo": {
+            "sub": "84ff0332-c96c-4067-b496-84ee5a9b7558",
+            "iss": "https://iam.deep-hybrid-datacloud.eu/"
+        }
+    }
+}
