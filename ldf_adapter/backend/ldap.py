@@ -521,7 +521,6 @@ class User:
             self.set_username(userinfo.username)
 
         self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
-        self.credentials = {}
 
     def exists(self):
         """Return whether the user exists on the service.
@@ -591,14 +590,6 @@ class User:
 
         If the user doesn't exists, behaviour is undefined.
         """
-        self.credentials["ssh_user"] = self.name
-        self.credentials["ssh_host"] = CONFIG["backend.ldap.login_info"].get(
-            "ssh_host", "undefined"
-        )
-        self.credentials["commandline"] = "ssh {}@{}".format(
-            self.credentials["ssh_user"], self.credentials["ssh_host"]
-        )
-
         if LDAP.mode == Mode.READ_ONLY:
             msg = (
                 f"LDAP backend in read_only mode, entry for user {self.unique_id} "

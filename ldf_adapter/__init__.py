@@ -30,7 +30,7 @@ from .name_generators import NameGenerator
 from .userinfo import UserInfo
 from .approval import PendingDeployment
 from .approval.db import SqlitePendingDB
-from .approval.notifiers import EmailNotifier
+from .approval.notifiers import Notifier
 
 logger = logging.getLogger(__name__)
 
@@ -114,17 +114,34 @@ class User:
             if self.service_user.exists():
                 self.update_username_from_existing()
 
+        try:
+            self.login_info = dict(CONFIG["login_info"])
+            self.login_info["ssh_host"] = self.login_info.get("ssh_host", "localhost")
+        except KeyError:
+            logger.debug(
+                "No login_info found in config file. Defaults to {'ssh_host': 'localhost'}"
+            )
+            self.login_info = {"ssh_host": "localhost"}
+
         if self.approval_enabled:
             user_db_location = CONFIG.get(
                 "approval", "user_db_location", fallback="/run/feudal/pending_users.db"
             )
+            notifier_type = CONFIG.get("approval", "notifier", fallback="email")
+            try:
+                notifier_config = dict(CONFIG[f"approval.{notifier_type}"])
+            except KeyError as ex:
+                message = (
+                    f"Could not find section [approval.{notifier_type}] in configuration file."
+                )
+                logger.error(f"{message}: {ex}")
+                print(f"\nERROR: {message}\n")
+                sys.exit(2)
+
             pending_db = SqlitePendingDB(location=user_db_location)
             self.pending_deployment = PendingDeployment(pending_db, self.data)
-            self.notifier = EmailNotifier(
-                smtp_server="smarthost.kit.edu",
-                smtp_port=25,
-                sent_from="feudal-admin@kit.edu",
-                admin_email="diana.gudu+test.feudal@gmail.com",
+            self.notifier = Notifier.load(
+                notifier_type, notifier_config, self.login_info["ssh_host"]
             )
 
     @property
@@ -458,9 +475,10 @@ class User:
                     )
                 )
             self.pending_deployment.accept()
+            return Deployed(credentials=self.credentials, message="")
         else:
             logger.debug(f"No pending request for user {self.data.unique_id} exists.")
-        return self.get_status()
+            return NotDeployed()
 
     def reject(self):
         """Ensure that a pending request is rejected and the user is in state 'not_deployed'.
@@ -789,18 +807,20 @@ class User:
     def credentials(self):
         """The Credentials displayed to the user.
 
-        Simply merges all the credentials provided by the service_user with those configured for
-        the backend in the config file.
+        Simply merges all the credentials provided by the service_user with those
+        configured in the config file.
 
         See Deployed.__init__ for details on how this value is used.
 
         Relevant config:
-        ldf_adapter.backend -- The backend to be used
-        backend.{}.login_info -- Everything in this section is merged into the credentials dictionary.
+        login_info -- Everything in this section is merged into the credentials dictionary.
         """
+        ssh_user = self.service_user.get_username()
+        commandline = "ssh {}@{}".format(ssh_user, self.login_info["ssh_host"])
         return {
-            **self.service_user.credentials,
-            **CONFIG["backend.{}.login_info".format(CONFIG["ldf_adapter"]["backend"])],
+            **self.login_info,
+            "ssh_user": ssh_user,
+            "commandline": commandline,
         }
 
     def test(self):

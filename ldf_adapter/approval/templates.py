@@ -3,10 +3,11 @@ from dataclasses import dataclass
 
 _ADMIN_TEMPLATE_DEPLOY_ = """Dear admin,
 
-The following user requests access to the host ${hostname}:
-unique_id: ${unique_id}
-name: ${full_name}
-email: ${email}
+The following user requests access to the host '${hostname}':
+
+    unique_id: ${unique_id}
+    name: ${full_name}
+    email: ${email}
 
 If you wish to accept their request, create a local account for them via:
 ====
@@ -34,10 +35,11 @@ Your humble email bot.
 
 _ADMIN_TEMPLATE_UPDATE_ = """Dear admin,
 
-There has been an update to the following's user request access to the host ${hostname}:
-unique_id: ${unique_id}
-name: ${full_name}
-email: ${email}
+There has been an update to the following's user request access to the host '${hostname}':
+
+    unique_id: ${unique_id}
+    name: ${full_name}
+    email: ${email}
 
 If you wish to accept their request, create a local account for them via:
 ====
@@ -66,7 +68,7 @@ Your humble email bot.
 
 _ADMIN_TEMPLATE_TEST_ = """Dear admin,
 
-This is a test notification for the approval of deployment requests to the host ${hostname}.
+This is a test notification for the approval of deployment requests to the host '${hostname}'.
 
 If you can read this message, the notification system is configured correctly. Here's a summary of your configuration:
 
@@ -79,7 +81,7 @@ Your humble email bot.
 
 _USER_TEMPLATE_DEPLOY_ = """Dear user,
 
-You are receiving this email because you requested access to ${hostname} for your federated account identified by:
+You are receiving this email because you requested access to '${hostname}' for your federated account identified by:
 
     ${unique_id}
 
@@ -93,7 +95,7 @@ Your humble email bot.
 
 _USER_TEMPLATE_UPDATE_ = """Dear user,
 
-You are receiving this email because there has been an update to your request to access ${hostname} via your federated account identified by:
+You are receiving this email because there has been an update to your request to access '${hostname}' via your federated account identified by:
 
     ${unique_id}
 

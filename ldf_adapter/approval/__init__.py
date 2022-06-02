@@ -120,6 +120,9 @@ class PendingDeployment:
         for group in self.groups:
             self._pending_db.remove_group(group.name)
         self._pending_db.remove_memberships(self.unique_id)
+        self._user = None
+        self._groups = []
+        self._memberships = []
 
     def is_pending(self) -> bool:
         """Whether the deployment was requested and is pending approval."""
@@ -153,7 +156,10 @@ class PendingDeployment:
         """Reject this pending deployment by setting the state of the user in the pending db
         to 'rejected', and remove pending group and membership entries for this user."""
         if self.user:
-            self._pending_db.reject_user(self.user.unique_id)
+            self._pending_db.reject_user(self.unique_id)
+            self._user = self._pending_db.get_user(self.unique_id)
         for group in self.groups:
             self._pending_db.remove_group(group.name)
         self._pending_db.remove_memberships(self.unique_id)
+        self._groups = []
+        self._memberships = []

@@ -47,7 +47,6 @@ class User:
 
         self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
         self.primary_group = Group(userinfo.primary_group)
-        self.credentials = {}
 
     @staticmethod
     def ROOT():
@@ -171,13 +170,7 @@ class User:
             raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
 
     def update(self):
-        self.credentials["ssh_user"] = self.name
-        self.credentials["ssh_host"] = CONFIG["backend.local_unix.login_info"].get(
-            "ssh_host", "undefined"
-        )
-        self.credentials["commandline"] = "ssh {}@{}".format(
-            self.credentials["ssh_user"], self.credentials["ssh_host"]
-        )
+        pass
 
     def delete(self):
         if not self.exists():

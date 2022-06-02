@@ -100,7 +100,6 @@ class User:
 
     def __init__(self, userinfo):
         self.info = userinfo
-        self.credentials = {}
         self.primary_group = Group(userinfo.primary_group)
         self.force_username = None
 
@@ -317,13 +316,6 @@ class User:
         if not self._is_registered():
             self.register()
 
-        self.credentials["ssh_user"] = self.get_username()
-        self.credentials["ssh_host"] = CONFIG["backend.bwidm.login_info"].get(
-            "ssh_host", "undefined"
-        )
-        self.credentials["commandline"] = "ssh {}@{}".format(
-            self.credentials["ssh_user"], self.credentials["ssh_host"]
-        )
         logger.debug(f"user is active: {self._is_active()}")
         logger.debug(f"user is registered: {self._is_registered()}")
 
