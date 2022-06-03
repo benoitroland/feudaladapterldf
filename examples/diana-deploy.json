@@ -18,7 +18,8 @@
             "given_name": "Diana",
             "groups": [
                 "KIT-Cloud",
-                "m-team"
+                "m-team",
+                "another"
             ],
             "iss": "https://iam.deep-hybrid-datacloud.eu/",
             "name": "Diana Gudu",

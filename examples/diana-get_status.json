@@ -1,5 +1,5 @@
 {
-    "state_target": "rejected",
+    "state_target": "get_status",
     "user": {
         "userinfo": {
             "sub": "84ff0332-c96c-4067-b496-84ee5a9b7558",

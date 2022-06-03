@@ -228,7 +228,7 @@ class SqlitePendingDB(PendingDB):
 
     def reject_user(self, unique_id: str) -> None:
         """Change the state of user given by unique_id from 'pending' to 'rejected'."""
-        sql_update = "update pending_users set state=rejected where unique_id=?"
+        sql_update = "update pending_users set state='rejected' where unique_id=?"
         try:
             with self.connection:
                 self.connection.execute(sql_update, [unique_id])

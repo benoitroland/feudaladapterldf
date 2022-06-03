@@ -324,6 +324,12 @@ class User:
 
         Return a Deployed result, with a message describing what was done.
         """
+        if self.approval_enabled and self.pending_deployment.is_rejected():
+            return Status(
+                state="rejected",
+                message="User deployment was rejected. No new deployment request will be sent.",
+            )
+
         new_groups = self.ensure_groups_exist()
         was_created = self.ensure_exists()
         new_memberships = self.ensure_group_memberships()
@@ -476,16 +482,29 @@ class User:
                 )
             self.pending_deployment.accept()
             return Deployed(credentials=self.credentials, message="")
+        elif self.pending_deployment.is_rejected():
+            what_changed = "Used request was already rejected, cannot accept it."
+            logger.debug(what_changed)
+            return Status(state="rejected", message=what_changed)
         else:
-            logger.debug(f"No pending request for user {self.data.unique_id} exists.")
-            return NotDeployed()
+            what_changed = f"No pending request for user {self.data.unique_id} exists."
+            logger.debug(what_changed)
+            return NotDeployed(message=what_changed)
 
     def reject(self):
         """Ensure that a pending request is rejected and the user is in state 'not_deployed'.
 
         Return a Status result with a message describing what was done.
         """
-        pass
+        if self.pending_deployment.is_pending() or self.pending_deployment.groups_pending():
+            self.pending_deployment.reject()
+            what_changed = "User deployment request was rejected."
+            logger.debug(what_changed)
+            return Status(state="rejected", message=what_changed)
+        else:
+            what_changed = f"No pending request for user {self.data.unique_id} exists."
+            logger.debug(what_changed)
+            return NotDeployed(message=what_changed)
 
     def get_status(self):
         """
