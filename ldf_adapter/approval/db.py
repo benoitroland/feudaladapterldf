@@ -14,6 +14,8 @@ class PendingUser:
     """Data model for storing information on a user pending approval."""
 
     unique_id: str
+    sub: str
+    iss: str
     email: Optional[str]
     full_name: Optional[str]
     username: str
@@ -117,6 +119,8 @@ class SqlitePendingDB(PendingDB):
                     """create table if not exists pending_users
                             (
                                 unique_id text primary key,
+                                sub text,
+                                iss text,
                                 email text,
                                 full_name text,
                                 username text,
@@ -144,13 +148,19 @@ class SqlitePendingDB(PendingDB):
 
     def add_user(self, user: PendingUser) -> bool:
         """Add a new entry for a user. Returns False if entry already exists."""
-        sql_insert = "insert into pending_users(unique_id, email, full_name, username, state, cmd) values (?,?,?,?,?,?)"
+        sql_insert = (
+            "insert into pending_users"
+            "(unique_id, sub, iss, email, full_name, username, state, cmd)"
+            " values (?,?,?,?,?,?,?,?)"
+        )
         try:
             with self.connection:
                 self.connection.execute(
                     sql_insert,
                     (
                         user.unique_id,
+                        user.sub,
+                        user.iss,
                         user.email,
                         user.full_name,
                         user.username,
@@ -164,7 +174,7 @@ class SqlitePendingDB(PendingDB):
                     user.username,
                     user.cmd,
                 )
-                return True
+            return True
         except sqlite3.IntegrityError as ex:
             logger.info("User %s already exists in pending db.", user.unique_id)
             return False
@@ -239,7 +249,7 @@ class SqlitePendingDB(PendingDB):
                     group.name,
                     group.cmd,
                 )
-                return True
+            return True
         except sqlite3.IntegrityError as ex:
             logger.info("Group %s already exists in pending db.", group.name)
             return False
@@ -289,7 +299,7 @@ class SqlitePendingDB(PendingDB):
                     membership.unique_id,
                     membership.cmd,
                 )
-                return True
+            return True
         except sqlite3.IntegrityError as ex:
             logger.info(
                 "Membership of user %s to group %s already exists in pending db.",
@@ -317,9 +327,10 @@ class SqlitePendingDB(PendingDB):
         """Get a given user's group memberships."""
         sql_get = "select * from pending_memberships where unique_id=?"
         try:
+            result = []
             with self.connection:
                 result = self.connection.execute(sql_get, [unique_id]).fetchall()
-                return [PendingMembership(*row) for row in result]
+            return [PendingMembership(*row) for row in result]
         except sqlite3.Error as ex:
             msg = f"Failed to get memberships of user {unique_id} from pending db"
             logger.error("%s: %s", msg, ex)

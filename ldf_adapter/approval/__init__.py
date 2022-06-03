@@ -27,10 +27,13 @@ class PendingDeployment:
             pending_db (PendingDB): database containing pending deployment requests
             userinfo (UserInfo): user info of federated user
         """
-        self._pending_db = pending_db
         self.unique_id = userinfo.unique_id
-        self.email = userinfo.email
-        self.full_name = userinfo.full_name
+        self._sub = userinfo.sub
+        self._iss = userinfo.iss
+        self._email = userinfo.email
+        self._full_name = userinfo.full_name
+
+        self._pending_db = pending_db
         self._user = pending_db.get_user(userinfo.unique_id)
         self._memberships = pending_db.get_memberships(userinfo.unique_id)
         self._groups = list(
@@ -55,6 +58,34 @@ class PendingDeployment:
         """Get information about the groups that the user needs to be added to."""
         return self._memberships
 
+    @property
+    def sub(self):
+        """Return sub as set in pending db, or in userinfo if user property not set."""
+        if self.user:
+            return self.user.sub
+        return self._sub
+
+    @property
+    def iss(self):
+        """Return iss as set in pending db, or in userinfo if user property not set."""
+        if self.user:
+            return self.user.iss
+        return self._iss
+
+    @property
+    def email(self):
+        """Return email as set in pending db, or in userinfo if user property not set."""
+        if self.user:
+            return self.user.email
+        return self._email
+
+    @property
+    def full_name(self):
+        """Return full_name as set in pending db, or in userinfo if user property not set."""
+        if self.user:
+            return self.user.full_name
+        return self._full_name
+
     def exists(self) -> bool:
         """Whether there is already an entry in the pending DB for this user."""
         return self.user is not None
@@ -72,6 +103,8 @@ class PendingDeployment:
         """
         pending_user = PendingUser(
             unique_id=service_user.unique_id,
+            sub=self.sub,
+            iss=self.iss,
             email=self.email,
             full_name=self.full_name,
             username=service_user.name,

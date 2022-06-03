@@ -51,6 +51,14 @@ class UserInfo(Mapping):
         self.allow_question = CONFIG.getboolean("ldf_adapter", "interactive", fallback=False)
 
     @property
+    def sub(self):
+        return self.userinfo["sub"]
+
+    @property
+    def iss(self):
+        return self.userinfo["iss"]
+
+    @property
     @lru_cache(maxsize=None)
     def size(self):
         the_size = 0

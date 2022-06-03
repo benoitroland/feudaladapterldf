@@ -9,25 +9,51 @@ The following user requests access to the host '${hostname}':
     name: ${full_name}
     email: ${email}
 
-If you wish to accept their request, create a local account for them via:
+Below are the backend-specific commands to deploy a local account for them.
+
+Creating a local account:
 ====
 ${user_cmd}
 ====
 
-Create the following local groups via:
+Creating the necessary local groups:
 ====
 ${groups_cmd}
 ====
 
-And add the user to the following groups groups via:
+Adding the user to local groups:
 ====
 ${memberships_cmd}
 ====
 
 You are free to change the user's local username as needed.
 
-If you wish to accept this deployment as is, go to APPROVE_ENDPOINT.
-If you wish to reject the deployment, go to REJECT_ENDPOINT and specify the reason.
+If you wish to accept this deployment as it is using feudal-adapter:
+====
+echo '{
+    "state_target": "accepted",
+    "user": {
+        "userinfo": {
+            "sub": "${sub}",
+            "iss": "${iss}"
+        }
+    }
+}' |  sudo feudal-adapter
+====
+
+If you wish to reject the deployment, fill in the reason for rejection in the command below and execute it:
+====
+echo '{
+    "state_target": "rejected",
+    "reason": "",
+    "user": {
+        "userinfo": {
+            "sub": "${sub}",
+            "iss": "${iss}"
+        }
+    }
+}' | feudal-adapter
+====
 
 Best,
 Your humble email bot.
@@ -41,25 +67,49 @@ There has been an update to the following's user request access to the host '${h
     name: ${full_name}
     email: ${email}
 
-If you wish to accept their request, create a local account for them via:
+Below are the backend-specific commands to update the local account for them.
+
+Updating a local account:
 ====
 ${user_cmd}
 ====
 
-Create the following local groups via:
+Creating the necessary local groups:
 ====
 ${groups_cmd}
 ====
 
-And add the user to the following groups groups via:
+Adding the user to local groups:
 ====
 ${memberships_cmd}
 ====
 
-You are free to change the user's local username as needed.
+If you wish to accept this deployment as it is using feudal-adapter:
+====
+echo '{
+    "state_target": "accepted",
+    "user": {
+        "userinfo": {
+            "sub": "${sub}",
+            "iss": "${iss}"
+        }
+    }
+}' | feudal-adapter
+====
 
-If you wish to accept this deployment as is, go to APPROVE_ENDPOINT.
-If you wish to reject the deployment, go to REJECT_ENDPOINT and specify the reason.
+If you wish to reject the deployment, fill in the reason for rejection in the command below and execute it:
+====
+echo '{
+    "state_target": "rejected",
+    "reason": "",
+    "user": {
+        "userinfo": {
+            "sub": "${sub}",
+            "iss": "${iss}"
+        }
+    }
+}' | feudal-adapter
+====
 
 Best,
 Your humble email bot.

@@ -170,6 +170,7 @@ class EmailNotifier(Notifier):
         user_cmd = deployment.user.cmd if deployment.user else ""
         groups_cmd = "\n".join([m.cmd for m in deployment.groups])
         memberships_cmd = "\n".join([m.cmd for m in deployment.memberships])
+
         admin_content = Template(admin_template).substitute(
             hostname=self.hostname,
             unique_id=deployment.unique_id,
@@ -178,6 +179,8 @@ class EmailNotifier(Notifier):
             user_cmd=user_cmd,
             groups_cmd=groups_cmd,
             memberships_cmd=memberships_cmd,
+            sub=deployment.sub,
+            iss=deployment.iss,
         )
         user_content = Template(user_template).substitute(
             hostname=self.hostname, unique_id=deployment.unique_id
