@@ -1,4 +1,5 @@
 from __future__ import annotations
+import configparser
 from enum import Enum
 from typing import Optional
 import logging
@@ -50,7 +51,9 @@ class Notifier:
         """
 
     @staticmethod
-    def load(notifier_type: str, notifier_config: dict, hostname: str = "localhost") -> Notifier:
+    def load(
+        notifier_type: str, notifier_config: configparser.SectionProxy, hostname: str = "localhost"
+    ) -> Notifier:
         """Load the notifier based on the type and configuration options given.
 
         Args:
@@ -63,11 +66,12 @@ class Notifier:
         """
         if notifier_type.lower() == "email":
             smtp_server = notifier_config.get("smtp_server", "localhost")
-            smtp_port = int(notifier_config.get("smtp_port", "25"))
+            smtp_port = notifier_config.getint("smtp_port", 25)
             admin_email = notifier_config.get("admin_email", "admin@localhost")
             sent_from = notifier_config.get("sent_from", "admin@localhost")
             sent_from_password = notifier_config.get("sent_from_password", None)
-            use_ssl = bool(notifier_config.get("use_ssl", "False"))
+            use_ssl = notifier_config.getboolean("use_ssl", False)
+
             return EmailNotifier(
                 smtp_server=smtp_server,
                 smtp_port=smtp_port,

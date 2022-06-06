@@ -129,7 +129,7 @@ class User:
             )
             notifier_type = CONFIG.get("approval", "notifier", fallback="email")
             try:
-                notifier_config = dict(CONFIG[f"approval.{notifier_type}"])
+                notifier_config = CONFIG[f"approval.{notifier_type}"]
             except KeyError as ex:
                 message = (
                     f"Could not find section [approval.{notifier_type}] in configuration file."
