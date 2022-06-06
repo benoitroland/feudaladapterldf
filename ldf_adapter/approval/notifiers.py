@@ -171,6 +171,7 @@ class EmailNotifier(Notifier):
         groups_cmd = "\n".join([m.cmd for m in deployment.groups])
         memberships_cmd = "\n".join([m.cmd for m in deployment.memberships])
 
+        # send notification to admin
         admin_content = Template(admin_template).substitute(
             hostname=self.hostname,
             unique_id=deployment.unique_id,
@@ -182,10 +183,6 @@ class EmailNotifier(Notifier):
             sub=deployment.sub,
             iss=deployment.iss,
         )
-        user_content = Template(user_template).substitute(
-            hostname=self.hostname, unique_id=deployment.unique_id
-        )
-
         self._send_email(
             email=self._build_email(
                 send_to=self.admin_email,
@@ -193,7 +190,14 @@ class EmailNotifier(Notifier):
                 content=admin_content,
             )
         )
+
+        # send notification to user if an email is provided
         if deployment.email:
+            user_content = Template(user_template).substitute(
+                hostname=self.hostname,
+                sub=deployment.sub,
+                iss=deployment.iss,
+            )
             self._send_email(
                 email=self._build_email(
                     send_to=deployment.email,

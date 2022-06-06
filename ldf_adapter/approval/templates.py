@@ -11,14 +11,14 @@ The following user requests access to the host '${hostname}':
 
 Below are the backend-specific commands to deploy a local account for them.
 
-Creating a local account:
-====
-${user_cmd}
-====
-
 Creating the necessary local groups:
 ====
 ${groups_cmd}
+====
+
+Creating the local account:
+====
+${user_cmd}
 ====
 
 Adding the user to local groups:
@@ -67,16 +67,16 @@ There has been an update to the following's user request access to the host '${h
     name: ${full_name}
     email: ${email}
 
-Below are the backend-specific commands to update the local account for them.
-
-Updating a local account:
-====
-${user_cmd}
-====
+Below are the backend-specific commands to create the local account for them.
 
 Creating the necessary local groups:
 ====
 ${groups_cmd}
+====
+
+Creating the local account:
+====
+${user_cmd}
 ====
 
 Adding the user to local groups:
@@ -133,7 +133,8 @@ _USER_TEMPLATE_DEPLOY_ = """Dear user,
 
 You are receiving this email because you requested access to '${hostname}' for your federated account identified by:
 
-    ${unique_id}
+    sub: ${sub}
+    iss: ${iss}
 
 Your request has been submitted for approval to the site admin.
 
@@ -147,7 +148,8 @@ _USER_TEMPLATE_UPDATE_ = """Dear user,
 
 You are receiving this email because there has been an update to your request to access '${hostname}' via your federated account identified by:
 
-    ${unique_id}
+    sub: ${sub}
+    iss: ${iss}
 
 The updated request has been re-submitted for approval to the site admin.
 

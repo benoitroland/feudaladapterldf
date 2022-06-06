@@ -365,7 +365,7 @@ class User:
         Return a NotDeployed result with a message saying if the user previously existed.
         """
         username = self.service_user.get_username()
-        was_removed = self.ensure_dosent_exist()
+        was_removed = self.ensure_doesnt_exist()
 
         what_changed = ""
         if was_removed:
@@ -633,7 +633,12 @@ class User:
                 self.pending_deployment.create_user(self.service_user)
             else:
                 self.service_user.create()
-
+        elif self.approval_enabled and self.pending_deployment.exists():  # the user is pending
+            username = self.pending_deployment.username
+            self.service_user.set_username(username)
+            logger.info(
+                f"Username {username} already assigned to '{self.data.unique_id}' in pending request."
+            )
         else:  # The user exists
             # Update service_user.name if unique_id already points to a username:
             username = self.service_user.get_username()
@@ -651,12 +656,6 @@ class User:
         """
         try:
             existing_username = self.service_user.get_username()
-            if (
-                existing_username is None
-                and self.approval_enabled
-                and self.pending_deployment.user is not None
-            ):
-                existing_username = self.pending_deployment.user.username
             if existing_username is not None:
                 if hasattr(self.service_user, "set_username"):
                     logger.debug(f"Setting username to {existing_username} ({self.data.unique_id})")
@@ -671,7 +670,7 @@ class User:
             # the currently used service_user class has to method get_username
             existing_username = None
 
-    def ensure_dosent_exist(self):
+    def ensure_doesnt_exist(self):
         """Ensure that the user doesn't exist.
 
         Before deleting them, uninstall all SSH keys, to be sure that they are really gone.
@@ -691,8 +690,14 @@ class User:
                 self.service_user.uninstall_ssh_keys()
                 self.service_user.delete()
             return True
+        elif self.approval_enabled and self.pending_deployment.exists():
+            logger.info(
+                f"No user existed for {self.data.unique_id}, but cleaned up lingering pending/rejected entry for this user."
+            )
+            self.pending_deployment.remove_pending_data()
+            return False
         else:
-            logger.info(f"No user existed for {self.data.unique_id} did exist. Nothing to do.")
+            logger.info(f"No user existed for {self.data.unique_id}. Nothing to do.")
             return False
 
     def ensure_suspended(self):

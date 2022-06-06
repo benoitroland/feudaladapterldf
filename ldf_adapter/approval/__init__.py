@@ -59,32 +59,38 @@ class PendingDeployment:
         return self._memberships
 
     @property
-    def sub(self):
+    def sub(self) -> str:
         """Return sub as set in pending db, or in userinfo if user property not set."""
         if self.user:
             return self.user.sub
         return self._sub
 
     @property
-    def iss(self):
+    def iss(self) -> str:
         """Return iss as set in pending db, or in userinfo if user property not set."""
         if self.user:
             return self.user.iss
         return self._iss
 
     @property
-    def email(self):
+    def email(self) -> Optional[str]:
         """Return email as set in pending db, or in userinfo if user property not set."""
         if self.user:
             return self.user.email
         return self._email
 
     @property
-    def full_name(self):
+    def full_name(self) -> Optional[str]:
         """Return full_name as set in pending db, or in userinfo if user property not set."""
         if self.user:
             return self.user.full_name
         return self._full_name
+
+    @property
+    def username(self) -> Optional[str]:
+        if self.user:
+            return self.user.username
+        return None
 
     def exists(self) -> bool:
         """Whether there is already an entry in the pending DB for this user."""
@@ -114,6 +120,12 @@ class PendingDeployment:
         if self._pending_db.add_user(pending_user):
             self._user = pending_user
             return True
+        return False
+
+    def update_user(self, service_user: backend.User) -> bool:  # type: ignore
+        """Add entry in pending db to update an existing user, only if necessary.
+        Return True if there was an update.
+        """
         return False
 
     def create_group(self, group: backend.Group) -> bool:  # type: ignore
