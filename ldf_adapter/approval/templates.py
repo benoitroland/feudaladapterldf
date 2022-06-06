@@ -26,7 +26,7 @@ Adding the user to local groups:
 ${memberships_cmd}
 ====
 
-You are free to change the user's local username as needed.
+You are free to change the user's local username as needed, and fill in any necessary information.
 
 If you wish to accept this deployment as it is using feudal-adapter:
 ====
@@ -83,6 +83,8 @@ Adding the user to local groups:
 ====
 ${memberships_cmd}
 ====
+
+Fill in any necessary information.
 
 If you wish to accept this deployment as it is using feudal-adapter:
 ====

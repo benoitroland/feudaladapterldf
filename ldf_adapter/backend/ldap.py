@@ -316,7 +316,7 @@ class LdapConnection:
             )
             return next_gid
 
-    def add_user(self, userinfo, local_username, primary_group_name, ldif_repr=False):
+    def add_user(self, userinfo, local_username, primary_group_name):
         """Add an LDAP entry for `local_username` with
         all information from `userinfo`.
         If user exists, a Failure exception is raised.
@@ -339,16 +339,6 @@ class LdapConnection:
                 self.attr_local_uid: local_username,
                 self.attr_oidc_uid: userinfo.unique_id,
             }
-            if ldif_repr:
-                connection = Connection(server=None, client_strategy=LDIF)
-                connection.open()
-                connection.add(
-                    dn,
-                    object_class=object_class,
-                    attributes=attributes,
-                )
-                return connection.response
-
             return self.connection.add(
                 dn,
                 object_class=object_class,
@@ -358,6 +348,34 @@ class LdapConnection:
             msg = f"Failed to add an LDAP entry for uid {userinfo.unique_id} with local username {local_username}."
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
+
+    def add_user_ldif(self, userinfo, local_username, primary_group_name):
+        """Return LDIF representation for a new user entry for `local_username` with
+        all information from `userinfo`.
+        If user exists, a Failure exception is raised.
+        """
+        dn = f"uid={local_username},{self.user_base}"
+        object_class = ["top", "inetOrgPerson", "posixAccount"]
+        gidNumber = self.search_group_by_name(primary_group_name).get_attribute("gidNumber")
+        if not gidNumber:
+            gidNumber = ""
+        attributes = {
+            "sn": userinfo.family_name,
+            "givenName": userinfo.given_name,
+            "cn": userinfo.full_name,
+            "mail": userinfo.email,
+            "uid": local_username,
+            "uidNumber": "",
+            "gidNumber": gidNumber,
+            "homeDirectory": f"{self.home_base}/{local_username}",
+            "loginShell": self.shell,
+            self.attr_local_uid: local_username,
+            self.attr_oidc_uid: userinfo.unique_id,
+        }
+        connection = Connection(server=None, client_strategy=LDIF)
+        connection.open()
+        connection.add(dn, object_class=object_class, attributes=attributes)
+        return connection.response
 
     def map_user(self, userinfo, local_username):
         """Update the LDAP entry for given `local_username` with
@@ -410,7 +428,7 @@ class LdapConnection:
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
-    def add_user_to_group(self, local_username, group_name, ldif_repr=False):
+    def add_user_to_group(self, local_username, group_name):
         """Add a user to group.
         If either of them does not exist, a Failure exception is raised.
         """
@@ -425,6 +443,18 @@ class LdapConnection:
             msg = f"Failed to modify the LDAP entry for group {group_name} with local username {local_username}."
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
+
+    def add_user_to_group_ldif(self, local_username, group_name):
+        """LDIF representation for adding a user to group."""
+        connection = Connection(server=None, client_strategy=LDIF)
+        connection.open()
+        connection.modify(
+            f"cn={group_name},{self.group_base}",
+            {
+                "memberUid": [(MODIFY_ADD, [local_username])],
+            },
+        )
+        return connection.response
 
     def add_group(self, group_name):
         """Add an LDAP entry for `group_name`.
@@ -443,6 +473,20 @@ class LdapConnection:
             msg = f"Failed to add an LDAP entry for group {group_name}."
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
+
+    def add_group_ldif(self, group_name):
+        """LDIF representation for adding an LDAP entry for `group_name`."""
+        connection = Connection(server=None, client_strategy=LDIF)
+        connection.open()
+        connection.add(
+            f"cn={group_name},{self.group_base}",
+            object_class=["top", "posixGroup"],
+            attributes={
+                "cn": group_name,
+                "gidNumber": "",
+            },
+        )
+        return connection.response
 
     @staticmethod
     def load():
@@ -583,7 +627,7 @@ class User:
 
     def create_tostring(self):
         """Return command (LDIF) for creating user in LDAP"""
-        return LDAP.add_user(self.userinfo, self.name, self.primary_group.name, ldif_repr=True)
+        return LDAP.add_user_ldif(self.userinfo, self.name, self.primary_group.name)
 
     def update(self):
         """Update all relevant information about the user on the service.
@@ -655,8 +699,8 @@ class User:
             return ""
         ldifs = []
         for group in supplementary_groups:
-            ldifs += LDAP.add_user_to_group(self.name, group_name)
-        return "\n".join(ldifs)
+            ldifs.append(LDAP.add_user_to_group_ldif(self.name, group.name))
+        return "\n\n".join(ldifs)
 
     def install_ssh_keys(self):
         """Install users SSH keys on the service.
@@ -717,3 +761,6 @@ class Group:
             logger.warning(msg)
         else:  # Mode.FULL_ACCESS
             LDAP.add_group(self.name)
+
+    def create_tostring(self):
+        return LDAP.add_group_ldif(self.name)
