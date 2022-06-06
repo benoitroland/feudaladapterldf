@@ -7,6 +7,8 @@ import sys
 from email.message import EmailMessage
 from string import Template
 
+# from trycourier import Courier
+
 from . import PendingDeployment
 from .templates import MessageTemplateAdmin, MessageTemplateUser
 from ..results import Failure
@@ -219,3 +221,48 @@ class EmailNotifier(Notifier):
                 content=Template(MessageTemplateAdmin.TEST).substitute(hostname=self.hostname),
             )
         )
+
+
+# class CourierNotifier:
+#     """(WIP) Implementation of a Courier notifier for deployment requests."""
+
+#     def __init__(self, api_key: str, template: str, hostname: str = "localhost") -> None:
+#         """Initialises Courier notifier
+
+#         Args:
+#             api_key (str): API key configured in Courier (from feudal config)
+#             template (str): template ID of configured email template in courier (from feudal config)
+#             hostname (str, optional): ssh host where a user is requesting deployment. Defaults to 'localhost'.
+#         """
+#         self.client = Courier(auth_token=api_key)
+#         self.template = template
+#         self.hostname = hostname
+
+#     def _notify(
+#         self,
+#         deployment: PendingDeployment,
+#         notification_type: NotificationType = NotificationType.NEW,
+#     ):
+#         """Notifies admin of request of given type."""
+#         user_cmd = deployment.user.cmd if deployment.user else ""
+#         groups_cmd = "\n".join([m.cmd for m in deployment.groups])
+#         memberships_cmd = "\n".join([m.cmd for m in deployment.memberships])
+#         resp = self.client.send_message(
+#             message={
+#                 "to": {
+#                     "email": "diana.gudu@gmail.com",
+#                 },
+#                 "template": self.template,
+#                 "data": {
+#                     "unique_id": deployment.unique_id,
+#                     "hostname": self.hostname,
+#                     "full_name": deployment.full_name,
+#                     "email": deployment.email,
+#                     "groups_cmd": groups_cmd,
+#                     "user_cmd": user_cmd,
+#                     "memberships_cmd": memberships_cmd,
+#                     "sub": deployment.sub,
+#                     "iss": deployment.iss,
+#                 },
+#             }
+#         )
