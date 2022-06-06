@@ -11,7 +11,8 @@ The currently supported states and their meaning are described in the table belo
 |--------------|-----------------|-------------|
 | deployed     | mandatory       | local account exists and is ready to be used |
 | not_deployed | mandatory       | local account does not exist |
-| pending      | optional        | local account is being created (offline workflow) |
+| pending      | optional        | creation of local account was requested and is pending approval by site admin (approval workflow) |
+| rejected     | optional        | request for creation of local account was rejected by site admin (approval workflow) |
 | suspended    | optional        | local account is suspended and cannot be used momentarily;<br>this can happen when the user is no longer authorised to use the service for various reasons (misbehaviour, left the VO, VO no longer authorised) |
 | limited      | optional        | user is no longer authorised to use the service (e.g. they left the home organisation or the VO), but they might still be granted limited access to the service (e.g. read-only) for a limited time |
 | undefined    | mandatory       | local account is in an undefined state due to an error;<br>please contact support |
@@ -35,7 +36,7 @@ The site admin can perform actions via the FeudalAdapter interface, or the local
 
 | Action   | Backend Support | Who can initiate it              | Description |
 |----------|-----------------|----------------------------------|-------------|
-| deploy   | mandatory       | user                             | triggers the provisioning of a local account |
+| deploy   | mandatory       | user                             | triggers the provisioning of a local account, or updates it if local account already exists |
 | undeploy | mandatory       | site admin                       | deprovisions a local account |
 | accept   | optional        | site admin                       | accepts a pending deployment request from a user;<br>triggers the local account provisioning |
 | reject   | optional        | site admin                       | rejects a pending deployment request;<br>a local account is not deployed |
@@ -57,12 +58,13 @@ The three possible actors allowed to perform actions are depicted by different s
 ◆ (diamond)  = site admin
 ```
 
-| from \ to        | deployed                | not_deployed            | pending                 | suspended               | limited                 | undefined |
-|-----------------:|-------------------------|-------------------------|-------------------------|-------------------------|-------------------------|:---------:|
-| **deployed**     | <p align="center">-</p> | ◆ undeploy              | <p align="center">-</p> | ■▲◆ suspend             | ◆ limit                 | *         |
-| **not_deployed** | ■ deploy                | <p align="center">-</p> | ■ deploy                | <p align="center">-</p> | <p align="center">-</p> | *         |
-| **pending**      | ◆ accept                | ◆ reject                | <p align="center">-</p> | <p align="center">-</p> | <p align="center">-</p> | *         |
-| **suspended**    | ▲ resume                | ◆ undeploy              | <p align="center">-</p> | <p align="center">-</p> | ▲ resume                | *         |
-| **limited**      | ◆ unlimit               | ◆ undeploy              | <p align="center">-</p> | ■▲◆ suspend             | <p align="center">-</p> | *         |
-| **undefined**    | <p align="center">-</p> | ◆ undeploy              | <p align="center">-</p> | <p align="center">-</p> | <p align="center">-</p> | *         |
+| from \ to        | deployed                | not_deployed            | rejected                | pending                 | suspended               | limited                 | undefined |
+|-----------------:|-------------------------|-------------------------|-------------------------|-------------------------|-------------------------|-------------------------|:---------:|
+| **deployed**     | ■ deploy                | ◆ undeploy              | <p align="center">-</p> | <p align="center">-</p> | ■▲◆ suspend             | ◆ limit                 | *         |
+| **not_deployed** | ■ deploy                | <p align="center">-</p> | <p align="center">-</p> | ■ deploy                | <p align="center">-</p> | <p align="center">-</p> | *         |
+| **pending**      | ◆ accept                | ◆ undeploy              | ◆ reject                | <p align="center">-</p> | <p align="center">-</p> | <p align="center">-</p> | *         |
+| **rejected**     | <p align="center">-</p> | ◆ undeploy              | <p align="center">-</p> | <p align="center">-</p> | <p align="center">-</p> | <p align="center">-</p> | *         |
+| **suspended**    | ▲ resume                | ◆ undeploy              | <p align="center">-</p> | <p align="center">-</p> | <p align="center">-</p> | ▲ resume                | *         |
+| **limited**      | ◆ unlimit               | ◆ undeploy              | <p align="center">-</p> | <p align="center">-</p> | ■▲◆ suspend             | <p align="center">-</p> | *         |
+| **undefined**    | <p align="center">-</p> | ◆ undeploy              | <p align="center">-</p> | <p align="center">-</p> | <p align="center">-</p> | <p align="center">-</p> | *         |
 
