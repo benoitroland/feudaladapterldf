@@ -810,7 +810,7 @@ class User:
             f"Ensuring user '{username}' ({self.data.unique_id}) is member of these groups: {[grp.name for grp in group_list]}"
         )
         if self.approval_enabled:
-            return self.pending_deployment.add_user_to_groups(
+            return self.pending_deployment.mod(
                 service_user=self.service_user, supplementary_groups=group_list
             )
         else:

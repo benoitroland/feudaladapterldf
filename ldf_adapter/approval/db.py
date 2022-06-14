@@ -1,10 +1,12 @@
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Optional, List
 import sqlite3
+import json
 import logging
 
 from ..results import Failure
+from ..utils import sql_command_create_table, sql_command_insert_to_table
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ class PendingUser:
     username: str
     state: str
     cmd: str
+    infodict: dict
 
 
 @dataclass
@@ -30,6 +33,7 @@ class PendingGroup:
     name: str
     state: str
     cmd: str
+    infodict: dict
 
 
 @dataclass
@@ -40,6 +44,7 @@ class PendingMembership:
     name: str
     state: str
     cmd: str
+    infodict: dict
 
 
 class PendingDB:
@@ -102,6 +107,11 @@ class PendingDB:
         return []
 
 
+# register the functions for manipulating custom types in sqlite db
+sqlite3.register_adapter(dict, lambda x: json.dumps(x))
+sqlite3.register_converter("dict", lambda x: json.loads(x))
+
+
 class SqlitePendingDB(PendingDB):
     """Implementation of PendingDB with sqlite3."""
 
@@ -111,36 +121,31 @@ class SqlitePendingDB(PendingDB):
         Args:
             location (str): path to file where DB is stored. Will be created if it does not exist.
         """
+        create_users_table_cmd = sql_command_create_table(
+            data_model=PendingUser, table_name="pending_users", primary_key="unique_id"
+        )
+        create_groups_table_cmd = sql_command_create_table(
+            data_model=PendingGroup, table_name="pending_groups", primary_key="name"
+        )
+        create_memberships_table_cmd = sql_command_create_table(
+            data_model=PendingMembership,
+            table_name="pending_memberships",
+            primary_key=["unique_id", "name"],
+        )
         try:
-            self.connection = sqlite3.connect(location)
+            self.connection = sqlite3.connect(location, detect_types=sqlite3.PARSE_COLNAMES)
             with self.connection:  # con.commit() is called automatically afterwards on success
-                # create tables
-                self.connection.execute(
-                    """create table if not exists pending_users
-                            (
-                                unique_id text primary key,
-                                sub text,
-                                iss text,
-                                email text,
-                                full_name text,
-                                username text,
-                                state text,
-                                cmd text
-                            )
-                    """
-                )
-                self.connection.execute(
-                    """create table if not exists pending_groups
-                            (name text primary key, state text, cmd text)"""
-                )
-                self.connection.execute(
-                    """create table if not exists pending_memberships
-                            (
-                                unique_id text, name text, state text, cmd text,
-                                primary key (unique_id, name)
-                            )
-                    """
-                )
+                logger.debug("Creating table: %s", create_users_table_cmd)
+                self.connection.execute(create_users_table_cmd)
+                logger.debug("Successfully created table 'pending_users'.")
+
+                logger.debug("Creating table: %s", create_groups_table_cmd)
+                self.connection.execute(create_groups_table_cmd)
+                logger.debug("Successfully created table 'pending_groups'.")
+
+                logger.debug("Creating table: %s", create_memberships_table_cmd)
+                self.connection.execute(create_memberships_table_cmd)
+                logger.debug("Successfully created table 'pending_memberships'.")
         except sqlite3.Error as ex:
             message = f"Pending DB initialisation failed: {ex}"
             logger.error(message)
@@ -148,25 +153,11 @@ class SqlitePendingDB(PendingDB):
 
     def add_user(self, user: PendingUser) -> bool:
         """Add a new entry for a user. Returns False if entry already exists."""
-        sql_insert = (
-            "insert into pending_users"
-            "(unique_id, sub, iss, email, full_name, username, state, cmd)"
-            " values (?,?,?,?,?,?,?,?)"
-        )
         try:
             with self.connection:
                 self.connection.execute(
-                    sql_insert,
-                    (
-                        user.unique_id,
-                        user.sub,
-                        user.iss,
-                        user.email,
-                        user.full_name,
-                        user.username,
-                        user.state,
-                        user.cmd,
-                    ),
+                    sql_command_insert_to_table(data_model=PendingUser, table_name="pending_users"),
+                    tuple(getattr(user, field.name) for field in fields(PendingUser)),
                 )
                 logger.debug(
                     "Deployment pending for user [%s] with username [%s]. Run cmd to deploy: [%s]",
@@ -240,10 +231,14 @@ class SqlitePendingDB(PendingDB):
 
     def add_group(self, group: PendingGroup) -> bool:
         """Add a new entry for a group. Returns False if entry already exists."""
-        sql_insert = "insert into pending_groups(name, state, cmd) values (?,?,?)"
         try:
             with self.connection:
-                self.connection.execute(sql_insert, (group.name, group.state, group.cmd))
+                self.connection.execute(
+                    sql_command_insert_to_table(
+                        data_model=PendingGroup, table_name="pending_groups"
+                    ),
+                    tuple(getattr(group, field.name) for field in fields(PendingGroup)),
+                )
                 logger.debug(
                     "Deployment pending for group [%s]. Run cmd to deploy: [%s]",
                     group.name,
@@ -287,12 +282,13 @@ class SqlitePendingDB(PendingDB):
 
     def add_membership(self, membership: PendingMembership) -> bool:
         """Add a new entry for a user's membership in a group. Returns False if entry already exists."""
-        sql_insert = "insert into pending_memberships(unique_id, name, state, cmd) values (?,?,?,?)"
         try:
             with self.connection:
                 self.connection.execute(
-                    sql_insert,
-                    (membership.unique_id, membership.name, membership.state, membership.cmd),
+                    sql_command_insert_to_table(
+                        data_model=PendingMembership, table_name="pending_memberships"
+                    ),
+                    tuple(getattr(membership, field.name) for field in fields(PendingMembership)),
                 )
                 logger.debug(
                     "Deployment pending for user [%s]. Run cmd to add user to groups: [%s]",

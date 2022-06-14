@@ -1,4 +1,6 @@
 import copy
+from typing import Type, Union, List
+from dataclasses import fields
 
 
 def dictdiff(old, new):
@@ -55,3 +57,74 @@ def dictmerge(lhs, rhs):
             res[k] = rhs[k]
 
     return res
+
+
+def pytype_to_sqltype(pytype: Type) -> str:
+    """Return the sql type for any given python type."""
+    if pytype is None:
+        return "null"
+    # types from typing module supported by sqlite
+    if pytype.__module__ == "typing":
+        if pytype.__str__().startswith("typing.Optional"):
+            pytype = pytype.__args__[0]  # extract the builtin type from the args
+        elif pytype.__str__().startswith("typing.Literal"):
+            return "text"
+        elif pytype.__str__().startswith("typing.Dict"):
+            return "dict"
+        elif pytype.__str__().startswith("typing.ByteString"):
+            return "blob"
+        else:
+            return "text"  # default type
+    # builtin types supported by sqlite
+    if pytype.__name__ == "str":
+        return "text"
+    if pytype.__name__ == "int":
+        return "integer"
+    if pytype.__name__ == "float":
+        return "real"
+    if pytype.__name__ == "bytes":
+        return "blob"
+    # additionally defined types with custom adapters and converters
+    if pytype.__name__ == "dict":
+        return "dict"
+    # default type
+    return "text"
+
+
+def sql_command_create_table(
+    data_model: Type, table_name: str, primary_key: Union[str, List[str]]
+) -> str:
+    """Return an sql command for creating a table for a given data model.
+
+    Args:
+        data_model (Type): dataclass containing the fields that will become the table columns
+        table_name (str): the table name
+        primary_key (Union[str, List[str]]): name(s) of column(s) to be used as primary key
+
+    Returns:
+        str: a string representation of the sql command
+    """
+    columns_with_types = ", ".join(
+        [" ".join([field.name, pytype_to_sqltype(field.type)]) for field in fields(data_model)]
+    )
+    if isinstance(primary_key, List):
+        primary_key = ", ".join(primary_key)
+    return (
+        f"create table if not exists {table_name}"
+        f"({columns_with_types}, primary key ({primary_key}))"
+    )
+
+
+def sql_command_insert_to_table(data_model: Type, table_name: str) -> str:
+    """Return an sql command for inserting an entry of a given data model into a table.
+
+    Args:
+        data_model (Type): dataclass containing the fields that are the same as the table columns
+        table_name (str): the table name
+
+    Returns:
+        str: a string representation of the sql command
+    """
+    column_names = ", ".join([field.name for field in fields(data_model)])
+    column_values = ",".join(["?" for _ in fields(data_model)])
+    return f"insert into {table_name}({column_names}) values ({column_values})"

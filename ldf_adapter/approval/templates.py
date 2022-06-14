@@ -38,7 +38,7 @@ echo '{
             "iss": "${iss}"
         }
     }
-}' |  sudo feudal-adapter
+}' | feudal-adapter
 ====
 
 If you wish to reject the deployment, fill in the reason for rejection in the command below and execute it:

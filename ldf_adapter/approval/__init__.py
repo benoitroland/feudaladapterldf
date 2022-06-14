@@ -88,6 +88,7 @@ class PendingDeployment:
 
     @property
     def username(self) -> Optional[str]:
+        """Return local username as set in pending db, or None if user property not set."""
         if self.user:
             return self.user.username
         return None
@@ -116,6 +117,7 @@ class PendingDeployment:
             username=service_user.name,
             state="pending",
             cmd=service_user.create_tostring(),
+            infodict={},
         )
         if self._pending_db.add_user(pending_user):
             self._user = pending_user
@@ -134,12 +136,14 @@ class PendingDeployment:
         """
         if group.name in [g.name for g in self.groups]:
             return False
-        pending_group = PendingGroup(name=group.name, state="pending", cmd=group.create_tostring())
+        pending_group = PendingGroup(
+            name=group.name, state="pending", cmd=group.create_tostring(), infodict={}
+        )
         self._pending_db.add_group(pending_group)
         self._groups.append(pending_group)
         return True
 
-    def add_user_to_groups(self, service_user: backend.User, supplementary_groups: List[backend.Group]) -> List[str]:  # type: ignore
+    def mod(self, service_user: backend.User, supplementary_groups: List[backend.Group]) -> List[str]:  # type: ignore
         """Create new pending membership entries for each group in list and add them to db.
         Return a list of group names the user was  in pending db.
         """
@@ -152,6 +156,7 @@ class PendingDeployment:
                     name=group.name,
                     state="pending",
                     cmd=service_user.mod_tostring(supplementary_groups=[group]),
+                    infodict={},
                 )
                 self._pending_db.add_membership(membership)
                 self._memberships.append(membership)

@@ -5,6 +5,7 @@ It"s in the proof-of-concept state.
 
 import logging
 from ldap3 import (
+    AUTO_BIND_NO_TLS,
     Server,
     Connection,
     ALL,
@@ -153,6 +154,8 @@ class LdapConnection:
         self.gid_min = gid_min
         self.gid_max = gid_max
 
+        # initialise connection used to generate LDIFs
+        self.ldif_connection = Connection(server=None, client_strategy=LDIF, auto_bind=AUTO_BIND_NO_TLS)
         # initialise and bind connection to LDAP
         try:
             server = Server(f"ldap://{host}:{port}", get_info=ALL)
@@ -162,11 +165,11 @@ class LdapConnection:
                     server,
                     admin_user,
                     admin_password,
-                    auto_bind=True,
+                    auto_bind=AUTO_BIND_NO_TLS,
                     client_strategy=SAFE_SYNC,
                 )
             else:
-                self.connection = Connection(server, auto_bind=True, client_strategy=SAFE_SYNC)
+                self.connection = Connection(server, auto_bind=AUTO_BIND_NO_TLS, client_strategy=SAFE_SYNC)
         except Exception as e:
             msg = f"Could not connect to server ldap://{host}:{port}/"
             logger.error(f"{msg}: {e}")
@@ -372,10 +375,8 @@ class LdapConnection:
             self.attr_local_uid: local_username,
             self.attr_oidc_uid: userinfo.unique_id,
         }
-        connection = Connection(server=None, client_strategy=LDIF)
-        connection.open()
-        connection.add(dn, object_class=object_class, attributes=attributes)
-        return connection.response
+        self.ldif_connection.add(dn, object_class=object_class, attributes=attributes)
+        return self.ldif_connection.response
 
     def map_user(self, userinfo, local_username):
         """Update the LDAP entry for given `local_username` with
@@ -446,15 +447,13 @@ class LdapConnection:
 
     def add_user_to_group_ldif(self, local_username, group_name):
         """LDIF representation for adding a user to group."""
-        connection = Connection(server=None, client_strategy=LDIF)
-        connection.open()
-        connection.modify(
+        self.ldif_connection.modify(
             f"cn={group_name},{self.group_base}",
             {
                 "memberUid": [(MODIFY_ADD, [local_username])],
             },
         )
-        return connection.response
+        return self.ldif_connection.response
 
     def add_group(self, group_name):
         """Add an LDAP entry for `group_name`.
@@ -476,9 +475,7 @@ class LdapConnection:
 
     def add_group_ldif(self, group_name):
         """LDIF representation for adding an LDAP entry for `group_name`."""
-        connection = Connection(server=None, client_strategy=LDIF)
-        connection.open()
-        connection.add(
+        self.ldif_connection.add(
             f"cn={group_name},{self.group_base}",
             object_class=["top", "posixGroup"],
             attributes={
@@ -486,13 +483,13 @@ class LdapConnection:
                 "gidNumber": "",
             },
         )
-        return connection.response
+        return self.ldif_connection.response
 
     @staticmethod
     def load():
         try:
             config = CONFIG["backend.ldap"]
-            mode = Mode.from_str(config.get("mode", DEFAULT_MODE))
+            mode = Mode.from_str(config.get("mode", "read_only"))
             host = config.get("host", DEFAULT_HOST)
             tls = config.getboolean("tls", DEFAULT_TLS)
             if tls:
@@ -515,22 +512,22 @@ class LdapConnection:
             gid_max = config.getint("gid_max", DEFAULT_GID_MAX)
 
             ldap = LdapConnection(
-                mode,
-                host,
-                port,
-                tls,
-                admin_user,
-                admin_password,
-                user_base,
-                group_base,
-                attr_oidc_uid,
-                attr_local_uid,
-                shell,
-                home_base,
-                uid_min,
-                uid_max,
-                gid_min,
-                gid_max,
+                mode=mode,
+                host=host,
+                port=port,
+                tls=tls,
+                admin_user=admin_user,
+                admin_password=admin_password,
+                user_base=user_base,
+                group_base=group_base,
+                attr_oidc_uid=attr_oidc_uid,
+                attr_local_uid=attr_local_uid,
+                shell=shell,
+                home_base=home_base,
+                uid_min=uid_min,
+                uid_max=uid_max,
+                gid_min=gid_min,
+                gid_max=gid_max,
             )
         except KeyError:
             logger.warning(
