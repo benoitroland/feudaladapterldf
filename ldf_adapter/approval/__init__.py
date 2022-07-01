@@ -143,7 +143,7 @@ class PendingDeployment:
         self._groups.append(pending_group)
         return True
 
-    def mod(self, service_user: backend.User, supplementary_groups: List[backend.Group]) -> List[str]:  # type: ignore
+    def mod(self, service_user: backend.User, supplementary_groups: List[backend.Group], removal_groups: List[backend.Group]) -> List[str]:  # type: ignore
         """Create new pending membership entries for each group in list and add them to db.
         Return a list of group names the user was  in pending db.
         """

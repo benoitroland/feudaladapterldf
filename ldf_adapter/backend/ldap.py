@@ -104,6 +104,19 @@ class LdapSearchResult:
             logger.warning(f"Attribute {attribute_name} not found in response: {e}")
             return None
 
+    def get_attribute_for_all(self, attribute_name):
+        try:
+            all_entries = []
+            for entry in self.response:
+                value = entry["attributes"][attribute_name]
+                if isinstance(value, list):
+                    value = value[0]
+                all_entries.append(value)
+            return all_entries
+        except Exception as e:
+            logger.warning(f"Attribute {attribute_name} not found in response: {e}")
+            return []
+
 
 class LdapConnection:
     """Connection to the LDAP server."""
@@ -155,7 +168,9 @@ class LdapConnection:
         self.gid_max = gid_max
 
         # initialise connection used to generate LDIFs
-        self.ldif_connection = Connection(server=None, client_strategy=LDIF, auto_bind=AUTO_BIND_NO_TLS)
+        self.ldif_connection = Connection(
+            server=None, client_strategy=LDIF, auto_bind=AUTO_BIND_NO_TLS
+        )
         # initialise and bind connection to LDAP
         try:
             server = Server(f"ldap://{host}:{port}", get_info=ALL)
@@ -169,7 +184,9 @@ class LdapConnection:
                     client_strategy=SAFE_SYNC,
                 )
             else:
-                self.connection = Connection(server, auto_bind=AUTO_BIND_NO_TLS, client_strategy=SAFE_SYNC)
+                self.connection = Connection(
+                    server, auto_bind=AUTO_BIND_NO_TLS, client_strategy=SAFE_SYNC
+                )
         except Exception as e:
             msg = f"Could not connect to server ldap://{host}:{port}/"
             logger.error(f"{msg}: {e}")
@@ -212,7 +229,7 @@ class LdapConnection:
                 f"{self.user_base}",
                 f"(&({self.attr_oidc_uid}={oidc_uid})(objectClass=inetOrgPerson)(objectClass=posixAccount))",
             ],
-            {"attributes": [self.attr_local_uid]},
+            {"attributes": [self.attr_local_uid, "gidNumber"]},
         )
 
     def search_user_by_local_username(self, username):
@@ -233,6 +250,26 @@ class LdapConnection:
                 f"(&(cn={group_name})(objectClass=posixGroup))",
             ],
             {"attributes": ["memberUid", "gidNumber"]},
+        )
+
+    def search_group_by_gid(self, gid):
+        return LdapSearchResult(
+            self.connection,
+            [
+                f"{self.group_base}",
+                f"(&(gidNumber={gid})(objectClass=posixGroup))",
+            ],
+            {"attributes": ["cn"]},
+        )
+
+    def search_groups_by_member(self, username):
+        return LdapSearchResult(
+            self.connection,
+            [
+                f"{self.group_base}",
+                f"(&(memberUid={username})(objectClass=posixGroup))",
+            ],
+            {"attributes": ["cn", "gidNumber"]},
         )
 
     def search_next_uid(self):
@@ -455,6 +492,43 @@ class LdapConnection:
         )
         return self.ldif_connection.response
 
+    def remove_user_from_group(self, local_username, group_name):
+        """Remove a user from group.
+        If either of them does not exist, a Failure exception is raised.
+        """
+        try:
+            self.connection.modify(
+                f"cn={group_name},{self.group_base}",
+                {
+                    "memberUid": [(MODIFY_DELETE, [local_username])],
+                },
+            )
+        except Exception as e:
+            msg = f"Failed to modify the LDAP entry for group {group_name} with local username {local_username}."
+            logger.error(f"{msg}: {e}")
+            raise Failure(message=msg)
+
+    def remove_user_from_group_ldif(self, local_username, group_name):
+        """LDIF representation for removing a user from a group."""
+        self.ldif_connection.modify(
+            f"cn={group_name},{self.group_base}",
+            {
+                "memberUid": [(MODIFY_DELETE, [local_username])],
+            },
+        )
+        return self.ldif_connection.response
+
+    def get_user_groups(self, local_username):
+        """Get all groups a user belongs to.
+
+        Returns a list of names.
+        """
+        logger.debug(f"Searching groups for user {local_username} in LDAP...")
+        result = self.search_groups_by_member(local_username)
+        if not result.found:
+            return []
+        return result.get_attribute_for_all("cn")
+
     def add_group(self, group_name):
         """Add an LDAP entry for `group_name`.
         If group exists, a warning is issued.
@@ -550,16 +624,20 @@ class User:
         Arguments:
         userinfo -- (type: UserInfo)
         """
-        self.primary_group = Group(userinfo.primary_group)
         self.userinfo = userinfo
         self.unique_id = userinfo.unique_id
         logger.debug(f"backend processing: {userinfo.unique_id}")
         if self.exists():
             username = self.get_username()
-            logger.debug(f"This user does actually exist. The name is: {username}")
+            primary_group = self.get_primary_group()
+            logger.debug(
+                f"This user does actually exist. The name is: {username} and the primary group is: {primary_group}"
+            )
             self.set_username(username)
+            self.primary_group = Group(primary_group)
         else:
             self.set_username(userinfo.username)
+            self.primary_group = Group(userinfo.primary_group)
 
         self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
 
@@ -595,6 +673,18 @@ class User:
     def set_username(self, username):
         """Set local username on the service."""
         self.name = username
+
+    def get_primary_group(self):
+        """Check if a user exists based on unique_id and return the primary group name."""
+        gid = LDAP.search_user_by_oidc_uid(self.unique_id).get_attribute("gidNumber")
+        return LDAP.search_group_by_gid(gid).get_attribute("cn")
+
+    def get_groups(self):
+        """Get a list of names of all service groups that the user belongs to.
+
+        If the user doesn't exist, return an empty list.
+        """
+        return LDAP.get_user_groups(self.name)
 
     def create(self):
         """Create the user on the service.
@@ -662,7 +752,7 @@ class User:
         else:  # Mode.FULL_ACCESS
             LDAP.delete_user(self.name)
 
-    def mod(self, supplementary_groups=None):
+    def mod(self, supplementary_groups=None, removal_groups=None):
         """Modify the user on the service.
 
         The state of the user with respect to the provided Arguments after calling this function
@@ -671,32 +761,58 @@ class User:
         If the user doesn't exists, behaviour is undefined.
 
         Arguments:
-        supplementary_groups -- A list of groups to add the user to (type: list(Group))
+            supplementary_groups (list[Group], optional): a list of groups to add the user to. Defaults to None.
+            removal_groups (list[Group], optional): groups to remove the user from. Defaults to None.
         """
-        if supplementary_groups is None or supplementary_groups == []:
-            logger.debug(f"Empty group list for user {self.name}. Nothing to do here.")
-        else:
+        if (supplementary_groups is None or supplementary_groups == []) and (
+            removal_groups is None or removal_groups == []
+        ):
             logger.debug(
-                f"Ensuring user '{self.name}' is member of these groups: \
-                         {[g.name for g in supplementary_groups]}"
+                f"Empty supplementary and removal group lists for user {self.name}. Nothing to do here."
             )
+        else:
             if LDAP.mode == Mode.READ_ONLY:
                 msg = f"LDAP backend in read_only mode, local username {self.name} cannot be added to given groups."
                 logger.warning(msg)
             elif LDAP.mode == Mode.PRE_CREATED:
-                for group in supplementary_groups:
-                    LDAP.add_user_to_group(self.name, group.name)
+                if supplementary_groups is not None:
+                    for group in supplementary_groups:
+                        LDAP.add_user_to_group(self.name, group.name)
+                if removal_groups is not None:
+                    for group in removal_groups:
+                        LDAP.remove_user_from_group(self.name, group.name)
             else:  # Mode.FULL_ACCESS
-                for group in supplementary_groups:
-                    LDAP.add_user_to_group(self.name, group.name)
+                if supplementary_groups is not None:
+                    for group in supplementary_groups:
+                        LDAP.add_user_to_group(self.name, group.name)
+                if removal_groups is not None:
+                    for group in removal_groups:
+                        LDAP.remove_user_from_group(self.name, group.name)
 
-    def mod_tostring(self, supplementary_groups=None):
-        if supplementary_groups is None or supplementary_groups == []:
-            logger.debug(f"Empty group list for user {self.name}. Nothing to do here.")
+    def mod_tostring(self, supplementary_groups=None, removal_groups=None):
+        """LDIF representation for modifying a user to be added and removed from given groups.
+
+        Args:
+            supplementary_groups (list[Group], optional): a list of groups to add the user to. Defaults to None.
+            removal_groups (list[Group], optional): groups to remove the user from. Defaults to None.
+
+        Returns:
+            str: LDIF containing all user modifications
+        """
+        if (supplementary_groups is None or supplementary_groups == []) and (
+            removal_groups is None or removal_groups == []
+        ):
+            logger.debug(
+                f"Empty supplementary and removal group lists for user {self.name}. Nothing to do here."
+            )
             return ""
         ldifs = []
-        for group in supplementary_groups:
-            ldifs.append(LDAP.add_user_to_group_ldif(self.name, group.name))
+        if supplementary_groups is not None:
+            for group in supplementary_groups:
+                ldifs.append(LDAP.add_user_to_group_ldif(self.name, group.name))
+        if removal_groups is not None:
+            for group in removal_groups:
+                ldifs.append(LDAP.remove_user_from_group_ldif(self.name, group.name))
         return "\n\n".join(ldifs)
 
     def install_ssh_keys(self):

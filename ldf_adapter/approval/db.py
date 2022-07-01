@@ -1,11 +1,10 @@
-import sys
 from dataclasses import dataclass, fields
 from typing import Optional, List
 import sqlite3
 import json
 import logging
 
-from ..results import Failure
+from ..results import Failure, FatalError
 from ..utils import sql_command_create_table, sql_command_insert_to_table
 
 logger = logging.getLogger(__name__)
@@ -149,7 +148,7 @@ class SqlitePendingDB(PendingDB):
         except sqlite3.Error as ex:
             message = f"Pending DB initialisation failed: {ex}"
             logger.error(message)
-            sys.exit(2)
+            raise FatalError(message=message)
 
     def add_user(self, user: PendingUser) -> bool:
         """Add a new entry for a user. Returns False if entry already exists."""

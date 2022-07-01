@@ -7,7 +7,6 @@
 # Author: Joshua Bachmeier <joshua.bachmeier@student.kit.edu>
 #
 
-import os
 import sys
 import json
 import logging
@@ -18,7 +17,7 @@ from ldf_adapter.logsetup import jsonlogger
 from feudal_globalconfig import globalconfig
 
 from ldf_adapter import User
-from ldf_adapter.results import ExceptionalResult
+from ldf_adapter.results import ExceptionalResult, FatalError
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +38,16 @@ def main():
     try:
         data = json.load(sys.stdin)
     except json.decoder.JSONDecodeError as e:
-        logger.error("Cannot decode the input json. Please verify the input!")
-        sys.exit(1)
+        message = "Cannot decode the input json. Please verify the input!"
+        logger.error(message)
+        raise FatalError(message=message)
 
     logger.debug(f"Attempting to reach state '{data['state_target']}'")
 
     if data["user"]["userinfo"] is None:
-        logger.error("Cannot process null input")
-        sys.exit(2)
+        message = "Cannot process null input"
+        logger.error(message)
+        raise FatalError(message=message)
 
     try:
         result = User(data).reach_state(data["state_target"])

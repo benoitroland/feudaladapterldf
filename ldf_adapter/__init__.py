@@ -5,7 +5,6 @@ name = "ldf_adapter"
 # pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
 
 import logging
-import sys
 from feudal_globalconfig import globalconfig
 
 import regex
@@ -18,14 +17,7 @@ from . import logsetup
 
 from . import backend
 from .config import CONFIG
-from .results import (
-    Deployed,
-    Failure,
-    NotDeployed,
-    Rejection,
-    Question,
-    Status,
-)
+from .results import Deployed, Failure, NotDeployed, Rejection, Question, Status, FatalError
 from .name_generators import NameGenerator
 from .userinfo import UserInfo
 from .approval import PendingDeployment
@@ -135,8 +127,7 @@ class User:
                     f"Could not find section [approval.{notifier_type}] in configuration file."
                 )
                 logger.error(f"{message}: {ex}")
-                print(f"\nERROR: {message}\n")
-                sys.exit(2)
+                raise FatalError(message=message)
 
             pending_db = SqlitePendingDB(location=user_db_location)
             self.pending_deployment = PendingDeployment(pending_db, self.data)
@@ -332,7 +323,7 @@ class User:
 
         new_groups = self.ensure_groups_exist()
         was_created = self.ensure_exists()
-        new_memberships = self.ensure_group_memberships()
+        new_memberships, removed_memberships = self.ensure_group_memberships()
         new_credentials = self.ensure_credentials_active()
 
         if self.approval_enabled:
@@ -340,7 +331,7 @@ class User:
                 # new deployment request => send out notifications
                 self.notifier.notify_new(self.pending_deployment)
                 what_changed = "Request for deployment was submitted for approval."
-            elif new_groups != [] or new_memberships != []:
+            elif new_groups != [] or new_memberships != [] or removed_memberships != []:
                 # deployment request pending, but needs to be updated => send notifications
                 self.notifier.notify_update(self.pending_deployment)
                 what_changed = "Updated request for deployment was submitted for approval."
@@ -353,6 +344,10 @@ class User:
             what_changed = "User was created" if was_created else "User already existed"
             if new_memberships:
                 what_changed += " and was added to groups {}".format(",".join(new_memberships))
+            if removed_memberships:
+                what_changed += " and was removed from groups {}".format(
+                    ",".join(removed_memberships)
+                )
             what_changed += "."
             if new_credentials:
                 what_changed += " Credentials {} were activated.".format(",".join(new_credentials))
@@ -626,8 +621,7 @@ class User:
                     f'a "fallback_group" have been defined in the config file {config_file_name}'
                 )
                 logger.error(message)
-                print(f"\nERROR: {message}\n")
-                sys.exit(2)
+                raise FatalError(message=message)
 
             if self.approval_enabled:
                 self.pending_deployment.create_user(self.service_user)
@@ -764,6 +758,15 @@ class User:
             if grp.name not in group_list_names:
                 group_list.append(grp)
 
+        if group_list[0].name is None:
+            config_file_name = globalconfig.info["config_files_read"]
+            message = (
+                'User is not member of any group, and neither a "primary_group", nor '
+                f'a "fallback_group" have been defined in the config file {config_file_name}'
+            )
+            logger.error(message)
+            raise FatalError(message=message)
+
         return group_list
 
     def ensure_groups_exist(self):
@@ -786,36 +789,43 @@ class User:
         return new_groups
 
     def ensure_group_memberships(self):
-        """Ensure that the user is a member of all the groups in self.service_groups.
+        """Ensure that the user is a member of all the groups in self.service_groups and self.additional_groups.
 
-        Return the names of all groups the user was added to.
-        In the case of approval worflow, only the new memberships are returned.
+        Return two lists:
+        - the names of all groups the user was added to
+        - the names of all groups the user was removed from
         """
-        # Note: current code will keep on adding the user to the primary group. This may be a
-        # problem with some backends
-
-        group_list = self._all_groups()
-
-        if group_list[0].name is None:
-            config_file_name = globalconfig.info["config_files_read"]
-            message = (
-                'User is not member of any group, and neither a "primary_group", nor '
-                f'a "fallback_group" have been defined in the config file {config_file_name}'
-            )
-            logger.error(message)
-            print(f"\nERROR: {message}\n")
-            sys.exit(3)
         username = self.service_user.get_username()
+
+        all_groups = self._all_groups()  # list of backend.Group objects
+        all_groups_names = [grp.name for grp in all_groups]
         logger.info(
-            f"Ensuring user '{username}' ({self.data.unique_id}) is member of these groups: {[grp.name for grp in group_list]}"
+            f"Ensuring user '{username}' ({self.data.unique_id}) is member of these groups: {all_groups_names}"
         )
+
+        groups_current = self.service_user.get_groups()  # list of group names
+        logger.info(f"User '{username}' is already in the following groups: {groups_current}")
+
+        groups_to_add = [grp for grp in all_groups_names if grp not in groups_current]
+        groups_to_remove = [grp for grp in groups_current if grp not in all_groups_names]
+        logger.info(f"User '{username}' will be added to the following groups: {groups_to_add}")
+        logger.info(
+            f"User '{username}' will be removed from the following groups: {groups_to_remove}"
+        )
+
         if self.approval_enabled:
             return self.pending_deployment.mod(
-                service_user=self.service_user, supplementary_groups=group_list
+                service_user=self.service_user,
+                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],  # type: ignore
+                removal_groups=[backend.Group(grp) for grp in groups_to_remove],  # type: ignore
             )
         else:
-            self.service_user.mod(supplementary_groups=group_list)
-            return [grp.name for grp in group_list]
+            self.service_user.mod(
+                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],  # type: ignore
+                removal_groups=[backend.Group(grp) for grp in groups_to_remove],  # type: ignore
+            )
+
+        return groups_to_add, groups_to_remove
 
     def ensure_credentials_active(self):
         """Install all SSH Keys on the service.

@@ -4,7 +4,6 @@ from enum import Enum
 from typing import Optional
 import logging
 import smtplib
-import sys
 from email.message import EmailMessage
 from string import Template
 
@@ -12,7 +11,7 @@ from string import Template
 
 from . import PendingDeployment
 from .templates import MessageTemplateAdmin, MessageTemplateUser
-from ..results import Failure
+from ..results import Failure, FatalError
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +83,7 @@ class Notifier:
 
         message = f"Could not initialise notifier for approval workflow: unknown notifier type {notifier_type}."
         logger.error(message)
-        print(f"\nERROR: {message}\n")
-        sys.exit(2)
+        raise FatalError(message=message)
 
 
 class EmailNotifier(Notifier):

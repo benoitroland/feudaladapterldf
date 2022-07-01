@@ -47,16 +47,23 @@ class ExampleUser:
         """
         pass
 
-    def mod(self, supplementary_groups=None):
+    def mod(self, supplementary_groups=None, removal_groups=None):
         """Modify the user on the service.
 
-        The state of the user with respect to the provided Arguments after calling this function
-        should not depend on the state the user had previously.
+        The user's membership to groups not provided in the arguments will not change.
 
         If the user doesn't exists, behaviour is undefined.
 
         Arguments:
-        supplemantary_groups -- A list of groups to add the user to (type: list(ExampleGroup))
+        supplementary_groups -- A list of groups to add the user to (type: list(ExampleGroup))
+        removal_groups -- A list of groups to remove the user from (type: list(ExampleGroup))
+        """
+        pass
+
+    def get_groups(self):
+        """Get a list of names of all service groups that the user belongs to.
+
+        If the user doesn't exist, behaviour is undefined.
         """
         pass
 
@@ -88,6 +95,10 @@ class ExampleUser:
 
     def set_username(self, username):
         """Set local username on the service."""
+        pass
+
+    def get_primary_group(self):
+        """Check if a user exists based on unique_id and return the primary group name."""
         pass
 
     @property
