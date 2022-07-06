@@ -194,8 +194,8 @@ INPUT_SHADOW_COMPATIBLE = [
     ("-abcdefaaaaaaaaaaaaaaaaaaaaaaaaaa", "_..defaaaaaaaaaaaaaaaaaaaaaaaaaa"),
     ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa", "__defaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
     ("helmholtz-de_KIT_Helmholtz-member", "helmholtz-de_.._helmholtz-member"),
-    ("aaaaaa-bbb-ccc-ddddddddddddddddddd", "aaaaaa-..-..-ddddddddddddddddddd"),
-    ("aaaaaaaaaa-bbbb-cccc-ddddddddddddddddd", "aaaaaaaaaa-..-..-..ddddddddddddd")
+    ("aaaaaa_bbb_ccc_ddddddddddddddddddd", "aaaaaa_.._.._ddddddddddddddddddd"),
+    ("aaaaaaaaaa_bbbb_cccc_ddddddddddddddddd", "aaaaaaaaaa_.._.._..ddddddddddddd")
     # ("a_b_c_d_e_f_a_a_a_a______________", "a_.._d_e_f_a_a_a_a______________"), # ??
     # ("_________________________________", "_.._____________________________"), # ??
 ]
