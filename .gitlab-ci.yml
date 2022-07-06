@@ -31,13 +31,6 @@ python310:
   stage: test
   script: tox -e py310
 
-pylint:
-  image: python:3.9
-  before_script:
-    - pip install tox
-  stage: test
-  script: tox -e pylint
-
 coverage:
   image: python:3.9
   before_script:
