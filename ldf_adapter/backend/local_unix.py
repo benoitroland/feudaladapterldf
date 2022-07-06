@@ -451,7 +451,7 @@ def make_shadow_compatible(orig_word) -> str:
 
     if excess_chars > 0:
 
-	    if len(fragments) == 1:
+        if len(fragments) == 1:
             word = "__" + word[excess_chars+2:]
         else:
             for n in range(1, len(fragments)):
@@ -470,8 +470,8 @@ def make_shadow_compatible(orig_word) -> str:
 
         if excess_chars > 0:
             logger.error(f"User or group name is too long and could not be shortened: {word} ({len(word)})")
-	        raise (ValueError)
-	    else:
+            raise (ValueError)
+        else:
             word = "_".join(fragments)
             logger.warning(F"User or group name is too long and was shortened from {orig_word} ({len(orig_word)}) to {word} ({len(word)})")
 
