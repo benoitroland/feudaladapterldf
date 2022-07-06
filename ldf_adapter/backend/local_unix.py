@@ -455,17 +455,17 @@ def make_shadow_compatible(orig_word) -> str:
             word = "__" + word[excess_chars+2:]
         else:
             for n in range(1, len(fragments)):
-
-                if excess_chars == 0: break
-                excess_chars += 2
-
-                for nchar in range (len(fragments[n])):
-                    fragments[n] = fragments[n][1:]
-                    excess_chars -= 1
+                if len(fragments[n]) > 2:
                     if excess_chars == 0: break
-
-                fragments[n] = ".." + fragments[n]
-
+                    excess_chars += 2
+                    for nchar in range (len(fragments[n])):
+                        fragments[n] = fragments[n][1:]
+                        excess_chars -= 1
+                        if excess_chars == 0: break
+                    fragments[n] = ".." + fragments[n]
+            if excess_chars > 0 and len(fragments[0]) > excess_chars+2:
+                fragments[0] = "__" + fragments[0][excess_chars+2:]
+                excess_chars = 0
     if orig_excess_chars > 0 and len(fragments) > 1:
 
         if excess_chars > 0:
@@ -476,5 +476,3 @@ def make_shadow_compatible(orig_word) -> str:
             logger.warning(F"User or group name is too long and was shortened from {orig_word} ({len(orig_word)}) to {word} ({len(word)})")
 
     return word
-
-

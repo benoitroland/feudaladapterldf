@@ -178,7 +178,6 @@ def test_group_exist(local_unix_group, exists):
     assert local_unix_group.exists() == exists
 
 
-
 INPUT_SHADOW_COMPATIBLE = [
     ("user", "user"),
     ("", "_"),
@@ -195,11 +194,19 @@ INPUT_SHADOW_COMPATIBLE = [
     ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa", "__defaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
     ("helmholtz-de_KIT_Helmholtz-member", "helmholtz-de_.._helmholtz-member"),
     ("aaaaaa_bbb_ccc_ddddddddddddddddddd", "aaaaaa_.._.._ddddddddddddddddddd"),
+    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa_bbb", "__aaaaaaaaaaaaaaaaaaaaaaaaaaa_.."),
+    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa_bb", "__aaaaaaaaaaaaaaaaaaaaaaaaaaa_bb"),
+    ("aaaaaaaaaaaa_b_cc__ddddddddddddddddd", "aaaaaaaaaaaa_b_cc__..ddddddddddd"),
     ("aaaaaaaaaa_bbbb_cccc_ddddddddddddddddd", "aaaaaaaaaa_.._.._..ddddddddddddd")
     # ("a_b_c_d_e_f_a_a_a_a______________", "a_.._d_e_f_a_a_a_a______________"), # ??
     # ("_________________________________", "_.._____________________________"), # ??
 ]
 
+INPUT_SHADOW_COMPATIBLE_FAIL = [
+    "_________________________________",
+    "aa_bb_cc_dd_ee_ff_gg_hh_ii_jj_kk_",
+    "a_b_c_d_e_f_g_h_i_j_k_l_m_n_o_p_q"
+]
 
 @pytest.mark.parametrize('raw', [x[0] for x in INPUT_SHADOW_COMPATIBLE])
 def test_make_shadow_compatible_length(raw):
@@ -231,3 +238,9 @@ def test_make_shadow_compatible(raw, cooked):
     - what about shortening? TODO: define expected behaviour
     """
     assert make_shadow_compatible(raw) == cooked
+
+@pytest.mark.parametrize("raw", INPUT_SHADOW_COMPATIBLE_FAIL)
+def test_make_shadow_compatible_fail(raw):
+    """expected behaviour: raise ValueError"""
+    with pytest.raises(ValueError):
+        make_shadow_compatible(raw)
