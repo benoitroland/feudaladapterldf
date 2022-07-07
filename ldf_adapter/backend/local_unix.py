@@ -433,13 +433,10 @@ def make_shadow_compatible(orig_word) -> str:
     word = regex.sub(r"[^-0-9_a-z]", "_", word)
 
     # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
-    if regex.match(r"^[a-z_]", word):
-        word = word
-    else:
-        if len(word) >= 32:
-            word = "_" + word[1:]
-        else:
-            word = "_" + word
+    if not regex.match(r"^[a-z_]", word):
+        word = "_" + word
+    if regex.match(r"_-", word):
+        word = "_" + word[2:]        
 
     # usernames and group names can only be 32 characters long.
     # split names in fragments and loop over them 
@@ -451,28 +448,28 @@ def make_shadow_compatible(orig_word) -> str:
 
     if excess_chars > 0:
 
-        if len(fragments) == 1:
-            word = "__" + word[excess_chars+2:]
-        else:
-            for n in range(1, len(fragments)):
-                if len(fragments[n]) > 2:
-                    if excess_chars == 0: break
-                    excess_chars += 2
-                    for nchar in range (len(fragments[n])):
-                        fragments[n] = fragments[n][1:]
+            for n in range(len(fragments)):
+                if len(fragments[n]) <= 3: continue
+                if excess_chars == 0: break
+                excess_chars += 2
+
+                for nchar in range (len(fragments[n]) - 1):
+                        fragments[n] = fragments[n][:len(fragments[n]) - 1]
                         excess_chars -= 1
                         if excess_chars == 0: break
-                    fragments[n] = ".." + fragments[n]
-            if excess_chars > 0 and len(fragments[0]) > excess_chars+2:
-                fragments[0] = "__" + fragments[0][excess_chars+2:]
-                excess_chars = 0
-    if orig_excess_chars > 0 and len(fragments) > 1:
+
+                fragments[n] = fragments[n] + ".."
+
+    if orig_excess_chars > 0:
 
         if excess_chars > 0:
             logger.error(f"User or group name is too long and could not be shortened: {word} ({len(word)})")
             raise (ValueError)
         else:
-            word = "_".join(fragments)
+            if len(fragments) > 1:
+                word = "_".join(fragments)
+            else:
+                word = fragments[0]
             logger.warning(F"User or group name is too long and was shortened from {orig_word} ({len(orig_word)}) to {word} ({len(word)})")
 
     return word

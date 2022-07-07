@@ -187,17 +187,18 @@ INPUT_SHADOW_COMPATIBLE = [
     (u"\u5317\u4EB0", "bei_jing_"),
     (u"\u20AC", "eur"),
     ("user$", "users"),
-    ("-user", "_-user"),
-    ("-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-    ("-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-    ("-abcdefaaaaaaaaaaaaaaaaaaaaaaaaaa", "_..defaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa", "__defaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-    ("helmholtz-de_KIT_Helmholtz-member", "helmholtz-de_.._helmholtz-member"),
-    ("aaaaaa_bbb_ccc_ddddddddddddddddddd", "aaaaaa_.._.._ddddddddddddddddddd"),
-    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa_bbb", "__aaaaaaaaaaaaaaaaaaaaaaaaaaa_.."),
-    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa_bb", "__aaaaaaaaaaaaaaaaaaaaaaaaaaa_bb"),
-    ("aaaaaaaaaaaa_b_cc__ddddddddddddddddd", "aaaaaaaaaaaa_b_cc__..ddddddddddd"),
-    ("aaaaaaaaaa_bbbb_cccc_ddddddddddddddddd", "aaaaaaaaaa_.._.._..ddddddddddddd")
+    ("-user", "_user"), 
+    ("helmholtz-de_KIT_Helmholtz-member", "helmholtz.._kit_helmholtz-member"),
+    ("-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    ("-abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_abcdefaaaaaaaaaaaaaaaaaaaaaaa.."), 
+    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "abcdefaaaaaaaaaaaaaaaaaaaaaaaa.."),
+    ("abcdefghij_abcdefghij_abcdefghij_abcdefghijk", "a.._abc.._abcdefghij_abcdefghijk"),
+    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa_bbbbbbbbbb", "abcdefaaaaaaaaaaaaa.._bbbbbbbbbb"),
+    ("abcdefghijkl_b_cc__abcdefghijklmnop_eeeeeeee", "a.._b_cc__abcdefghijk.._eeeeeeee"),
+    ("a_ab_abc_abcde_abcde_abcdefghi_abcdefghijklm", "a_ab_abc_a.._a.._a.._abcdefghi.."),
+    ("aaaaaaaaaa_bbbb_cccc_ddddddddddddddddddddddd", "a.._b.._c.._dddddddddddddddddd.."),
+    ("abcdefabcdefabcdefabcdefabcdefabcdefabcdef_aaaaaaa", "abcdefabcdefabcdefabcd.._aaaaaaa"),
+    ("abcdefabcdef_a_ab_cd_ef_abc_abcd_abcdef_abcdefghij", "a.._a_ab_cd_ef_abc_a.._a.._abc..")
     # ("a_b_c_d_e_f_a_a_a_a______________", "a_.._d_e_f_a_a_a_a______________"), # ??
     # ("_________________________________", "_.._____________________________"), # ??
 ]
