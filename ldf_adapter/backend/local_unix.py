@@ -388,9 +388,27 @@ class Group:
 def make_shadow_compatible(orig_word) -> str:
     """Ensure that orig_word is a valid user/group name for standard shadow utils.
 
-    While this could in theory be achived by simply substituting all non-allowed chars with a valid
-    one, we try to translitare sensibly, so that usernames look nicer and to avoid collisions. See
+    While this could in theory be achieved by simply substituting all non-allowed chars with a valid
+    one, we try to transliterate sensibly, so that usernames look nicer and to avoid collisions. See
     inline comments for further details.
+
+    Summary of transliteration process:
+    - german umlauts are replaced with their phonetic equivalents
+    - a few special characters are replaced by sensible equivalents:
+        - ! to i
+        - $ to s
+        - * to x
+        - @ to _at_
+    - unicode characters are decoded to ascii
+    - all other special characters are replaced with _
+    - shortening names longer than 32 chars to 32 as follows:
+        - fragments (substrings separated by _) are shortened starting with the first fragment
+          until the length 32 is reached
+        - a fragment is shortened by removing the necessary amount of characters from the end,
+          and adding .. at the end to denote the shortening took place, e.g. "abcdef" -> "abc.."
+        - the length of any fragment has to be > 3 to be considered for shortening
+        - the first character of a fragment is always kept, ie. the strongest shortening of "abcdef" will be "a.."
+        - names that are still longer than 32 chars after this process will raise a ValueError
 
     Any change made to the word is logged with level WARNING.
 
