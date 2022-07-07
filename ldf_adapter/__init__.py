@@ -814,11 +814,12 @@ class User:
         )
 
         if self.approval_enabled:
-            return self.pending_deployment.mod(
+            if not self.pending_deployment.mod(
                 service_user=self.service_user,
                 supplementary_groups=[backend.Group(grp) for grp in groups_to_add],  # type: ignore
                 removal_groups=[backend.Group(grp) for grp in groups_to_remove],  # type: ignore
-            )
+            ):
+                return [], []
         else:
             self.service_user.mod(
                 supplementary_groups=[backend.Group(grp) for grp in groups_to_add],  # type: ignore

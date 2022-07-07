@@ -173,7 +173,7 @@ class EmailNotifier(Notifier):
 
         user_cmd = deployment.user.cmd if deployment.user else ""
         groups_cmd = "\n".join([m.cmd for m in deployment.groups])
-        memberships_cmd = "\n".join([m.cmd for m in deployment.memberships])
+        memberships_cmd = deployment.memberships.cmd if deployment.memberships else ""
 
         # send notification to admin
         admin_content = Template(admin_template).substitute(

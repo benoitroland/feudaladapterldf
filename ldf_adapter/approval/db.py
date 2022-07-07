@@ -1,11 +1,11 @@
 from dataclasses import dataclass, fields
-from typing import Optional, List
+from typing import Optional
 import sqlite3
 import json
 import logging
 
 from ..results import Failure, FatalError
-from ..utils import sql_command_create_table, sql_command_insert_to_table
+from ..utils import sql_command_create_table, sql_command_insert_to_table, sql_command_update_table
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +36,12 @@ class PendingGroup:
 
 
 @dataclass
-class PendingMembership:
-    """Data model for storing a group membership of a user pending approval."""
+class PendingMemberships:
+    """Data model for storing group memberships of a user pending approval."""
 
     unique_id: str
-    name: str
+    supplementary_groups: list
+    removal_groups: list
     state: str
     cmd: str
     infodict: dict
@@ -93,22 +94,30 @@ class PendingDB:
         """Get a group entry that is up for approval by the group's name."""
         return None
 
-    def add_membership(self, membership: PendingMembership) -> bool:
-        """Add a new entry for a user's membership in a group. Returns False if entry already exists."""
+    def add_memberships(self, membership: PendingMemberships) -> bool:
+        """Add a new entry for a user's pending group memberships. Returns False if entry already exists."""
+        return False
+
+    def update_memberships(self, membership: PendingMemberships) -> bool:
+        """Update a user's pending group memberships by replacing them with the given memberships.
+        Returns False if entry did not exist.
+        """
         return False
 
     def remove_memberships(self, unique_id: str) -> None:
-        """Remove all group memberships of a given user."""
+        """Remove all pending group memberships of a given user."""
         pass
 
-    def get_memberships(self, unique_id: str) -> List[PendingMembership]:
-        """Get a given user's group memberships. Returns an empty list if the user is not found."""
-        return []
+    def get_memberships(self, unique_id: str) -> Optional[PendingMemberships]:
+        """Get a given user's pending group memberships. Returns None if the user is not found."""
+        return None
 
 
 # register the functions for manipulating custom types in sqlite db
-sqlite3.register_adapter(dict, lambda x: json.dumps(x))
-sqlite3.register_converter("dict", lambda x: json.loads(x))
+sqlite3.register_adapter(dict, lambda x: json.dumps(x).encode("utf-8"))
+sqlite3.register_converter("dict", lambda x: json.loads(x.decode("utf-8")))
+sqlite3.register_adapter(list, lambda x: json.dumps(x).encode("utf-8"))
+sqlite3.register_converter("list", lambda x: json.loads(x.decode("utf-8")))
 
 
 class SqlitePendingDB(PendingDB):
@@ -127,12 +136,10 @@ class SqlitePendingDB(PendingDB):
             data_model=PendingGroup, table_name="pending_groups", primary_key="name"
         )
         create_memberships_table_cmd = sql_command_create_table(
-            data_model=PendingMembership,
-            table_name="pending_memberships",
-            primary_key=["unique_id", "name"],
+            data_model=PendingMemberships, table_name="pending_memberships", primary_key="unique_id"
         )
         try:
-            self.connection = sqlite3.connect(location, detect_types=sqlite3.PARSE_COLNAMES)
+            self.connection = sqlite3.connect(location, detect_types=sqlite3.PARSE_DECLTYPES)
             with self.connection:  # con.commit() is called automatically afterwards on success
                 logger.debug("Creating table: %s", create_users_table_cmd)
                 self.connection.execute(create_users_table_cmd)
@@ -279,15 +286,15 @@ class SqlitePendingDB(PendingDB):
             logger.error("%s: %s", msg, ex)
             raise Failure(message=msg)
 
-    def add_membership(self, membership: PendingMembership) -> bool:
-        """Add a new entry for a user's membership in a group. Returns False if entry already exists."""
+    def add_memberships(self, membership: PendingMemberships) -> bool:
+        """Add a new entry for a user's pending group memberships. Returns False if entry already exists."""
         try:
             with self.connection:
                 self.connection.execute(
                     sql_command_insert_to_table(
-                        data_model=PendingMembership, table_name="pending_memberships"
+                        data_model=PendingMemberships, table_name="pending_memberships"
                     ),
-                    tuple(getattr(membership, field.name) for field in fields(PendingMembership)),
+                    tuple(getattr(membership, field.name) for field in fields(PendingMemberships)),
                 )
                 logger.debug(
                     "Deployment pending for user [%s]. Run cmd to add user to groups: [%s]",
@@ -297,18 +304,50 @@ class SqlitePendingDB(PendingDB):
             return True
         except sqlite3.IntegrityError as ex:
             logger.info(
-                "Membership of user %s to group %s already exists in pending db.",
-                membership.unique_id,
-                membership.name,
+                "Memberships entry of user %s already exists in pending db.", membership.unique_id
             )
             return False
         except sqlite3.Error as ex:
-            msg = f"Failed to add group membership for user {membership.unique_id} in group {membership.name} to pending db"
+            msg = f"Failed to add group memberships for user {membership.unique_id} to pending db"
+            logger.error("%s: %s", msg, ex)
+            raise Failure(message=msg)
+
+    def update_memberships(self, membership: PendingMemberships) -> bool:
+        """Update a user's pending group memberships by replacing them with the given memberships.
+        Returns False if entry did not exist.
+        """
+        try:
+            with self.connection:
+                self.connection.execute(
+                    sql_command_update_table(
+                        data_model=PendingMemberships,
+                        table_name="pending_memberships",
+                        key="unique_id",
+                    ),
+                    tuple(
+                        [getattr(membership, field.name) for field in fields(PendingMemberships)]
+                        + [membership.unique_id]
+                    ),
+                )
+                logger.debug(
+                    "Updated deployment pending for user [%s]. Run cmd to add user to groups: [%s]",
+                    membership.unique_id,
+                    membership.cmd,
+                )
+            return True
+        except sqlite3.IntegrityError as ex:
+            logger.info(
+                "Memberships entry of user %s didn't exist in pending db.", membership.unique_id
+            )
+            logger.debug(ex)
+            return False
+        except sqlite3.Error as ex:
+            msg = f"Failed to add group memberships for user {membership.unique_id} to pending db"
             logger.error("%s: %s", msg, ex)
             raise Failure(message=msg)
 
     def remove_memberships(self, unique_id: str) -> None:
-        """Remove all group memberships of a given user."""
+        """Remove all pending group memberships of a given user."""
         sql_del = "delete from pending_memberships where unique_id=?"
         try:
             with self.connection:
@@ -318,14 +357,20 @@ class SqlitePendingDB(PendingDB):
             logger.error("%s: %s", msg, ex)
             raise Failure(message=msg)
 
-    def get_memberships(self, unique_id: str) -> List[PendingMembership]:
-        """Get a given user's group memberships."""
+    def get_memberships(self, unique_id: str) -> Optional[PendingMemberships]:
+        """Get a given user's pending group memberships."""
         sql_get = "select * from pending_memberships where unique_id=?"
         try:
             result = []
             with self.connection:
                 result = self.connection.execute(sql_get, [unique_id]).fetchall()
-            return [PendingMembership(*row) for row in result]
+                if len(result) == 0:
+                    return None
+                if len(result) > 1:
+                    logger.warning(
+                        "Multiple entries found in membership db for user: %s", unique_id
+                    )
+                return PendingMemberships(*result[0])
         except sqlite3.Error as ex:
             msg = f"Failed to get memberships of user {unique_id} from pending db"
             logger.error("%s: %s", msg, ex)

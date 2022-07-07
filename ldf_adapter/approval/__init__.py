@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from .. import backend
 from ..userinfo import UserInfo
-from .db import PendingUser, PendingGroup, PendingMembership, PendingDB
+from .db import PendingUser, PendingGroup, PendingMemberships, PendingDB
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class PendingDeployment:
 
     _user: Optional[PendingUser] = None
     _groups: List[PendingGroup] = []
-    _memberships: List[PendingMembership] = []
+    _memberships: Optional[PendingMemberships] = None
 
     def __init__(self, pending_db: PendingDB, userinfo: UserInfo) -> None:
         """Initialise a pending deployment for a federated user.
@@ -36,12 +36,15 @@ class PendingDeployment:
         self._pending_db = pending_db
         self._user = pending_db.get_user(userinfo.unique_id)
         self._memberships = pending_db.get_memberships(userinfo.unique_id)
-        self._groups = list(
-            filter(
-                None,
-                [pending_db.get_group(m.name) for m in self._memberships],
+        if self._memberships:
+            self._groups = list(
+                filter(
+                    None,
+                    [pending_db.get_group(m) for m in self._memberships.supplementary_groups],
+                )
             )
-        )
+        else:
+            self._groups = []
 
     @property
     def user(self) -> Optional[PendingUser]:
@@ -54,7 +57,7 @@ class PendingDeployment:
         return self._groups
 
     @property
-    def memberships(self) -> List[PendingMembership]:
+    def memberships(self) -> Optional[PendingMemberships]:
         """Get information about the groups that the user needs to be added to."""
         return self._memberships
 
@@ -143,25 +146,42 @@ class PendingDeployment:
         self._groups.append(pending_group)
         return True
 
-    def mod(self, service_user: backend.User, supplementary_groups: List[backend.Group], removal_groups: List[backend.Group]) -> List[str]:  # type: ignore
-        """Create new pending membership entries for each group in list and add them to db.
-        Return a list of group names the user was  in pending db.
+    def mod(self, service_user: backend.User, supplementary_groups: List[backend.Group], removal_groups: List[backend.Group]) -> bool:  # type: ignore
+        """Create or update info in pending db s.t. the given user is added and removed
+        from the given groups.
+
+        If no pending memberships exist, create a new entry for user's pending memberships
+        and add it to pending db.
+        If pending db contains given user's membership, modify entry only if the lists of groups
+        to be added to/removed from have changed.
+
+        Return True if the pending db has been modified and False otherwise.
         """
-        new_groups = []
-        pending_groups = [g.name for g in self.memberships]
-        for group in supplementary_groups:
-            if group.name not in pending_groups:
-                membership = PendingMembership(
-                    unique_id=service_user.unique_id,
-                    name=group.name,
-                    state="pending",
-                    cmd=service_user.mod_tostring(supplementary_groups=[group]),
-                    infodict={},
-                )
-                self._pending_db.add_membership(membership)
-                self._memberships.append(membership)
-                new_groups.append(group.name)
-        return new_groups
+        supplementary_group_names = [g.name for g in supplementary_groups]
+        removal_group_names = [g.name for g in removal_groups]
+
+        membership = PendingMemberships(
+            unique_id=service_user.unique_id,
+            supplementary_groups=supplementary_group_names,
+            removal_groups=removal_group_names,
+            state="pending",
+            cmd=service_user.mod_tostring(
+                supplementary_groups=supplementary_groups, removal_groups=removal_groups
+            ),
+            infodict={},
+        )
+
+        if self._memberships is None:
+            self._pending_db.add_memberships(membership)
+            self._memberships = membership
+            return True
+        elif set(self._memberships.supplementary_groups) != set(supplementary_group_names) or set(
+            self._memberships.removal_groups
+        ) != set(removal_group_names):
+            self._pending_db.update_memberships(membership)
+            self._memberships = membership
+            return True
+        return False
 
     def remove_pending_data(self):
         """Remove from pending db all data associated to this user."""
@@ -172,7 +192,7 @@ class PendingDeployment:
         self._pending_db.remove_memberships(self.unique_id)
         self._user = None
         self._groups = []
-        self._memberships = []
+        self._memberships = None
 
     def is_pending(self) -> bool:
         """Whether the deployment was requested and is pending approval."""
@@ -190,7 +210,7 @@ class PendingDeployment:
 
     def groups_pending(self) -> bool:
         """Whether a group creation and membership change is pending approval."""
-        return self.groups != [] or self.memberships != []
+        return self.groups != [] or self.memberships != None
 
     def accept(self):
         """Accept this pending deployment and create user and groups (backend-specific)."""
@@ -198,8 +218,8 @@ class PendingDeployment:
             backend.Group.create_fromstring(group.cmd)  # type: ignore
         if self.user:
             backend.User.create_fromstring(self.user.cmd)  # type: ignore
-        for membership in self.memberships:
-            backend.User.mod_fromstring(membership.cmd)  # type: ignore
+        if self.memberships:
+            backend.User.mod_fromstring(self.memberships.cmd)  # type: ignore
         self.remove_pending_data()
 
     def reject(self):
@@ -212,4 +232,4 @@ class PendingDeployment:
             self._pending_db.remove_group(group.name)
         self._pending_db.remove_memberships(self.unique_id)
         self._groups = []
-        self._memberships = []
+        self._memberships = None

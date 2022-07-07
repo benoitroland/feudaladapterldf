@@ -71,6 +71,8 @@ def pytype_to_sqltype(pytype: Type) -> str:
             return "text"
         elif pytype.__str__().startswith("typing.Dict"):
             return "dict"
+        elif pytype.__str__().startswith("typing.List"):
+            return "list"
         elif pytype.__str__().startswith("typing.ByteString"):
             return "blob"
         else:
@@ -87,6 +89,8 @@ def pytype_to_sqltype(pytype: Type) -> str:
     # additionally defined types with custom adapters and converters
     if pytype.__name__ == "dict":
         return "dict"
+    if pytype.__name__ == "list":
+        return "list"
     # default type
     return "text"
 
@@ -128,3 +132,18 @@ def sql_command_insert_to_table(data_model: Type, table_name: str) -> str:
     column_names = ", ".join([field.name for field in fields(data_model)])
     column_values = ",".join(["?" for _ in fields(data_model)])
     return f"insert into {table_name}({column_names}) values ({column_values})"
+
+
+def sql_command_update_table(data_model: Type, table_name: str, key: str) -> str:
+    """Return an sql command for updating an entry of a given data model from a table.
+
+    Args:
+        data_model (Type): dataclass containing the fields that are the same as the table columns
+        table_name (str): the table name
+        key (str): the key to search on for update
+
+    Returns:
+        str: a string representation of the sql command
+    """
+    column_names = ", ".join([f"{field.name} = ?" for field in fields(data_model)])
+    return f"update {table_name} set {column_names} where {key} = ?"

@@ -71,6 +71,7 @@ class User:
                 result = subprocess.run(
                     ["chage"] + options + [self.name],
                     stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     check=True,
                 )
             except CalledProcessError as e:
@@ -151,6 +152,7 @@ class User:
             subprocess.run(
                 self._create_cmd(),
                 stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 check=True,
             )
         except CalledProcessError as e:
@@ -169,7 +171,9 @@ class User:
                 message=f"Cannot create user (command is not applicable to this backend): {create_cmd}"
             )
         try:
-            subprocess.run(create_cmd.split(" "), stdout=subprocess.PIPE, check=True)
+            subprocess.run(
+                create_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
@@ -185,11 +189,18 @@ class User:
         name = self.__passwd_entry["login"]
 
         try:
-            subprocess.run(["/usr/bin/pkill", "-u", name], stdout=subprocess.PIPE, check=True)
+            subprocess.run(
+                ["/usr/bin/pkill", "-u", name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         except CalledProcessError:
             pass
         try:
-            subprocess.run(["userdel", name], stdout=subprocess.PIPE, check=True)
+            subprocess.run(
+                ["userdel", name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
@@ -240,6 +251,7 @@ class User:
                     supplementary_groups=supplementary_groups, removal_groups=removal_groups
                 ),
                 stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 check=True,
             )
         except CalledProcessError as e:
@@ -260,7 +272,9 @@ class User:
                 message=f"Cannot modify user (command is not applicable to this backend): {mod_cmd}"
             )
         try:
-            subprocess.run(mod_cmd.split(" "), stdout=subprocess.PIPE, check=True)
+            subprocess.run(
+                mod_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
@@ -272,17 +286,25 @@ class User:
         If the user doesn't exist, return an empty list.
         """
         try:
-            result = subprocess.run(["id", "-Gn", self.name], stdout=subprocess.PIPE, check=True)
+            result = subprocess.run(
+                ["id", "-Gn", self.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
             return result.stdout.decode("utf-8").strip().split()
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.warning("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.info("Returning empty group list for user %s", self.name)
             return []
 
     def __expire(self, expiration_date=datetime.today().strftime("%Y-%m-%d")):
         options = ["-E", expiration_date]
         try:
-            subprocess.run(["chage"] + options + [self.name], stdout=subprocess.PIPE, check=True)
+            subprocess.run(
+                ["chage"] + options + [self.name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
@@ -296,7 +318,12 @@ class User:
 
     def __set_shell(self, shell):
         try:
-            subprocess.run(["usermod", "-s", shell, self.name], stdout=subprocess.PIPE, check=True)
+            subprocess.run(
+                ["usermod", "-s", shell, self.name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
@@ -416,7 +443,9 @@ class Group:
 
     def create(self):
         try:
-            subprocess.run(self._create_cmd(), stdout=subprocess.PIPE, check=True)
+            subprocess.run(
+                self._create_cmd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
@@ -433,7 +462,9 @@ class Group:
                 message=f"Cannot create group (command is not applicable to this backend): {create_cmd}"
             )
         try:
-            subprocess.run(create_cmd.split(" "), stdout=subprocess.PIPE, check=True)
+            subprocess.run(
+                create_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
