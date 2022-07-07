@@ -388,9 +388,27 @@ class Group:
 def make_shadow_compatible(orig_word) -> str:
     """Ensure that orig_word is a valid user/group name for standard shadow utils.
 
-    While this could in theory be achived by simply substituting all non-allowed chars with a valid
-    one, we try to translitare sensibly, so that usernames look nicer and to avoid collisions. See
+    While this could in theory be achieved by simply substituting all non-allowed chars with a valid
+    one, we try to transliterate sensibly, so that usernames look nicer and to avoid collisions. See
     inline comments for further details.
+
+    Summary of transliteration process:
+    - german umlauts are replaced with their phonetic equivalents
+    - a few special characters are replaced by sensible equivalents:
+        - ! to i
+        - $ to s
+        - * to x
+        - @ to _at_
+    - unicode characters are decoded to ascii
+    - all other special characters are replaced with _
+    - shortening names longer than 32 chars to 32 as follows:
+        - fragments (substrings separated by _) are shortened starting with the first fragment
+          until the length 32 is reached
+        - a fragment is shortened by removing the necessary amount of characters from the end,
+          and adding .. at the end to denote the shortening took place, e.g. "abcdef" -> "abc.."
+        - the length of any fragment has to be > 3 to be considered for shortening
+        - the first character of a fragment is always kept, ie. the strongest shortening of "abcdef" will be "a.."
+        - names that are still longer than 32 chars after this process will raise a ValueError
 
     Any change made to the word is logged with level WARNING.
 
@@ -433,43 +451,43 @@ def make_shadow_compatible(orig_word) -> str:
     word = regex.sub(r"[^-0-9_a-z]", "_", word)
 
     # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
-    if regex.match(r"^[a-z_]", word):
-        word = word
-    else:
-        if len(word) >= 32:
-            word = "_" + word[1:]
-        else:
-            word = "_" + word
+    if not regex.match(r"^[a-z_]", word):
+        word = "_" + word
+    if regex.match(r"_-", word):
+        word = "_" + word[2:]        
 
     # usernames and group names can only be 32 characters long.
-    # My fix is to remove characters a) after the first '_' if there is one.
-    #                                b) from the beginning if there is none
-    # Also adds two dots as an indicator for where the shortening took place
-
+    # split names in fragments and loop over them 
+    # to progressively remove the characters in excess.
+    # .. used to indicate where the shortening took place.
+    orig_excess_chars = len(word) - 32
     excess_chars = len(word) - 32
+    fragments = word.split("_")
+
     if excess_chars > 0:
 
-        if len(word.split("_")) == 1:  # no '_' found:
-            word = "__" + word[excess_chars + 2 :]
-            # logger.warning(F"shortened {orig_word} to {word}")
+            for n in range(len(fragments)):
+                if len(fragments[n]) <= 3: continue
+                if excess_chars == 0: break
+                excess_chars += 2
 
-        elif len(word.split("_")) > 1:  # at least one '_' found:
-            fragments = word.split("_")
-            if (
-                len(fragments[1]) > excess_chars
-            ):  # we're fine, we can cut excess chars from fragments alone
-                fragments[1] = ".." + fragments[1][excess_chars + 2 :]
-                # TODO: fix case when len(fragments[1]) == excess_chars + 1
+                for nchar in range (len(fragments[n]) - 1):
+                        fragments[n] = fragments[n][:len(fragments[n]) - 1]
+                        excess_chars -= 1
+                        if excess_chars == 0: break
+
+                fragments[n] = fragments[n] + ".."
+
+    if orig_excess_chars > 0:
+
+        if excess_chars > 0:
+            logger.error(f"User or group name is too long and could not be shortened: {word} ({len(word)})")
+            raise (ValueError)
+        else:
+            if len(fragments) > 1:
                 word = "_".join(fragments)
             else:
-                logger.error(f"User or group name is too long: {word} ({len(word)})")
-                raise (ValueError)
-                # TODO: fix case when removing chars from one fragment is not enough
-                # to shorten the word
-                # i.e. len(fragments[1] <= excess_chars)
-            # logger.warning(F"shortened {orig_word} to {word}")
-
-    if word != orig_word:
-        logger.debug("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
+                word = fragments[0]
+            logger.warning(F"User or group name is too long and was shortened from {orig_word} ({len(orig_word)}) to {word} ({len(word)})")
 
     return word
