@@ -117,7 +117,7 @@ class User:
 
         if self.approval_enabled:
             user_db_location = CONFIG.get(
-                "approval", "user_db_location", fallback="/run/feudal/pending_users.db"
+                "approval", "user_db_location", fallback="/var/lib/feudal/pending_users.db"
             )
             notifier_type = CONFIG.get("approval", "notifier", fallback="email")
             try:

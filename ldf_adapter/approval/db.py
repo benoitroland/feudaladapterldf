@@ -3,6 +3,7 @@ from typing import Optional
 import sqlite3
 import json
 import logging
+from pathlib import Path
 
 from ..results import Failure, FatalError
 from ..utils import sql_command_create_table, sql_command_insert_to_table, sql_command_update_table
@@ -129,33 +130,41 @@ class SqlitePendingDB(PendingDB):
         Args:
             location (str): path to file where DB is stored. Will be created if it does not exist.
         """
-        create_users_table_cmd = sql_command_create_table(
-            data_model=PendingUser, table_name="pending_users", primary_key="unique_id"
-        )
-        create_groups_table_cmd = sql_command_create_table(
-            data_model=PendingGroup, table_name="pending_groups", primary_key="name"
-        )
-        create_memberships_table_cmd = sql_command_create_table(
-            data_model=PendingMemberships, table_name="pending_memberships", primary_key="unique_id"
-        )
-        try:
+        if not Path(location).exists():
+            logger.debug("No sqlite DB found at %s, creating it...", location)
+            Path(location).parent.mkdir(exist_ok=True)
+            create_users_table_cmd = sql_command_create_table(
+                data_model=PendingUser, table_name="pending_users", primary_key="unique_id"
+            )
+            create_groups_table_cmd = sql_command_create_table(
+                data_model=PendingGroup, table_name="pending_groups", primary_key="name"
+            )
+            create_memberships_table_cmd = sql_command_create_table(
+                data_model=PendingMemberships,
+                table_name="pending_memberships",
+                primary_key="unique_id",
+            )
+            try:
+                self.connection = sqlite3.connect(location, detect_types=sqlite3.PARSE_DECLTYPES)
+                with self.connection:  # con.commit() is called automatically afterwards on success
+                    logger.debug("Creating table: %s", create_users_table_cmd)
+                    self.connection.execute(create_users_table_cmd)
+                    logger.debug("Successfully created table 'pending_users'.")
+
+                    logger.debug("Creating table: %s", create_groups_table_cmd)
+                    self.connection.execute(create_groups_table_cmd)
+                    logger.debug("Successfully created table 'pending_groups'.")
+
+                    logger.debug("Creating table: %s", create_memberships_table_cmd)
+                    self.connection.execute(create_memberships_table_cmd)
+                    logger.debug("Successfully created table 'pending_memberships'.")
+            except sqlite3.Error as ex:
+                message = f"Pending DB initialisation failed: {ex}"
+                logger.error(message)
+                raise FatalError(message=message)
+        else:
+            logger.debug("Existing sqlite DB found at %s. Loading pending data from it.", location)
             self.connection = sqlite3.connect(location, detect_types=sqlite3.PARSE_DECLTYPES)
-            with self.connection:  # con.commit() is called automatically afterwards on success
-                logger.debug("Creating table: %s", create_users_table_cmd)
-                self.connection.execute(create_users_table_cmd)
-                logger.debug("Successfully created table 'pending_users'.")
-
-                logger.debug("Creating table: %s", create_groups_table_cmd)
-                self.connection.execute(create_groups_table_cmd)
-                logger.debug("Successfully created table 'pending_groups'.")
-
-                logger.debug("Creating table: %s", create_memberships_table_cmd)
-                self.connection.execute(create_memberships_table_cmd)
-                logger.debug("Successfully created table 'pending_memberships'.")
-        except sqlite3.Error as ex:
-            message = f"Pending DB initialisation failed: {ex}"
-            logger.error(message)
-            raise FatalError(message=message)
 
     def add_user(self, user: PendingUser) -> bool:
         """Add a new entry for a user. Returns False if entry already exists."""
