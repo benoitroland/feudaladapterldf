@@ -179,6 +179,29 @@ def test_group_exist(local_unix_group, exists):
 
 
 INPUT_SHADOW_COMPATIBLE = [
+    ("user", "user"),
+    ("", "_"),
+    ("äöüÄÖÜß!$*@", "aeoeueaeoeuessisx_at_"),
+    ("#%^&()=+[]{}\\|;:'\",<.>/?", "________________________"),
+    ("u#%^&()=+[]{}\\|;:'\",<.>/?", "u________________________"),
+    (u"\u5317\u4EB0", "bei_jing_"),
+    (u"\u20AC", "eur"),
+    ("user$", "users"),
+    ("-user", "_-user"),
+    ("-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    ("-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    ("-abcdefaaaaaaaaaaaaaaaaaaaaaaaaaa", "_..defaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa", "__defaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    ("helmholtz-de_KIT_Helmholtz-member", "helmholtz-de_.._helmholtz-member")
+    # ("a_b_c_d_e_f_a_a_a_a______________", "a_.._d_e_f_a_a_a_a______________"), # ??
+    # ("_________________________________", "_.._____________________________"), # ??
+]
+
+INPUT_SHADOW_COMPATIBLE_FAIL = [
+    "_________________________________",  # all _ => no fragments can be shortened
+]
+
+INPUT_SHADOW_COMPATIBLE_V044 = [
     ("user", "user"),  # valid name
     ("", "_"),  # empty name
     ("äöüÄÖÜß!$*@", "aeoeueaeoeuessisx_at_"),  # umlauts and few other special characters can be replaced
@@ -202,7 +225,7 @@ INPUT_SHADOW_COMPATIBLE = [
     ("abcdefabcdef_a_ab_cd_ef_abc_abcd_abcdef_abcdefghij", "a.._a_ab_cd_ef_abc_a.._a.._abc..")  # fragments with length 1, 2, 3 are not shortened
 ]
 
-INPUT_SHADOW_COMPATIBLE_FAIL = [
+INPUT_SHADOW_COMPATIBLE_FAIL_V044 = [
     "_________________________________",  # all _ => no fragments can be shortened
     "a_b_c_d_e_f_g_h_i_j_k_l_m_n_o_p_q",  # all fragments of length 1, cannot be shortened
     "aa_bb_cc_dd_ee_ff_gg_hh_ii_jj_kk_",  # all fragments of length 2, cannot be shortened

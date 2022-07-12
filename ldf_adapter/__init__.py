@@ -113,6 +113,11 @@ class User:
             if self.service_user.exists():
                 self.update_username_from_existing()
 
+        # apply fixes to group names for unix backend
+        if CONFIG['ldf_adapter']['backend'] == "local_unix":
+            for grp in [self.service_user.primary_group] + self.service_groups + self.additional_groups:
+                grp.fix_group_names()
+
     def assurance_verifier(self):
         """Produce a suitably function to check if a user is allowed.
 

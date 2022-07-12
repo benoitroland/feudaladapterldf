@@ -321,7 +321,9 @@ class Group:
         if name is None:
             self.name = None
         else:
+            self.original_name = name
             self.name = make_shadow_compatible(name)
+            self.name_v004 = make_shadow_compatible_v044(name)
 
     @staticmethod
     def ROOT():
@@ -358,6 +360,42 @@ class Group:
     def __group_entry(self):
         return Group.__all_group_entries().get(self.name, {})
 
+
+    @staticmethod
+    def __rename(original_name, old_name, new_name):
+        logger.warning(f"Local group already exists for {original_name} with an old naming convention.")
+        logger.warning(f"Renaming group {old_name} to {new_name}.")
+        try:
+            subprocess.run(["groupmod", "--new-name", new_name, old_name], check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create group: {msg or '<no output>'}")
+
+    @staticmethod
+    def __fix_duplicates(fix_id, original_name, old_name, new_name):
+        logger.error(f"{fix_id}: Two local groups exist for {original_name}, created with different versions of make_shadow_compatible.")
+        logger.error(f"{fix_id}: Please make sure all files owned by group {old_name} are owned by group {new_name} before removing group {old_name}.")
+
+    def fix_group_names(self):
+        """Apply fix for groups that were created with different make_shadow_compatible versions.
+
+        3 use cases:
+        - group with broken name does not exist: nothing to do
+        - group with broken name exists, but new name does not exist yet: rename broken group
+        - both group names exist: log this for an admin to merge the groups
+        """
+        if self.name is None or self.name_v004 is None:
+            return
+        if self.name == self.name_v004:
+            return
+        all_groups = Group.__all_group_entries()
+        if self.name_v004 in all_groups:
+            if self.name not in all_groups:
+                Group.__rename(self.original_name, self.name_v004, self.name)
+            else:
+                Group.__fix_duplicates("FIX v0.4.4", self.original_name, self.name_v004, self.name)
+
     @staticmethod
     def __all_group_entries():
         GROUP_PATH = Path(Group.ROOT()) / "etc" / "group"
@@ -387,6 +425,99 @@ class Group:
 
 def make_shadow_compatible(orig_word) -> str:
     """Ensure that orig_word is a valid user/group name for standard shadow utils.
+
+    While this could in theory be achived by simply substituting all non-allowed chars with a valid
+    one, we try to translitare sensibly, so that usernames look nicer and to avoid collisions. See
+    inline comments for further details.
+
+    Any change made to the word is logged with level WARNING.
+
+    """
+    if orig_word is None:
+        return None
+        # For some reason "None" still comes in on the docker-compose setup.
+        # raise Failure(message="Cannot use username 'None' in make_shadow_compatible")
+    # Encode German Umlauts
+    word = orig_word.translate(
+        str.maketrans(
+            {
+                "ä": "ae",
+                "ö": "oe",
+                "ü": "ue",
+                "Ä": "Ae",
+                "Ö": "Oe",
+                "Ü": "Ue",
+                "ß": "ss",
+                "!": "i",
+                "$": "s",
+                "*": "x",
+                "@": "_at_",
+            }
+        )
+    )
+
+    # Unicode -> Ascii
+    word = unidecode(word)
+
+    # Downcase
+    word = word.lower()
+
+    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
+    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
+    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
+    # aber nur *ganz* am Ende ...
+    # word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
+    # since we already replace $ with s, no need to check for $ at the end
+    word = regex.sub(r"[^-0-9_a-z]", "_", word)
+
+    # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
+    if regex.match(r"^[a-z_]", word):
+        word = word
+    else:
+        if len(word) >= 32:
+            word = "_" + word[1:]
+        else:
+            word = "_" + word
+
+    # usernames and group names can only be 32 characters long.
+    # My fix is to remove characters a) after the first '_' if there is one.
+    #                                b) from the beginning if there is none
+    # Also adds two dots as an indicator for where the shortening took place
+
+    excess_chars = len(word) - 32
+    if excess_chars > 0:
+
+        if len(word.split("_")) == 1:  # no '_' found:
+            word = "__" + word[excess_chars + 2 :]
+            # logger.warning(F"shortened {orig_word} to {word}")
+
+        elif len(word.split("_")) > 1:  # at least one '_' found:
+            fragments = word.split("_")
+            if (
+                len(fragments[1]) > excess_chars
+            ):  # we're fine, we can cut excess chars from fragments alone
+                fragments[1] = ".." + fragments[1][excess_chars + 2 :]
+                # TODO: fix case when len(fragments[1]) == excess_chars + 1
+                word = "_".join(fragments)
+            else:
+                logger.error(f"User or group name is too long: {word} ({len(word)})")
+                raise (ValueError)
+                # TODO: fix case when removing chars from one fragment is not enough
+                # to shorten the word
+                # i.e. len(fragments[1] <= excess_chars)
+            # logger.warning(F"shortened {orig_word} to {word}")
+
+    if word != orig_word:
+        logger.debug("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
+
+    return word
+
+
+def make_shadow_compatible_v044(orig_word) -> str:
+    """
+    This is the function in feudalAdapter v0.4.4, needed here to rollback the side-effects incurred by it.
+
+    Ensure that orig_word is a valid user/group name for standard shadow utils.
 
     While this could in theory be achieved by simply substituting all non-allowed chars with a valid
     one, we try to transliterate sensibly, so that usernames look nicer and to avoid collisions. See
@@ -481,13 +612,10 @@ def make_shadow_compatible(orig_word) -> str:
     if orig_excess_chars > 0:
 
         if excess_chars > 0:
-            logger.error(f"User or group name is too long and could not be shortened: {word} ({len(word)})")
-            raise (ValueError)
+            return None
         else:
             if len(fragments) > 1:
                 word = "_".join(fragments)
             else:
                 word = fragments[0]
-            logger.warning(F"User or group name is too long and was shortened from {orig_word} ({len(orig_word)}) to {word} ({len(word)})")
-
     return word
