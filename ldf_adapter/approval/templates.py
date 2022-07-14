@@ -124,7 +124,9 @@ This is a test notification for the approval of deployment requests to the host 
 
 If you can read this message, the notification system is configured correctly. Here's a summary of your configuration:
 
-<insert here: notifier, backend, etc.>
+Notifier: ${notifier}
+Settings:
+${settings}
 
 Best,
 Your humble email bot.

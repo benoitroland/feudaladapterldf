@@ -18,6 +18,7 @@ from feudal_globalconfig import globalconfig
 
 from ldf_adapter import User
 from ldf_adapter.results import ExceptionalResult, FatalError
+from ldf_adapter.cmdline_params import args
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +35,24 @@ class PathTruncatingFormatter(logging.Formatter):
 
 
 def main():
-
-    try:
-        data = json.load(sys.stdin)
-    except json.decoder.JSONDecodeError as e:
-        message = "Cannot decode the input json. Please verify the input!"
-        logger.error(message)
-        raise FatalError(message=message)
+    if args.test:
+        logger.info("test mode")
+        data = {
+            "state_target": "test",
+            "user": {
+                "userinfo": {
+                    "sub": "test",
+                    "iss": "test",
+                }
+            },
+        }
+    else:
+        try:
+            data = json.load(sys.stdin)
+        except json.decoder.JSONDecodeError as e:
+            message = "Cannot decode the input json. Please verify the input!"
+            logger.error(message)
+            raise FatalError(message=message)
 
     logger.debug(f"Attempting to reach state '{data['state_target']}'")
 

@@ -6,6 +6,7 @@ import logging
 import smtplib
 from email.message import EmailMessage
 from string import Template
+import json
 
 # from trycourier import Courier
 
@@ -14,6 +15,9 @@ from .templates import MessageTemplateAdmin, MessageTemplateUser
 from ..results import Failure, FatalError
 
 logger = logging.getLogger(__name__)
+
+
+NOTIFY_TIMEOUT = 1.2  # seconds
 
 
 class NotificationType(Enum):
@@ -141,9 +145,9 @@ class EmailNotifier(Notifier):
         """Send an email using the configured SMTP settings."""
         try:
             if self.use_ssl:
-                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port)
+                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=NOTIFY_TIMEOUT)
             else:
-                server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+                server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=NOTIFY_TIMEOUT)
             server.ehlo()
             if self.sent_from_password:
                 server.login(self.sent_from, self.sent_from_password)
@@ -220,7 +224,21 @@ class EmailNotifier(Notifier):
             email=self._build_email(
                 send_to=self.admin_email,
                 subject=f"Test email notification on '{self.hostname}'",
-                content=Template(MessageTemplateAdmin.TEST).substitute(hostname=self.hostname),
+                content=Template(MessageTemplateAdmin.TEST).substitute(
+                    hostname=self.hostname,
+                    notifier="email",
+                    settings=json.dumps(
+                        {
+                            "smtp_server": self.smtp_server,
+                            "smtp_port": self.smtp_port,
+                            "use_ssl": self.use_ssl,
+                            "admin_email": self.admin_email,
+                            "sent_from": self.sent_from,
+                            "sent_from_password": "*****" if self.sent_from_password else None,
+                        },
+                        indent=4,
+                    ),
+                ),
             )
         )
 

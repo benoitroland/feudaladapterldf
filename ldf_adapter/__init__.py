@@ -867,9 +867,7 @@ class User:
         if self.approval_enabled:
             self.notifier.test()
             msg = "Notification sent successfully."
-            logger.info(msg)
-            return Status(state="test", message=msg)
         else:
             msg = "Approval workflow is not enabled. No notification message was sent."
-            logger.info(msg)
-            raise Failure(message=msg)
+        logger.info(msg)
+        return Status(state="test", message=msg)
