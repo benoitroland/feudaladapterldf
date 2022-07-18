@@ -21,7 +21,6 @@ from .results import Deployed, Failure, NotDeployed, Rejection, Question, Status
 from .name_generators import NameGenerator
 from .userinfo import UserInfo
 from .approval import PendingDeployment
-from .approval.db import SqlitePendingDB
 from .approval.notifiers import Notifier
 
 logger = logging.getLogger(__name__)
@@ -116,6 +115,7 @@ class User:
             self.login_info = {"ssh_host": "localhost"}
 
         if self.approval_enabled:
+            # initialise pending db and notification system
             user_db_location = CONFIG.get(
                 "approval", "user_db_location", fallback="/var/lib/feudal/pending_users.db"
             )
@@ -128,11 +128,13 @@ class User:
                 )
                 logger.error(f"{message}: {ex}")
                 raise FatalError(message=message)
-
-            pending_db = SqlitePendingDB(location=user_db_location)
-            self.pending_deployment = PendingDeployment(pending_db, self.data)
-            self.notifier = Notifier.load(
-                notifier_type, notifier_config, self.login_info["ssh_host"]
+            self.pending_deployment = PendingDeployment(
+                userinfo=self.data, user_db_location=user_db_location
+            )
+            self._notifier = Notifier.load(
+                notifier_type=notifier_type,
+                notifier_config=notifier_config,
+                hostname=self.login_info["ssh_host"],
             )
 
     @property
@@ -327,19 +329,20 @@ class User:
         new_credentials = self.ensure_credentials_active()
 
         if self.approval_enabled:
-            if was_created:
-                # new deployment request => send out notifications
-                self.notifier.notify_new(self.pending_deployment)
-                what_changed = "Request for deployment was submitted for approval."
-            elif new_groups != [] or new_memberships != [] or removed_memberships != []:
-                # deployment request pending, but needs to be updated => send notifications
-                self.notifier.notify_update(self.pending_deployment)
-                what_changed = "Updated request for deployment was submitted for approval."
-            else:
-                # nothing to do, request already pending and no changes happened
-                what_changed = "Request for deployment was already submitted for approval."
-
-            return Status(state="pending", message=what_changed)
+            try:
+                notification_type, what_changed = self.pending_deployment.get_notification_type()
+                try:
+                    self._notifier.notify(self.pending_deployment, notification_type)
+                    self.pending_deployment.set_notified()
+                except Exception as ex:
+                    logger.error(f"Failed to send notification: {ex}")
+                    raise Failure(
+                        message="Failed to notify admin of deployment request. Please contact an admin or try again later."
+                    )
+                return Status(state="pending", message=what_changed)
+            except Exception as ex:
+                logger.error(f"Error while sending notification.")
+                raise Failure(message="Failed to submit deployment request")
         else:
             what_changed = "User was created" if was_created else "User already existed"
             if new_memberships:
@@ -453,7 +456,7 @@ class User:
 
         Return a Status result with a message describing what was done.
         """
-        if self.pending_deployment.is_pending() or self.pending_deployment.groups_pending():
+        if self.pending_deployment.is_pending() or self.pending_deployment.mod_pending():
             if not hasattr(backend.User, "create_fromstring"):  # type: ignore
                 raise Failure(
                     message=(
@@ -491,7 +494,7 @@ class User:
 
         Return a Status result with a message describing what was done.
         """
-        if self.pending_deployment.is_pending() or self.pending_deployment.groups_pending():
+        if self.pending_deployment.is_pending() or self.pending_deployment.mod_pending():
             self.pending_deployment.reject()
             what_changed = "User deployment request was rejected."
             logger.debug(what_changed)
@@ -688,7 +691,7 @@ class User:
             logger.info(
                 f"No user existed for {self.data.unique_id}, but cleaned up lingering pending/rejected entry for this user."
             )
-            self.pending_deployment.remove_pending_data()
+            self.pending_deployment.remove_data()
             return False
         else:
             logger.info(f"No user existed for {self.data.unique_id}. Nothing to do.")
@@ -865,7 +868,7 @@ class User:
         enabled by sending a test notification to the admin.
         """
         if self.approval_enabled:
-            self.notifier.test()
+            self._notifier.test()
             msg = "Notification sent successfully."
         else:
             msg = "Approval workflow is not enabled. No notification message was sent."

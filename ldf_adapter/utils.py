@@ -91,6 +91,8 @@ def pytype_to_sqltype(pytype: Type) -> str:
         return "dict"
     if pytype.__name__ == "list":
         return "list"
+    if pytype.__name__ == "DeploymentState":
+        return "DeploymentState"
     # default type
     return "text"
 

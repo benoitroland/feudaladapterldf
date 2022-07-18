@@ -1,4 +1,5 @@
 from dataclasses import dataclass, fields
+from enum import Enum
 from typing import Optional
 import sqlite3
 import json
@@ -11,6 +12,37 @@ from ..utils import sql_command_create_table, sql_command_insert_to_table, sql_c
 logger = logging.getLogger(__name__)
 
 
+class DeploymentState(Enum):
+    """The state of a deployment request. One of:
+
+    - PENDING: the request has been created and is pending approval
+    - NOTIFIED: the local admin has been notified of the pending request
+    - REJECTED: the request has been rejected
+    - UNKNOWN: the request state is unknown
+
+    Once it is accepted, the request is removed from the pending database.
+    """
+
+    PENDING = 0
+    NOTIFIED = 1
+    REJECTED = 2
+    UNKNOWN = 3
+
+    @staticmethod
+    def from_string(state: str):
+        """
+        Convert a string to a DeploymentState.
+        Args:
+            state (str): the string to convert
+        Returns:
+            DeploymentState: the DeploymentState or DeploymentState.UNKNOWN if the string is not a valid DeploymentState
+        """
+        try:
+            return DeploymentState[state]
+        except ValueError:
+            return DeploymentState.UNKNOWN
+
+
 @dataclass
 class PendingUser:
     """Data model for storing information on a user pending approval."""
@@ -21,7 +53,7 @@ class PendingUser:
     email: Optional[str]
     full_name: Optional[str]
     username: str
-    state: str
+    state: DeploymentState
     cmd: str
     infodict: dict
 
@@ -31,7 +63,7 @@ class PendingGroup:
     """Data model for storing groups of a user pending approval."""
 
     name: str
-    state: str
+    state: DeploymentState
     cmd: str
     infodict: dict
 
@@ -43,7 +75,7 @@ class PendingMemberships:
     unique_id: str
     supplementary_groups: list
     removal_groups: list
-    state: str
+    state: DeploymentState
     cmd: str
     infodict: dict
 
@@ -68,16 +100,12 @@ class PendingDB:
         return None
 
     def reject_user(self, unique_id: str) -> None:
-        """Change the state of user given by unique_id from 'pending' to 'rejected'."""
+        """Change the state of user given by unique_id to REJECTED."""
         pass
 
-    def user_is_pending(self, unique_id: str) -> bool:
-        """Whether the user deployment was requested and is pending approval."""
-        return False
-
-    def user_is_rejected(self, unique_id: str):
-        """Whether the user deployment was requested and was rejected."""
-        return False
+    def notify_user(self, unique_id: str) -> None:
+        """Change the state of user given by unique_id to NOTIFIED."""
+        pass
 
     def username_reserved(self, name: str) -> bool:
         """Whether the name is reserved by another user pending approval."""
@@ -94,6 +122,10 @@ class PendingDB:
     def get_group(self, name: str) -> Optional[PendingGroup]:
         """Get a group entry that is up for approval by the group's name."""
         return None
+
+    def notify_group(self, name: str) -> None:
+        """Change the state of group given by name to NOTIFIED."""
+        pass
 
     def add_memberships(self, membership: PendingMemberships) -> bool:
         """Add a new entry for a user's pending group memberships. Returns False if entry already exists."""
@@ -113,12 +145,22 @@ class PendingDB:
         """Get a given user's pending group memberships. Returns None if the user is not found."""
         return None
 
+    def notify_memberships(self, unique_id: str) -> None:
+        """Change the state of user's memberships given by unique_id to NOTIFIED."""
+        pass
+
 
 # register the functions for manipulating custom types in sqlite db
 sqlite3.register_adapter(dict, lambda x: json.dumps(x).encode("utf-8"))
 sqlite3.register_converter("dict", lambda x: json.loads(x.decode("utf-8")))
+
 sqlite3.register_adapter(list, lambda x: json.dumps(x).encode("utf-8"))
 sqlite3.register_converter("list", lambda x: json.loads(x.decode("utf-8")))
+
+sqlite3.register_adapter(DeploymentState, lambda x: x.name.encode("utf-8"))
+sqlite3.register_converter(
+    "DeploymentState", lambda x: DeploymentState.from_string(x.decode("utf-8"))
+)
 
 
 class SqlitePendingDB(PendingDB):
@@ -233,14 +275,26 @@ class SqlitePendingDB(PendingDB):
             raise Failure(message=msg)
 
     def reject_user(self, unique_id: str) -> None:
-        """Change the state of user given by unique_id from 'pending' to 'rejected'."""
-        sql_update = "update pending_users set state='rejected' where unique_id=?"
+        """Change the state of user given by unique_id to REJECTED."""
+        sql_update = "update pending_users set state=? where unique_id=?"
         try:
             with self.connection:
-                self.connection.execute(sql_update, [unique_id])
+                self.connection.execute(sql_update, [DeploymentState.REJECTED, unique_id])
                 logger.debug("Deployment request for user [%s] was rejected.", unique_id)
         except sqlite3.Error as ex:
-            msg = f"Failed to change state of user {unique_id} to rejected."
+            msg = f"Failed to change state of user {unique_id} to 'rejected'."
+            logger.error("%s: %s", msg, ex)
+            raise Failure(message=msg)
+
+    def notify_user(self, unique_id: str) -> None:
+        """Change the state of user given by unique_id to NOTIFIED."""
+        sql_update = "update pending_users set state=? where unique_id=?"
+        try:
+            with self.connection:
+                self.connection.execute(sql_update, [DeploymentState.NOTIFIED, unique_id])
+                logger.debug("State in pending db for user [%s] was set to 'notified'.", unique_id)
+        except sqlite3.Error as ex:
+            msg = f"Failed to change state of user {unique_id} to 'notified'."
             logger.error("%s: %s", msg, ex)
             raise Failure(message=msg)
 
@@ -292,6 +346,18 @@ class SqlitePendingDB(PendingDB):
                 return PendingGroup(*result[0])
         except sqlite3.Error as ex:
             msg = f"Failed to get group {name} from pending db"
+            logger.error("%s: %s", msg, ex)
+            raise Failure(message=msg)
+
+    def notify_group(self, name: str) -> None:
+        """Change the state of group given by name to NOTIFIED."""
+        sql_update = "update pending_groups set state=? where name=?"
+        try:
+            with self.connection:
+                self.connection.execute(sql_update, [DeploymentState.NOTIFIED, name])
+                logger.debug("State in pending db for group [%s] was set to 'notified'.", name)
+        except sqlite3.Error as ex:
+            msg = f"Failed to change state of group {name} to 'notified'."
             logger.error("%s: %s", msg, ex)
             raise Failure(message=msg)
 
@@ -382,5 +448,20 @@ class SqlitePendingDB(PendingDB):
                 return PendingMemberships(*result[0])
         except sqlite3.Error as ex:
             msg = f"Failed to get memberships of user {unique_id} from pending db"
+            logger.error("%s: %s", msg, ex)
+            raise Failure(message=msg)
+
+    def notify_memberships(self, unique_id: str) -> None:
+        """Change the state of user's memberships given by unique_id to NOTIFIED."""
+        sql_update = "update pending_memberships set state=? where unique_id=?"
+        try:
+            with self.connection:
+                self.connection.execute(sql_update, [DeploymentState.NOTIFIED, unique_id])
+                logger.debug(
+                    "State in pending db for user [%s]'s memberships was set to 'notified'.",
+                    unique_id,
+                )
+        except sqlite3.Error as ex:
+            msg = f"Failed to change state of user {unique_id}'s memberships to 'notified'."
             logger.error("%s: %s", msg, ex)
             raise Failure(message=msg)

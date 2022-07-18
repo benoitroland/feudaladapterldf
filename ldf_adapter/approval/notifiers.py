@@ -1,6 +1,5 @@
 from __future__ import annotations
 import configparser
-from enum import Enum
 from typing import Optional
 import logging
 import smtplib
@@ -10,7 +9,7 @@ import json
 
 # from trycourier import Courier
 
-from . import PendingDeployment
+from . import PendingDeployment, NotificationType
 from .templates import MessageTemplateAdmin, MessageTemplateUser
 from ..results import Failure, FatalError
 
@@ -20,15 +19,10 @@ logger = logging.getLogger(__name__)
 NOTIFY_TIMEOUT = 1.2  # seconds
 
 
-class NotificationType(Enum):
-    NEW = 1
-    UPDATE = 2
-
-
 class Notifier:
     """Generic class for notifying admins of deployment requests."""
 
-    def _notify(
+    def notify(
         self,
         deployment: PendingDeployment,
         notification_type: NotificationType = NotificationType.NEW,
@@ -37,15 +31,6 @@ class Notifier:
 
         To be implemented for all notification providers.
         """
-
-    def notify_new(self, deployment: PendingDeployment):
-        """Notify admin and user of a new request for deployment."""
-        self._notify(deployment, NotificationType.NEW)
-
-    def notify_update(self, deployment: PendingDeployment):
-        """Notify admin and user of an update to an already pending deployment.
-        The update concerns new groups and group memberships."""
-        self._notify(deployment, NotificationType.UPDATE)
 
     def test(self):
         """Send test notification to admin to make sure the configured set-up works.
@@ -157,23 +142,28 @@ class EmailNotifier(Notifier):
                 "Email with subject '%s' sent successfully to '%s'!", email["Subject"], email["To"]
             )
         except Exception as ex:
-            logger.error("Could not send email to {%s}: %s", email["To"], ex)
-            raise Failure(message=f"Failed to send request to admin for approval.")
+            raise Exception("Could not send email to {%s}: %s", email["To"], ex)
 
-    def _notify(
+    def notify(
         self,
         deployment: PendingDeployment,
         notification_type: NotificationType = NotificationType.NEW,
     ):
         """Notifies admin and user of request of given type by sending en email."""
-        if notification_type == NotificationType.NEW:
+        if notification_type == NotificationType.NOOP:
+            logger.debug("Notification type is NOOP, not sending email.")
+            return
+        elif notification_type == NotificationType.NEW:
             admin_template = MessageTemplateAdmin.DEPLOY
             user_template = MessageTemplateUser.DEPLOY
-        elif notification_type == NotificationType.UPDATE:
-            admin_template = MessageTemplateAdmin.UPDATE
-            user_template = MessageTemplateUser.UPDATE
+        elif notification_type == NotificationType.UPDATE_REQUEST:
+            admin_template = MessageTemplateAdmin.UPDATE_REQUEST
+            user_template = MessageTemplateUser.UPDATE_REQUEST
+        elif notification_type == NotificationType.UPDATE_GROUPS:
+            admin_template = MessageTemplateAdmin.UPDATE_GROUPS
+            user_template = MessageTemplateUser.UPDATE_GROUPS
         else:
-            raise Failure(message=f"Unknown notification type {notification_type}")
+            raise Failure(message=f"Unknown notification type.")
 
         user_cmd = deployment.user.cmd if deployment.user else ""
         groups_cmd = "\n".join([m.cmd for m in deployment.groups])
@@ -190,6 +180,7 @@ class EmailNotifier(Notifier):
             memberships_cmd=memberships_cmd,
             sub=deployment.sub,
             iss=deployment.iss,
+            username=deployment.username,
         )
         self._send_email(
             email=self._build_email(
