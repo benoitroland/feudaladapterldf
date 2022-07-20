@@ -252,7 +252,12 @@ class PendingDeployment:
             self._memberships = None
 
     def get_notification_type(self) -> Tuple[NotificationType, str]:
-        """Return the type of notification to be sent to the user."""
+        """Return the type of notification to be sent to the user.
+
+        Returns:
+            NotificationType: The type of notification to be sent to the user.
+            str: A message containing what changed, to be sent to the user.
+        """
         if self.user is None and self.memberships is None:
             # no pending user or group membership, nothing to notify
             return NotificationType.NOOP, "No pending deployment, nothing to notify."

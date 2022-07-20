@@ -124,7 +124,6 @@ There has been an update to the following user's group memberships on host '${ho
     unique_id: ${unique_id}
     name: ${full_name}
     email: ${email}
-    local username: ${username}
 
 Below are the backend-specific commands to update the local account for them.
 
