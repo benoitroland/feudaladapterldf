@@ -9,10 +9,9 @@ from unidecode import unidecode
 import logging
 import regex
 
-from . import logsetup
-from . import eduperson
-from .config import CONFIG
-from .results import raise_question
+from ldf_adapter import eduperson
+from ldf_adapter.config import CONFIG
+from ldf_adapter.results import raise_question
 
 logger = logging.getLogger(__name__)
 

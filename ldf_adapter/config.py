@@ -10,7 +10,6 @@ from configparser import ConfigParser
 from pathlib import Path
 import logging
 
-from .results import Failure
 
 PARSE_CMDLINE_PARAMETERS = True
 if "pytest" in sys.modules:

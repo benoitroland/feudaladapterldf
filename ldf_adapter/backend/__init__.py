@@ -1,10 +1,9 @@
 """module to import a backend"""
 import sys
-import pkgutil
 import logging
 
-from ..config import CONFIG
-from ..results import Failure
+from ldf_adapter.config import CONFIG
+from ldf_adapter.results import Failure
 
 logger = logging.getLogger(__name__)
 

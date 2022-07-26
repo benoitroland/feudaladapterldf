@@ -3,22 +3,21 @@ Implement approval workflow for user deployments.
 """
 import logging
 from typing import List, Optional, Tuple
-from enum import Enum
 
-from .. import backend
-from ..userinfo import UserInfo
-from .db import PendingUser, PendingGroup, PendingMemberships, SqlitePendingDB, DeploymentState
-
+from ldf_adapter import backend
+from ldf_adapter.results import Failure
+from ldf_adapter.userinfo import UserInfo
+from ldf_adapter.approval.models import (
+    PendingUser,
+    PendingGroup,
+    PendingMemberships,
+    DeploymentState,
+)
+from ldf_adapter.approval.db import databases
+from ldf_adapter.notifier import notifiers
+from ldf_adapter.notifier.notification import NotificationType
 
 logger = logging.getLogger(__name__)
-
-
-class NotificationType(Enum):
-    NOOP = 0
-    NEW = 1
-    UPDATE_REQUEST = 2
-    UPDATE_GROUPS = 3
-    UNKNOWN = 4
 
 
 class PendingDeployment:
@@ -29,20 +28,36 @@ class PendingDeployment:
     _groups: List[PendingGroup] = []
     _memberships: Optional[PendingMemberships] = None
 
-    def __init__(self, userinfo: UserInfo, user_db_location: str) -> None:
+    def __init__(
+        self,
+        userinfo: UserInfo,
+        ssh_host: str,
+        approval_config,
+        notifier_type: str,
+        notifier_config,
+    ) -> None:
         """Initialise a pending deployment for a federated user.
         If a request already exists for this user, initialise properties.
 
         Args:
             userinfo (UserInfo): user info of federated user
-            user_db_location (str): path to pending db
+            ssh_host (str): hostname where the SSH server is running
+            approval_config (dict): approval configuration
+            notifier_type (str): type of notifier to use
+            notifier_config (dict): configuration of notifier
         """
-        self._pending_db = SqlitePendingDB(location=user_db_location)
+        self._pending_db = databases.get(db_type="sqlite", **approval_config)
+        self._notifier = notifiers.get(
+            notifier_type=notifier_type,
+            ssh_host=ssh_host,
+            **notifier_config,
+        )
         self.unique_id = userinfo.unique_id
         self._sub = userinfo.sub
         self._iss = userinfo.iss
         self._email = userinfo.email
         self._full_name = userinfo.full_name
+        self._ssh_host = ssh_host
 
         self._user = self._pending_db.get_user(userinfo.unique_id)
         self._memberships = self._pending_db.get_memberships(userinfo.unique_id)
@@ -251,37 +266,7 @@ class PendingDeployment:
             self._pending_db.remove_memberships(self.unique_id)
             self._memberships = None
 
-    def get_notification_type(self) -> Tuple[NotificationType, str]:
-        """Return the type of notification to be sent to the user.
-
-        Returns:
-            NotificationType: The type of notification to be sent to the user.
-            str: A message containing what changed, to be sent to the user.
-        """
-        if self.user is None and self.memberships is None:
-            # no pending user or group membership, nothing to notify
-            return NotificationType.NOOP, "No pending deployment, nothing to notify."
-        if self.user and self.user.state == DeploymentState.PENDING:
-            # new deployment request
-            return NotificationType.NEW, "Request for deployment was submitted for approval."
-        if self.memberships and self.memberships.state == DeploymentState.PENDING:
-            # only membership changes are pending
-            if self.user is None:
-                # user exists, but groups need to be updated
-                return (
-                    NotificationType.UPDATE_GROUPS,
-                    "Request for updating user groups was submitted for approval.",
-                )
-            if self.user and self.user.state == DeploymentState.NOTIFIED:
-                # deployment request already notified, but groups have changed and need to be updated
-                return (
-                    NotificationType.UPDATE_REQUEST,
-                    "Updated request for deployment was submitted for approval.",
-                )
-        # nothing to do, request already notified and no changes happened
-        return NotificationType.NOOP, "Request for deployment was already submitted for approval."
-
-    def set_notified(self) -> None:
+    def _set_notified(self) -> None:
         """Set the state of this pending deployment to 'notified' by setting the state of the user
         and/or its memberships in the pending db to 'notified'.
         """
@@ -291,3 +276,56 @@ class PendingDeployment:
             self._pending_db.notify_memberships(self.unique_id)
         for group in self.groups:
             self._pending_db.notify_group(group.name)
+
+    def notify(self):
+        """Send out notification to the service admin and the user about this pending deployment."""
+        admin_notification = NotificationType.NONE
+        user_notification = NotificationType.NONE
+        if self.user and self.user.state == DeploymentState.PENDING:
+            # new deployment request
+            admin_notification = NotificationType.ADMIN_DEPLOY
+            user_notification = NotificationType.USER_DEPLOY
+        elif self.memberships and self.memberships.state == DeploymentState.PENDING:
+            # only membership changes are pending
+            if self.user is None:
+                # user exists, but groups need to be updated
+                admin_notification = NotificationType.ADMIN_UPDATE
+                user_notification = NotificationType.USER_UPDATE
+            elif self.user and self.user.state == DeploymentState.NOTIFIED:
+                # deployment request already notified, but groups have changed and need to be updated
+                admin_notification = NotificationType.ADMIN_DEPLOY_UPDATE
+                user_notification = NotificationType.ADMIN_DEPLOY_UPDATE
+        # build notification data
+        user_cmd = self.user.cmd if self.user else ""
+        groups_cmd = "\n".join([m.cmd for m in self.groups])
+        memberships_cmd = self.memberships.cmd if self.memberships else ""
+        data = {
+            "hostname": self._ssh_host,
+            "unique_id": self.unique_id,
+            "full_name": self.full_name,
+            "email": self.email,
+            "user_cmd": user_cmd,
+            "groups_cmd": groups_cmd,
+            "memberships_cmd": memberships_cmd,
+            "sub": self.sub,
+            "iss": self.iss,
+            "username": self.username,
+        }
+        try:
+            notified = self._notifier.notify(notification_type=admin_notification, data=data)
+            if self.email:
+                self._notifier.notify(notification_type=user_notification, data=data)
+            else:
+                logger.warning(
+                    "No email found in deployment request: user will not receive email notification."
+                )
+            if notified:
+                self._set_notified()
+        except Exception as ex:
+            logger.error(f"Failed to send notification: {ex}")
+            raise Failure(
+                message="Failed to notify admin of deployment request. Please contact an admin or try again later."
+            )
+
+    def test_notifier(self):
+        self._notifier.test()

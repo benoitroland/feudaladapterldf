@@ -9,19 +9,21 @@ from feudal_globalconfig import globalconfig
 
 import regex
 
-# from unidecode import unidecode
-
-from . import logsetup
-
-# from . import eduperson
-
-from . import backend
-from .config import CONFIG
-from .results import Deployed, Failure, NotDeployed, Rejection, Question, Status, FatalError
-from .name_generators import NameGenerator
-from .userinfo import UserInfo
-from .approval import PendingDeployment
-from .approval.notifiers import Notifier
+from ldf_adapter import backend
+from ldf_adapter.config import CONFIG
+from ldf_adapter.results import (
+    Deployed,
+    Failure,
+    NotDeployed,
+    Rejection,
+    Question,
+    Status,
+    FatalError,
+)
+from ldf_adapter.name_generators import NameGenerator
+from ldf_adapter.userinfo import UserInfo
+from ldf_adapter.approval import PendingDeployment
+from ldf_adapter.notifier import notifiers
 
 logger = logging.getLogger(__name__)
 
@@ -115,13 +117,16 @@ class User:
             self.login_info = {"ssh_host": "localhost"}
 
         if self.approval_enabled:
-            # initialise pending db and notification system
-            user_db_location = CONFIG.get(
-                "approval", "user_db_location", fallback="/var/lib/feudal/pending_users.db"
-            )
-            notifier_type = CONFIG.get("approval", "notifier", fallback="email")
+            # initialise pending deployment and notification system
             try:
-                notifier_config = CONFIG[f"approval.{notifier_type}"]
+                approval_config = dict(CONFIG["approval"])
+            except KeyError as ex:
+                message = f"Could not find [approval] section in config file."
+                logger.error(f"{message}: {ex}")
+                raise FatalError(message=message)
+            notifier_type = approval_config.get("notifier", "email")
+            try:
+                notifier_config = dict(CONFIG[f"notifier.{notifier_type}"])
             except KeyError as ex:
                 message = (
                     f"Could not find section [approval.{notifier_type}] in configuration file."
@@ -129,12 +134,11 @@ class User:
                 logger.error(f"{message}: {ex}")
                 raise FatalError(message=message)
             self.pending_deployment = PendingDeployment(
-                userinfo=self.data, user_db_location=user_db_location
-            )
-            self._notifier = Notifier.load(
+                userinfo=self.data,
+                ssh_host=self.login_info["ssh_host"],
+                approval_config=approval_config,
                 notifier_type=notifier_type,
                 notifier_config=notifier_config,
-                hostname=self.login_info["ssh_host"],
             )
 
     @property
@@ -323,31 +327,33 @@ class User:
                 message="User deployment was rejected. No new deployment request will be sent.",
             )
 
-        new_groups = self.ensure_groups_exist()
+        self.ensure_groups_exist()
         was_created = self.ensure_exists()
         new_memberships, removed_memberships = self.ensure_group_memberships()
         new_credentials = self.ensure_credentials_active()
 
         if self.approval_enabled:
-            try:
-                notification_type, what_changed = self.pending_deployment.get_notification_type()
-                try:
-                    self._notifier.notify(self.pending_deployment, notification_type)
-                    self.pending_deployment.set_notified()
-                except Exception as ex:
-                    logger.error(f"Failed to send notification: {ex}")
-                    raise Failure(
-                        message="Failed to notify admin of deployment request. Please contact an admin or try again later."
-                    )
-                return Status(state="pending", message=what_changed)
-            except Exception as ex:
-                logger.error(f"Error while sending notification.")
-                raise Failure(message="Failed to submit deployment request")
+            self.pending_deployment.notify()
+            # if user existed
+            if self.service_user.exists():
+                what_changed = "User already existed"
+                if new_memberships != [] or removed_memberships != []:
+                    what_changed += ", but groups changed. A request for updating user groups was submitted for approval"
+                what_changed += "."
+                return Status(state="deployed", message=what_changed)
+            # user is pending
+            if was_created:
+                what_changed = "Request for deployment was submitted for approval."
+            elif new_memberships != [] or removed_memberships != []:
+                what_changed = "Updated request for deployment was submitted for approval."
+            else:
+                what_changed = "Request for deployment was already submitted for approval. No new request was sent."
+            return Status(state="pending", message=what_changed)
         else:
             what_changed = "User was created" if was_created else "User already existed"
-            if new_memberships:
+            if new_memberships != []:
                 what_changed += " and was added to groups {}".format(",".join(new_memberships))
-            if removed_memberships:
+            if removed_memberships != []:
                 what_changed += " and was removed from groups {}".format(
                     ",".join(removed_memberships)
                 )
@@ -479,15 +485,15 @@ class User:
                     )
                 )
             self.pending_deployment.accept()
-            return Deployed(credentials=self.credentials, message="")
+            return Deployed(credentials=self.credentials, message="User request was accepted.")
         elif self.pending_deployment.is_rejected():
-            what_changed = "Used request was already rejected, cannot accept it."
+            what_changed = "User request was already rejected, cannot accept it."
             logger.debug(what_changed)
             return Status(state="rejected", message=what_changed)
         else:
             what_changed = f"No pending request for user {self.data.unique_id} exists."
             logger.debug(what_changed)
-            return NotDeployed(message=what_changed)
+            return Status(state=self.get_status().state, message=what_changed)
 
     def reject(self):
         """Ensure that a pending request is rejected and the user is in state 'not_deployed'.
@@ -868,7 +874,7 @@ class User:
         enabled by sending a test notification to the admin.
         """
         if self.approval_enabled:
-            self._notifier.test()
+            self.pending_deployment.test_notifier()
             msg = "Notification sent successfully."
         else:
             msg = "Approval workflow is not enabled. No notification message was sent."

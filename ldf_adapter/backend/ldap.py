@@ -18,8 +18,8 @@ from ldap3 import (
 )
 from enum import Enum, auto
 
-from ..config import CONFIG
-from ..results import Failure, Rejection
+from ldf_adapter.config import CONFIG
+from ldf_adapter.results import Failure, Rejection
 
 
 logger = logging.getLogger(__name__)

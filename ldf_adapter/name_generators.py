@@ -8,7 +8,7 @@ Generate useful user or group names
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
 import logging
-from .config import CONFIG
+from ldf_adapter.config import CONFIG
 
 logger = logging.getLogger(__name__)
 

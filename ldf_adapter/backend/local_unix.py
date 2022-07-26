@@ -18,8 +18,8 @@ import logging
 import regex
 from unidecode import unidecode
 
-from ..config import CONFIG
-from ..results import Failure
+from ldf_adapter.config import CONFIG
+from ldf_adapter.results import Failure
 
 logger = logging.getLogger(__name__)
 

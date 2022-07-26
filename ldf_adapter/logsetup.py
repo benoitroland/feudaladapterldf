@@ -6,7 +6,6 @@
 import logging
 import os
 import sys
-from pathlib import Path
 from logging.handlers import RotatingFileHandler
 
 logger = logging.getLogger("ldf_adapter")  # => This is the key to allow logging from other modules
@@ -78,7 +77,7 @@ def setup_logging():
             raise
 
     # Setup logging to logfile
-    file_handler = RotatingFileHandler(logfile, maxBytes=100 ** 6, backupCount=2)
+    file_handler = RotatingFileHandler(logfile, maxBytes=100**6, backupCount=2)
     file_handler.setFormatter(formatter)
     file_handler.setLevel(loglevel)
     logger.addHandler(file_handler)
@@ -98,14 +97,16 @@ def setup_logging():
     else:
         stream_handler.setLevel(loglevel_env)
 
-    logger.debug(f"Running: ----------------------------------------------------------------------------------------------------")
+    logger.debug(
+        f"Running: ----------------------------------------------------------------------------------------------------"
+    )
     logger.debug(f'         {" ".join(sys.argv)} ')
 
     # JSON LOGGER
     # FIXME: jsonlogger name
     jsonlogfile = f"{logfile.rstrip('.log')}-json.log"
     jsonlogger = logging.getLogger("jsondata")
-    jsonfile_handler = RotatingFileHandler(jsonlogfile, maxBytes=100 ** 6, backupCount=2)
+    jsonfile_handler = RotatingFileHandler(jsonlogfile, maxBytes=100**6, backupCount=2)
     jsonfile_handler.setFormatter(formatter)
     jsonfile_handler.setLevel(loglevel)
     jsonlogger.setLevel(loglevel)
