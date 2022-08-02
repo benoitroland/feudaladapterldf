@@ -75,6 +75,8 @@ def pytype_to_sqltype(pytype: Type) -> str:
             return "dict"
         if type_name == "list":
             return "list"
+        if type_name == "bool":
+            return "boolean"
     # more additionally defined types with custom adapters and converters from other modules
     if type_name == "DeploymentState":
         return "DeploymentState"
@@ -190,6 +192,9 @@ sqlite3.register_converter(
     "DeploymentState", lambda x: DeploymentState.from_string(x.decode("utf-8"))
 )
 
+sqlite3.register_adapter(bool, int)
+sqlite3.register_converter("boolean", lambda v: bool(int(v)))
+
 
 class SQLiteConnector:
     def __init__(self, location: str) -> None:
@@ -255,8 +260,10 @@ class SQLiteConnector:
                 logger.debug("Successfully inserted to table '%s': %s", table_name, entry)
             return True
         except sqlite3.IntegrityError as ex:
-            logger.info(f"Entry {entry} already exists in table {table_name}.")
-            return False
+            if ex.args[0].startswith("UNIQUE constraint failed: "):
+                logger.info(f"Entry {entry} already exists in table {table_name}.")
+                return False
+            raise ex
         except sqlite3.Error as ex:
             message = f"Failed to insert entry to table {table_name}: {ex}"
             logger.error(message)
@@ -264,17 +271,15 @@ class SQLiteConnector:
 
     def update(
         self, table_name: str, columns: List[str], key: Union[str, List[str]], entry: tuple
-    ) -> bool:
+    ) -> None:
         """Update an entry in a table.
 
         Args:
             table_name (str): the table name
             columns (list[str]): the columns to update
-            key (list[str]): the key to search on for update
-            entry (tuple): the values of the columns to be updated
-
-        Returns:
-            bool: False if an entry did not exist for given key, True if an entry was updated.
+            key (str | list[str]): the key to search on for update
+            entry (tuple): the values of the columns to be updated, and the value(s) of the key(s)
+                           to be used for search, in this order
         """
         try:
             with self.connection:
@@ -284,11 +289,6 @@ class SQLiteConnector:
                     entry,
                 )
                 logger.debug("Successfully updated entry in table '%s': %s", table_name, entry)
-            return True
-        except sqlite3.IntegrityError as ex:
-            logger.info("Entry %s didn't exist in table %s.", entry, table_name)
-            logger.debug(ex)
-            return False
         except sqlite3.Error as ex:
             message = f"Failed to update table {table_name}: {ex}"
             logger.error(message)
@@ -306,7 +306,7 @@ class SQLiteConnector:
         Args:
             data_model (Type[T]): data type of the entry to be returned
             table_name (str): the table name
-            key (Union[str, List[str]]): name(s) of column(s) to be used as primary key
+            key (Union[str, List[str]]): name(s) of column(s) to be used as search key
             value (tuple): the value(s) of key(s) for which to search
 
         Returns:
@@ -463,12 +463,10 @@ class SqlitePendingDB(PendingDB):
             entry=tuple(getattr(membership, field.name) for field in fields(PendingMemberships)),
         )
 
-    def update_memberships(self, membership: PendingMemberships) -> bool:
-        """Update a user's pending group memberships by replacing them with the given memberships.
-        Returns False if entry did not exist.
-        """
+    def update_memberships(self, membership: PendingMemberships) -> None:
+        """Update a user's pending group memberships by replacing them with the given memberships."""
         columns = [field.name for field in fields(PendingMemberships) if field.name != "unique_id"]
-        return self.connector.update(
+        self.connector.update(
             table_name="pending_memberships",
             columns=columns,
             key="unique_id",

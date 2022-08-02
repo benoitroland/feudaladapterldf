@@ -8,9 +8,13 @@ import sys
 
 
 class FatalError(Exception):
+    """Raised when a fatal error occurs."""
+
+    exit_code: int = 42
+
     def __init__(self, message: str) -> None:
         print(f"\nERROR: {message}\n")
-        sys.exit(1)
+        sys.exit(FatalError.exit_code)
 
 
 class Result:

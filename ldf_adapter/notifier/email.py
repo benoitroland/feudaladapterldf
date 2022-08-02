@@ -6,7 +6,6 @@ from email.message import EmailMessage
 import json
 from pathlib import Path
 
-from ldf_adapter.results import Failure
 from ldf_adapter.utils import to_bool, to_int
 from ldf_adapter.notifier.generic import GenericNotifier
 from ldf_adapter.notifier.notification import NotificationType, NotificationTemplate
