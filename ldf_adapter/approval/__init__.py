@@ -2,7 +2,7 @@
 Implement approval workflow for user deployments.
 """
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from ldf_adapter import backend
 from ldf_adapter.results import Failure

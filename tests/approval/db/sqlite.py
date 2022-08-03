@@ -4,9 +4,13 @@ from dataclasses import dataclass, fields
 import copy
 
 from ldf_adapter.results import Failure, FatalError
-from ldf_adapter.approval.models import PendingUser, PendingGroup, PendingMemberships
-from ldf_adapter.approval.db.sqlite import (
+from ldf_adapter.approval.models import (
+    PendingUser,
+    PendingGroup,
+    PendingMemberships,
     DeploymentState,
+)
+from ldf_adapter.approval.db.sqlite import (
     pytype_to_sqltype,
     sql_command_create_table,
     sql_command_insert,

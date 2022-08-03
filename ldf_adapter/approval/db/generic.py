@@ -63,11 +63,11 @@ class PendingDB(ABC):
         return False
 
     @abstractmethod
-    def update_memberships(self, membership: PendingMemberships) -> bool:
+    def update_memberships(self, membership: PendingMemberships) -> None:
         """Update a user's pending group memberships by replacing them with the given memberships.
-        Returns False if entry did not exist.
+        A user is denoted by the unique_id in membership.
         """
-        return False
+        pass
 
     @abstractmethod
     def remove_memberships(self, unique_id: str) -> None:
