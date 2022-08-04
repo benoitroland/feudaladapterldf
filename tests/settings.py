@@ -90,14 +90,14 @@ INPUT_INDIGO_IAM = wrap_userinfo({
 INPUT_KIT = wrap_userinfo({
         "displayName": "Hardt, Marcus (SCC)",
         "eduPersonEntitlement": [
-            "urn:geant:kit.edu:group:DFN-SLCS",
-            "urn:geant:kit.edu:group:LSDF-DIS",
-            "urn:geant:kit.edu:group:bwGrid",
-            "urn:geant:kit.edu:group:bwLSDF-FS",
-            "urn:geant:kit.edu:group:bwUniCluster",
-            "urn:geant:kit.edu:group:bwsyncnshare",
-            "urn:geant:kit.edu:group:bwsyncnshare-idm",
-            "urn:geant:kit.edu:group:gruppenverwalter"
+            "urn:geant:kit.edu:group:DFN-SLCS#kit.edu",
+            "urn:geant:kit.edu:group:LSDF-DIS#kit.edu",
+            "urn:geant:kit.edu:group:bwGrid#kit.edu",
+            "urn:geant:kit.edu:group:bwLSDF-FS#kit.edu",
+            "urn:geant:kit.edu:group:bwUniCluster#kit.edu",
+            "urn:geant:kit.edu:group:bwsyncnshare#kit.edu",
+            "urn:geant:kit.edu:group:bwsyncnshare-idm#kit.edu",
+            "urn:geant:kit.edu:group:gruppenverwalter#kit.edu"
         ],
         "eduPersonPrincipalName": "lo0018@kit.edu",
         "eduPersonScopedAffiliation": [
@@ -105,14 +105,14 @@ INPUT_KIT = wrap_userinfo({
             "member@kit.edu"
         ],
         "eduperson_entitlement": [
-            "urn:geant:kit.edu:group:DFN-SLCS",
-            "urn:geant:kit.edu:group:LSDF-DIS",
-            "urn:geant:kit.edu:group:bwGrid",
-            "urn:geant:kit.edu:group:bwLSDF-FS",
-            "urn:geant:kit.edu:group:bwUniCluster",
-            "urn:geant:kit.edu:group:bwsyncnshare",
-            "urn:geant:kit.edu:group:bwsyncnshare-idm",
-            "urn:geant:kit.edu:group:gruppenverwalter"
+            "urn:geant:kit.edu:group:DFN-SLCS#kit.edu",
+            "urn:geant:kit.edu:group:LSDF-DIS#kit.edu",
+            "urn:geant:kit.edu:group:bwGrid#kit.edu",
+            "urn:geant:kit.edu:group:bwLSDF-FS#kit.edu",
+            "urn:geant:kit.edu:group:bwUniCluster#kit.edu",
+            "urn:geant:kit.edu:group:bwsyncnshare#kit.edu",
+            "urn:geant:kit.edu:group:bwsyncnshare-idm#kit.edu",
+            "urn:geant:kit.edu:group:gruppenverwalter#kit.edu"
         ],
         "eduperson_principal_name": "lo0018@kit.edu",
         "eduperson_scoped_affiliation": [

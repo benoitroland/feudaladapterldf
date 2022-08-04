@@ -1,4 +1,3 @@
-
 import pytest
 
 from itertools import repeat
@@ -94,6 +93,10 @@ def test_iss_masked_for_bwidm_eppn_fixes_urls(raw,cooked):
 @pytest.mark.parametrize('raw,cooked', [
         ("fooBarBaz", "foo_bar_baz"),
         ("FooBarBaz", "foo_bar_baz"),
+        ("kit-edu_LSDF-DIS", "kit-edu_lsdf-dis"),
+        ("kit-edu_bwGrid", "kit-edu_bw_grid"),
+        ("kit-edu_bwLSDF-FS", "kit-edu_bw_lsdf-fs"),
+        ("kit-edu_bwUniCluster", "kit-edu_bw_uni_cluster"),
     ])
 def test_group_masked_for_bwidm_converts_camel_to_snake_case(raw,cooked):
     info = UserInfo({'user': {'userinfo': {}}})
@@ -184,11 +187,18 @@ def test_eppn(userinfo, eppn):
         (settings.INPUT_EGI, []),
         (settings.INPUT_DEEP_IAM, ["kit-cloud"]),
         (settings.INPUT_INDIGO_IAM, ["users", "developers", "test-vo-users"]),
-        # (settings.INPUT_KIT, ["kit-edu_dfn-slcs", "kit-edu_lsdf-dis", "kit-edu_bwgrid", "kit-edu_bwlsdf-fs",
-        #                       "kit-edu_bwunicluster", "kit-edu_bwsyncandshare", "kit-edu_bwsyncandshare-idm", "kit-edu_grruppenverwalter"])
+        (settings.INPUT_KIT, [
+            "kit-edu_dfn-slcs",
+            "kit-edu_lsdf-dis",
+            "kit-edu_bw_grid",
+            "kit-edu_bw_lsdf-fs",
+            "kit-edu_bw_uni_cluster",
+            "kit-edu_bwsyncnshare",
+            "kit-edu_bwsyncnshare-idm",
+            "kit-edu_gruppenverwalter",
+        ]),
     ])
 def test_groups(userinfo, groups):
-    # TODO: check why KIT test fails (seems the entitlements in the input are invalid?)
     assert sorted(userinfo.groups) == sorted(groups)
 
 
@@ -197,7 +207,7 @@ def test_groups(userinfo, groups):
     (settings.INPUT_EGI, None),
     (settings.INPUT_DEEP_IAM, "kit-cloud"),
     (settings.INPUT_INDIGO_IAM, "developers"),
-    (settings.INPUT_KIT, None),
+    (settings.INPUT_KIT, "kit-edu_bw_grid"),
 ])
 def test_primary_group_no_fallback_or_primary_configured(userinfo, group):
     assert userinfo.primary_group == group
@@ -208,7 +218,7 @@ def test_primary_group_no_fallback_or_primary_configured(userinfo, group):
     (settings.INPUT_EGI, "nogroup"),
     (settings.INPUT_DEEP_IAM, "kit-cloud"),
     (settings.INPUT_INDIGO_IAM, "developers"),
-    (settings.INPUT_KIT, "nogroup"),
+    (settings.INPUT_KIT, "kit-edu_bw_grid"),
 ])
 def test_primary_group_fallback_configured_no_primary(userinfo, group, monkeypatch):
     monkeypatch.setitem(CONFIG['ldf_adapter'], "fallback_group", "nogroup")
@@ -287,4 +297,3 @@ def test_ignore_excess_entitlement():
 
     info = UserInfo({'user': {'userinfo': input_test}})
     assert len(list(info.entitlement)) == 4
-
