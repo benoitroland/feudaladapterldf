@@ -5,7 +5,13 @@ from ldf_adapter.approval.models import PendingUser, PendingGroup, PendingMember
 
 
 class PendingDB(ABC):
-    """Generic class to manage users (and groups) in states associated with the approval workflow."""
+    """Generic class to manage users (and groups) in states associated with the approval workflow.
+
+    To add a new implementation for PendingDB, create a new module in this directory containing a
+    class also named PendingDB that extends this class and implements all abstract methods.
+    The new class will be automatically loaded by the 'databases' factory and can be accessed with
+    the name of the module: databases.get("new_db_type")
+    """
 
     @abstractmethod
     def add_user(self, user: PendingUser) -> bool:

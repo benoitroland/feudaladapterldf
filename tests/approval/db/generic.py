@@ -1,4 +1,5 @@
 import pytest
+import mock
 
 from ldf_adapter.approval.models import (
     PendingUser,
@@ -47,18 +48,16 @@ MOCK_MEMBERSHIPS_UPDATED = PendingMemberships(
 
 
 @pytest.fixture(scope="function")
-def pending_db(db_type, db_config, pre_mock):
-    pre_mock()
-    return databases.get(db_type, **db_config)
+def pending_db(db_type):
+    databases._builders = {}
+    if db_type == "sqlite":
+        with mock.patch("ldf_adapter.approval.db.sqlite.CONFIG.approval.user_db_location", ":memory:"):
+            yield databases.get(db_type)
+    else:
+        yield databases.get(db_type)
 
 
-def reset_sqlite_db():
-    databases._builders["sqlite"]._instance = None
-
-
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_add_user(pending_db):
     # get_user returns None
     assert pending_db.get_user(MOCK_USER.unique_id) == None
@@ -71,9 +70,7 @@ def test_add_user(pending_db):
     assert pending_db.add_user(MOCK_USER) == False
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_remove_user(pending_db):
     # get_user returns None
     assert pending_db.get_user(MOCK_USER.unique_id) == None
@@ -87,9 +84,7 @@ def test_remove_user(pending_db):
     assert pending_db.get_user(MOCK_USER.unique_id) == None
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_reject_user(pending_db):
     # get_user returns None
     assert pending_db.get_user(MOCK_USER.unique_id) == None
@@ -105,9 +100,7 @@ def test_reject_user(pending_db):
     assert pending_db.get_user(MOCK_USER.unique_id).state == DeploymentState.REJECTED
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_notify_user(pending_db):
     # get_user returns None
     assert pending_db.get_user(MOCK_USER.unique_id) == None
@@ -123,9 +116,7 @@ def test_notify_user(pending_db):
     assert pending_db.get_user(MOCK_USER.unique_id).state == DeploymentState.NOTIFIED
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_add_group(pending_db):
     # get_group returns None
     assert pending_db.get_group(MOCK_GROUP.name) == None
@@ -138,9 +129,7 @@ def test_add_group(pending_db):
     assert pending_db.add_group(MOCK_GROUP) == False
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_remove_group(pending_db):
     # get_group returns None
     assert pending_db.get_group(MOCK_GROUP.name) == None
@@ -154,9 +143,7 @@ def test_remove_group(pending_db):
     assert pending_db.get_group(MOCK_GROUP.name) == None
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_notify_group(pending_db):
     # get_group returns None
     assert pending_db.get_group(MOCK_GROUP.name) == None
@@ -172,9 +159,7 @@ def test_notify_group(pending_db):
     assert pending_db.get_group(MOCK_GROUP.name).state == DeploymentState.NOTIFIED
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_add_memberships(pending_db):
     # get_memberships returns None
     assert pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id) == None
@@ -187,9 +172,7 @@ def test_add_memberships(pending_db):
     assert pending_db.add_memberships(MOCK_MEMBERSHIPS) == False
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_remove_memberships(pending_db):
     # get_memberships returns None
     assert pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id) == None
@@ -203,9 +186,7 @@ def test_remove_memberships(pending_db):
     assert pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id) == None
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_notify_memberships(pending_db):
     # get_memberships returns None
     assert pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id) == None
@@ -221,9 +202,7 @@ def test_notify_memberships(pending_db):
     assert pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id).state == DeploymentState.NOTIFIED
 
 
-@pytest.mark.parametrize(
-    "db_type,db_config,pre_mock", [("sqlite", {"user_db_location": ":memory:"}, reset_sqlite_db)]
-)
+@pytest.mark.parametrize("db_type", ["sqlite"])
 def test_update_memberships(pending_db):
     # get_memberships returns None
     assert pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id) == None

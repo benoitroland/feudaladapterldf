@@ -1,8 +1,8 @@
 import pytest
-
+import mock
 from itertools import repeat
 
-from ldf_adapter import UserInfo, CONFIG
+from ldf_adapter.userinfo import UserInfo
 import settings
 
 
@@ -202,6 +202,13 @@ def test_groups(userinfo, groups):
     assert sorted(userinfo.groups) == sorted(groups)
 
 
+@mock.patch("ldf_adapter.userinfo.CONFIG.ldf_adapter.fallback_group", "nogroup")
+@mock.patch("ldf_adapter.userinfo.CONFIG.ldf_adapter.primary_group", "mytestgroup")
+@pytest.mark.parametrize('data', settings.ALL_INPUT)
+def test_primary_group_primary_and_fallback_configured(userinfo):
+    assert userinfo.primary_group == "mytestgroup"
+
+
 @pytest.mark.parametrize('data,group', [
     (settings.INPUT_UNITY, "h-df-de_hdf"),
     (settings.INPUT_EGI, None),
@@ -213,6 +220,7 @@ def test_primary_group_no_fallback_or_primary_configured(userinfo, group):
     assert userinfo.primary_group == group
 
 
+@mock.patch("ldf_adapter.userinfo.CONFIG.ldf_adapter.fallback_group", "nogroup")
 @pytest.mark.parametrize('data,group', [
     (settings.INPUT_UNITY, "h-df-de_hdf"),
     (settings.INPUT_EGI, "nogroup"),
@@ -220,16 +228,8 @@ def test_primary_group_no_fallback_or_primary_configured(userinfo, group):
     (settings.INPUT_INDIGO_IAM, "developers"),
     (settings.INPUT_KIT, "kit-edu_bw_grid"),
 ])
-def test_primary_group_fallback_configured_no_primary(userinfo, group, monkeypatch):
-    monkeypatch.setitem(CONFIG['ldf_adapter'], "fallback_group", "nogroup")
+def test_primary_group_fallback_configured_no_primary(userinfo, group):
     assert userinfo.primary_group == group
-
-
-@pytest.mark.parametrize('data', settings.ALL_INPUT)
-def test_primary_group_primary_and_fallback_configured(userinfo, monkeypatch):
-    monkeypatch.setitem(CONFIG['ldf_adapter'], "fallback_group", "nogroup")
-    monkeypatch.setitem(CONFIG['ldf_adapter'], "primary_group", "mytestgroup")
-    assert userinfo.primary_group == "mytestgroup"
 
 
 def test_egi_sub_is_unscoped():

@@ -20,14 +20,12 @@ from unidecode import unidecode
 
 from ldf_adapter.config import CONFIG
 from ldf_adapter.results import Failure
+from ldf_adapter.backend import generic
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SHELL = "/bin/sh"
-DEFAULT_HOME_BASE = "/home"
 
-
-class User:
+class User(generic.User):
     def __init__(self, userinfo):
         """
         Arguments:
@@ -130,8 +128,6 @@ class User:
         return Group.get_group_by_id(self.__gid)
 
     def _create_cmd(self):
-        shell = CONFIG["backend.local_unix"].get("shell", DEFAULT_SHELL)
-        home_base = CONFIG["backend.local_unix"].get("home_base", DEFAULT_HOME_BASE).rstrip("/")
         return [
             "useradd",
             "--comment",
@@ -139,9 +135,9 @@ class User:
             "-g",
             self.primary_group.name,
             "--shell",
-            shell,
+            CONFIG.backend.local_unix.shell,
             "-b",
-            home_base,
+            CONFIG.backend.local_unix.home_base,
             "-m",
             self.name,
         ]
@@ -333,13 +329,12 @@ class User:
         self.__set_shell("/sbin/nologin")
 
     def unlimit(self):
-        shell = CONFIG["backend.local_unix"].get("shell", DEFAULT_SHELL)
-        self.__set_shell(shell)
+        self.__set_shell(CONFIG.backend.local_unix.shell)
 
     def install_ssh_keys(self):
         try:
             if len(self.ssh_keys) > 0:
-                if CONFIG["backend.local_unix"].getboolean("deploy_user_ssh_keys", True):
+                if CONFIG.backend.local_unix.deploy_user_ssh_keys:
                     logger.debug(f"Deploying these ssh keys: {self.ssh_keys}")
                     self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
                     self.__authorized_keys.parent.chmod(0o700)
@@ -421,7 +416,7 @@ class User:
             return {user[ID_FIELD]: user for user in users}
 
 
-class Group:
+class Group(generic.Group):
     def __init__(self, name):
         logger.debug(f"my own group name: {name}")
         if name is None:

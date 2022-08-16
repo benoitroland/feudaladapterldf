@@ -1,5 +1,7 @@
 """test name_generators"""
 import pytest
+import mock
+
 from ldf_adapter import name_generators
 
 marcus_userinfo_json = {
@@ -114,6 +116,33 @@ marcus_userinfo_json = {
 }
 
 
+minimal_user_info = {
+    "state_target": "deployed",
+    "user": {
+        "userinfo": {
+            "email": "hardt@kit.edu",
+            "sub": "d7a53cbe3e966c53ac64fde7355956560282158ecac8f3d2c770b474862f4756@egi.eu",
+            "iss": "https://aai.egi.eu/oidc/",
+        }
+    }
+}
+
+short_name_user_info = {
+    "state_target": "deployed",
+    "user": {
+        "userinfo": {
+            "email": "hardt@kit.edu",
+            "family_name": "Ha",
+            "given_name": "Marcus",
+            "name": "Marcus Ha",
+            "preferred_username": "mhardt",
+            "sub": "d7a53cbe3e966c53ac64fde7355956560282158ecac8f3d2c770b474862f4756@egi.eu",
+            "iss": "https://aai.egi.eu/oidc/",
+        }
+    }
+}
+
+
 @pytest.mark.parametrize("data", [marcus_userinfo_json])
 def test_friendly_name(userinfo):
     """test friendly name generator with provided userinfo json
@@ -221,20 +250,95 @@ def test_new_pooled_generic(userinfo):
     assert name == "pytest001"
 
 
-@pytest.mark.parametrize("data", [marcus_userinfo_json])
-def test_multiple_calls(userinfo):
+@pytest.mark.parametrize("data,tried,num_tries", [
+    (
+        marcus_userinfo_json, [
+            # all strategies in order; all lowercase and replace @ with -
+            "mhardt", # f"{userinfo.preferred_username}",
+            "marcus", # f"{userinfo.given_name}",
+            "marhar", # f"{userinfo.given_name:.3}{userinfo.family_name:.3}",
+            "hardt", # f"{userinfo.family_name}",
+            "marchar", # f"{userinfo.given_name:.4}{userinfo.family_name:.3}",
+            "marcuhar", # f"{userinfo.given_name:.5}{userinfo.family_name:.3}",
+            "mahar", # f"{userinfo.given_name:.2}{userinfo.family_name:.3}",
+            "marchard", # f"{userinfo.given_name:.4}{userinfo.family_name:.4}",
+            "marcuhard", # f"{userinfo.given_name:.5}{userinfo.family_name:.4}",
+            "mahard", # f"{userinfo.given_name:.2}{userinfo.family_name:.4}",
+            "marchardt", # f"{userinfo.given_name:.4}{userinfo.family_name:.5}",
+            "marcuhardt", # f"{userinfo.given_name:.5}{userinfo.family_name:.5}",
+            "mahardt", # f"{userinfo.given_name:.2}{userinfo.family_name:.5}",
+            "marcha", # f"{userinfo.given_name:.4}{userinfo.family_name:.2}",
+            "marcuha", # f"{userinfo.given_name:.5}{userinfo.family_name:.2}",
+            "maha", # f"{userinfo.given_name:.2}{userinfo.family_name:.2}",
+            "hardt-kit.edu", # f"{userinfo.email}",
+        ], 17
+    ),
+    (
+        minimal_user_info, [
+            # no preferred_username, no given_name, no family_name, only email is a valid strategy
+            "hardt-kit.edu"
+        ], 1
+    ),
+    (
+        short_name_user_info, [
+            # truncation when length is shorter than desired length results in full name being used 
+            # duplicates (names already tried) are ignored
+            "mhardt", # f"{userinfo.preferred_username}",
+            "marcus", # f"{userinfo.given_name}",
+            "marha", # f"{userinfo.given_name:.3}{userinfo.family_name:.3}",
+            "ha", # f"{userinfo.family_name}",
+            "marcha", # f"{userinfo.given_name:.4}{userinfo.family_name:.3}",
+            "marcuha", # f"{userinfo.given_name:.5}{userinfo.family_name:.3}",
+            "maha", # f"{userinfo.given_name:.2}{userinfo.family_name:.3}",
+            #"marcha", # f"{userinfo.given_name:.4}{userinfo.family_name:.4}",
+            #"marcuha", # f"{userinfo.given_name:.5}{userinfo.family_name:.4}",
+            #"maha", # f"{userinfo.given_name:.2}{userinfo.family_name:.4}",
+            #"marcha", # f"{userinfo.given_name:.4}{userinfo.family_name:.5}",
+            #"marcuha", # f"{userinfo.given_name:.5}{userinfo.family_name:.5}",
+            #"maha", # f"{userinfo.given_name:.2}{userinfo.family_name:.5}",
+            #"marcha", # f"{userinfo.given_name:.4}{userinfo.family_name:.2}",
+            #"marcuha", # f"{userinfo.given_name:.5}{userinfo.family_name:.2}",
+            #"maha", # f"{userinfo.given_name:.2}{userinfo.family_name:.2}",
+            "hardt-kit.edu", # f"{userinfo.email}",
+        ], 8
+    ),
+])
+def test_multiple_calls_friendly(userinfo, tried, num_tries):
     """test returning the tried names"""
     name_generator = name_generators.NameGenerator(
         "friendly", userinfo=userinfo, pool_prefix="pytest"
     )
     old_name = ""
-    for i in range(0, 17):
+    for _ in range(0, num_tries):
         new_name = name_generator.suggest_name()
         assert old_name != new_name
         old_name = new_name
     tried_names = name_generator.tried_names()
-    print(f"TRIED NAMES:{tried_names}")
     assert isinstance(tried_names, list)
+    assert len(tried_names) == num_tries
+    assert tried_names == tried
+    # try again, no strategy left
+    assert name_generator.suggest_name() is None
+
+
+@mock.patch("ldf_adapter.name_generators.CONFIG.username_generator.pool_digits", 1)
+@pytest.mark.parametrize("data", [marcus_userinfo_json])
+def test_multiple_calls_pooled(userinfo):
+    """test returning the tried names"""
+    name_generator = name_generators.NameGenerator(
+        "pooled", userinfo=userinfo, pool_prefix="pytest"
+    )
+    old_name = ""
+    for i in range(1, 10):
+        new_name = name_generator.suggest_name()
+        assert old_name != new_name
+        assert new_name == f"pytest{i}"
+        old_name = new_name
+    tried_names = name_generator.tried_names()
+    assert isinstance(tried_names, list)
+    assert tried_names == []
+    # try again, no name left
+    assert name_generator.suggest_name() is None
 
 
 @pytest.mark.parametrize("data", [marcus_userinfo_json])

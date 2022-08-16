@@ -1,32 +1,38 @@
 from trycourier import Courier
 
-from ldf_adapter.notifier.generic import GenericNotifier
-from ldf_adapter.notifier.notification import NotificationType
+from ldf_adapter.results import FatalError
+from ldf_adapter.config import CONFIG
+from ldf_adapter.notifier import generic
 
 
-class CourierNotifier(GenericNotifier):
+class Notifier(generic.Notifier):
     """(WIP) Implementation of a Courier notifier for deployment requests."""
 
-    def __init__(self, api_key: str, ssh_host: str = "localhost") -> None:
-        """Initialises Courier notifier
-
-        Args:
-            api_key (str): API key configured in Courier (from feudal config)
-            template_id (str): template ID of configured email template in courier (from feudal config)
-            ssh_host (str, optional): ssh host where a user is requesting deployment. Defaults to 'localhost'.
-        """
-        self.client = Courier(auth_token=api_key)
-        self.ssh_host = ssh_host
+    def __init__(self) -> None:
+        """Initialises Courier notifier."""
+        if CONFIG.notifier.courier is None:
+            raise FatalError("Courier notifier is not configured")
+        self.client = Courier(auth_token=CONFIG.notifier.courier.api_key)
+        self.ssh_host = CONFIG.login_info.ssh_host
 
     def notify(
         self,
-        notification_type: NotificationType,
+        notification_type: generic.NotificationType,
         send_to: str,
         template_id: str,
         data: dict,
-        **ignored: dict
+        **_ignored: dict
     ):
-        """Notifies admin of request of given type."""
+        """Notifies admin of request of given type.
+
+        Args:
+            notification_type (NotificationType): type of notification
+            send_to (str): email address to send notification to
+            template_id (str): template ID of configured email template in courier
+            data (dict): data to use in email template
+        Returns:
+            bool: True if notification was sent, False otherwise
+        """
         self.client.send_message(
             message={
                 "to": {
@@ -41,15 +47,3 @@ class CourierNotifier(GenericNotifier):
         return super().test()
 
 
-class CourierNotifierBuilder:
-    def __init__(self):
-        self._instance = None
-
-    def __call__(self, ssh_host: str, **notifier_config):
-        if not self._instance:
-            api_key = notifier_config.get("api_key", "")
-            self._instance = CourierNotifier(
-                api_key=api_key,
-                ssh_host=ssh_host,
-            )
-        return self._instance

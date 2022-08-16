@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 from ldf_adapter.results import Failure, FatalError
+from ldf_adapter.config import CONFIG
 from ldf_adapter.approval.models import (
     DeploymentState,
     PendingModel,
@@ -14,7 +15,7 @@ from ldf_adapter.approval.models import (
     PendingGroup,
     PendingMemberships,
 )
-from ldf_adapter.approval.db.generic import PendingDB
+from ldf_adapter.approval.db import generic
 
 
 logger = logging.getLogger(__name__)
@@ -352,19 +353,16 @@ class SQLiteConnector:
             raise Failure(message=message)
 
 
-class SqlitePendingDB(PendingDB):
+class PendingDB(generic.PendingDB):
     """Implementation of PendingDB with sqlite3."""
 
-    def __init__(self, location: str) -> None:
+    def __init__(self) -> None:
         """Initialise sqlite-based DB for managing users and groups pending approval.
-
-        Args:
-            location (str): path to file where DB is stored. Will be created if it does not exist.
         """
-        self.connector = SQLiteConnector(location)
+        self.connector = SQLiteConnector(CONFIG.approval.user_db_location)
         if not self.connector.exists():
             self.connector.connect()
-            logger.debug("No sqlite DB found at %s, creating it...", location)
+            logger.debug("No sqlite DB found at %s, creating it...", CONFIG.approval.user_db_location)
             self.connector.create(
                 data_model=PendingUser, table_name="pending_users", primary_key="unique_id"
             )
@@ -377,7 +375,7 @@ class SqlitePendingDB(PendingDB):
                 primary_key="unique_id",
             )
         else:
-            logger.debug("Existing sqlite DB found at %s. Loading pending data from it.", location)
+            logger.debug("Existing sqlite DB found at %s. Loading pending data from it.", CONFIG.approval.user_db_location)
             self.connector.connect()
 
     def add_user(self, user: PendingUser) -> bool:
@@ -494,16 +492,3 @@ class SqlitePendingDB(PendingDB):
             key="unique_id",
             entry=(DeploymentState.NOTIFIED, unique_id),
         )
-
-
-class SqlitePendingDBProvider:
-    def __init__(self):
-        self._instance = None
-
-    def __call__(self, **notifier_config):
-        if not self._instance:
-            user_db_location = notifier_config.get(
-                "user_db_location", "/var/lib/feudal/pending_users.db"
-            )
-            self._instance = SqlitePendingDB(location=user_db_location)
-        return self._instance

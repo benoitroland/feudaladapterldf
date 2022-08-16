@@ -53,11 +53,11 @@ def setup_logging():
     from .config import CONFIG
 
     # Ensure log_file exists and is writeable
-    logfile = CONFIG.get("messages", "log_file", fallback="/var/log/feudal/adapter.log")
+    logfile = CONFIG.messages.log_file
     dirname = os.path.dirname(logfile)
 
     loglevel_env = os.environ.get("LOG", "WARNING")
-    loglevel = CONFIG.get("messages", "log_level", fallback=loglevel_env)
+    loglevel = CONFIG.messages.log_level or loglevel_env
     logger.setLevel(loglevel)
 
     if not os.path.isdir(os.path.dirname(logfile)) and os.path.dirname(logfile) != "":
@@ -83,7 +83,7 @@ def setup_logging():
     logger.addHandler(file_handler)
 
     # Reconsider logging to console:
-    log_to_console = CONFIG.get("messages", "log_to_console", fallback="")
+    log_to_console = CONFIG.messages.log_to_console
     if log_to_console.lower() in ("false", "no"):
         print(f"removing console logger")
         logger.removeHandler(stream_handler)

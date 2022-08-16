@@ -19,7 +19,7 @@ from ldap3 import (
 from enum import Enum, auto
 
 from ldf_adapter.config import CONFIG
-from ldf_adapter.results import Failure, Rejection
+from ldf_adapter.results import Failure, Rejection, FatalError
 
 
 logger = logging.getLogger(__name__)
@@ -46,26 +46,6 @@ class Mode(Enum):
             )
             logger.error(msg)
             raise Failure(message=msg)
-
-
-DEFAULT_MODE = Mode.READ_ONLY
-DEFAULT_HOST = "localhost"
-DEFAULT_PORT = 1389
-DEFAULT_TLS_PORT = 636
-DEFAULT_ANONYMOUS = True
-DEFAULT_ADMIN_USER = None
-DEFAULT_ADMIN_PASSWORD = None
-DEFAULT_TLS = False
-DEFAULT_USER_BASE = "ou=users,dc=example"
-DEFAULT_GROUP_BASE = "ou=groups,dc=example"
-DEFAULT_ATTR_OIDC_UID = "gecos"
-DEFAULT_ATTR_LOCAL_UID = "uid"
-DEFAULT_SHELL = "/bin/sh"
-DEFAULT_HOME_BASE = "/home"
-DEFAULT_UID_MIN = 1000
-DEFAULT_UID_MAX = 60000
-DEFAULT_GID_MIN = 1000
-DEFAULT_GID_MAX = 60000
 
 
 class LdapSearchResult:
@@ -121,51 +101,23 @@ class LdapSearchResult:
 class LdapConnection:
     """Connection to the LDAP server."""
 
-    def __init__(
-        self,
-        mode=DEFAULT_MODE,
-        host=DEFAULT_HOST,
-        port=DEFAULT_PORT,
-        tls=DEFAULT_TLS,
-        admin_user=DEFAULT_ADMIN_USER,
-        admin_password=DEFAULT_ADMIN_PASSWORD,
-        user_base=DEFAULT_USER_BASE,
-        group_base=DEFAULT_GROUP_BASE,
-        attr_oidc_uid=DEFAULT_ATTR_OIDC_UID,
-        attr_local_uid=DEFAULT_ATTR_LOCAL_UID,
-        shell=DEFAULT_SHELL,
-        home_base=DEFAULT_HOME_BASE,
-        uid_min=DEFAULT_UID_MIN,
-        uid_max=DEFAULT_UID_MAX,
-        gid_min=DEFAULT_GID_MIN,
-        gid_max=DEFAULT_GID_MAX,
-    ):
-        """Initialise connection to LDAP server.
-
-        :param str host: host where LDAP server is running, default localhost
-        :param int port: port where LDAP server is running, default 1389
-        :param bool tls: whether connection to LDAP is SSL encrypted
-        :param str admin_user: admin username
-        :param str admin_password: admin password
-        :param str user_base: base used for user namespace in LDAP operations
-        :param str group_base: base used for group namespace in LDAP operations
-        :param str attr_oidc_uid: LDAP attribute to store uid for federated user, default uid
-        :param str attr_local_uid: LDAP attribute to store uid for local user, default gecos
-        :param str shell: shell used when creating users
-        :param str home_base: base directory for users' home directories
-                         local username will be appended to this to create homedir
-        """
-        self.mode = mode
-        self.user_base = user_base
-        self.group_base = group_base
-        self.attr_oidc_uid = attr_oidc_uid
-        self.attr_local_uid = attr_local_uid
-        self.shell = shell
-        self.home_base = home_base
-        self.uid_min = uid_min
-        self.uid_max = uid_max
-        self.gid_min = gid_min
-        self.gid_max = gid_max
+    def __init__(self):
+        """Initialise connection to LDAP server."""
+        if CONFIG.backend.ldap is None:
+            raise FatalError(
+                message="LDAP backend is not configured. Please check your configuration."
+            )
+        self.mode = Mode.from_str(CONFIG.backend.ldap.mode)
+        self.user_base = CONFIG.backend.ldap.user_base
+        self.group_base = CONFIG.backend.ldap.group_base
+        self.attr_oidc_uid = CONFIG.backend.ldap.attribute_oidc_uid
+        self.attr_local_uid = CONFIG.backend.ldap.attribute_local_uid
+        self.shell = CONFIG.backend.ldap.shell
+        self.home_base = CONFIG.backend.ldap.home_base
+        self.uid_min = CONFIG.backend.ldap.uid_min
+        self.uid_max = CONFIG.backend.ldap.uid_max
+        self.gid_min = CONFIG.backend.ldap.gid_min
+        self.gid_max = CONFIG.backend.ldap.gid_max
 
         # initialise connection used to generate LDIFs
         self.ldif_connection = Connection(
@@ -173,13 +125,13 @@ class LdapConnection:
         )
         # initialise and bind connection to LDAP
         try:
-            server = Server(f"ldap://{host}:{port}", get_info=ALL)
-            if admin_user and admin_password:
+            server = Server(f"ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}", get_info=ALL)
+            if CONFIG.backend.ldap.admin_user and CONFIG.backend.ldap.admin_password:
                 # add SAFE_SYNC, so we get more return values
                 self.connection = Connection(
                     server,
-                    admin_user,
-                    admin_password,
+                    CONFIG.backend.ldap.admin_user,
+                    CONFIG.backend.ldap.admin_password,
                     auto_bind=AUTO_BIND_NO_TLS,
                     client_strategy=SAFE_SYNC,
                 )
@@ -188,7 +140,7 @@ class LdapConnection:
                     server, auto_bind=AUTO_BIND_NO_TLS, client_strategy=SAFE_SYNC
                 )
         except Exception as e:
-            msg = f"Could not connect to server ldap://{host}:{port}/"
+            msg = f"Could not connect to server ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -561,53 +513,7 @@ class LdapConnection:
 
     @staticmethod
     def load():
-        try:
-            config = CONFIG["backend.ldap"]
-            mode = Mode.from_str(config.get("mode", "read_only"))
-            host = config.get("host", DEFAULT_HOST)
-            tls = config.getboolean("tls", DEFAULT_TLS)
-            if tls:
-                port = config.getint("port", DEFAULT_TLS_PORT)
-            else:
-                port = config.getint("port", DEFAULT_PORT)
-            admin_user = config.get("admin_user", DEFAULT_ADMIN_USER)
-            admin_password = config.get("admin_password", DEFAULT_ADMIN_PASSWORD)
-            user_base = config.get("user_base", DEFAULT_USER_BASE)
-            group_base = config.get("group_base", DEFAULT_GROUP_BASE)
-            attr_oidc_uid = config.get("attribute_oidc_uid", DEFAULT_ATTR_OIDC_UID)
-            attr_local_uid = config.get("attribute_local_uid", DEFAULT_ATTR_LOCAL_UID)
-
-            # only needed in FULL_ACCESS mode
-            shell = config.get("shell", DEFAULT_SHELL)
-            home_base = config.get("home_base", DEFAULT_HOME_BASE).rstrip("/")
-            uid_min = config.getint("uid_min", DEFAULT_UID_MIN)
-            uid_max = config.getint("uid_max", DEFAULT_UID_MAX)
-            gid_min = config.getint("gid_min", DEFAULT_GID_MIN)
-            gid_max = config.getint("gid_max", DEFAULT_GID_MAX)
-
-            ldap = LdapConnection(
-                mode=mode,
-                host=host,
-                port=port,
-                tls=tls,
-                admin_user=admin_user,
-                admin_password=admin_password,
-                user_base=user_base,
-                group_base=group_base,
-                attr_oidc_uid=attr_oidc_uid,
-                attr_local_uid=attr_local_uid,
-                shell=shell,
-                home_base=home_base,
-                uid_min=uid_min,
-                uid_max=uid_max,
-                gid_min=gid_min,
-                gid_max=gid_max,
-            )
-        except KeyError:
-            logger.warning(
-                "Could not find [backend.ldap] section in feudal config, using defaults..."
-            )
-            ldap = LdapConnection()
+        ldap = LdapConnection()
         # init uidNext and gidNext entries in LDAP
         ldap.init_nextuidgid()
         return ldap

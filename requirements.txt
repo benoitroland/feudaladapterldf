@@ -22,3 +22,4 @@ Unidecode>=1.1.1
 urllib3>=1.25.3
 wcwidth>=0.1.7
 ldap3>=2.9.1
+trycourier>=0.1.0

@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from ldf_adapter import backend
 from ldf_adapter.results import Failure
+from ldf_adapter.config import CONFIG
 from ldf_adapter.userinfo import UserInfo
 from ldf_adapter.approval.models import (
     PendingUser,
@@ -15,7 +16,7 @@ from ldf_adapter.approval.models import (
 )
 from ldf_adapter.approval.db import databases
 from ldf_adapter.notifier import notifiers
-from ldf_adapter.notifier.notification import NotificationType
+from ldf_adapter.notifier.generic import NotificationType
 
 logger = logging.getLogger(__name__)
 
@@ -24,40 +25,20 @@ class PendingDeployment:
     """Represents a pending deployment request for a user and its groups.
     Communicates with the pending DB to store and retrieve pending deployments."""
 
-    _user: Optional[PendingUser] = None
-    _groups: List[PendingGroup] = []
-    _memberships: Optional[PendingMemberships] = None
-
-    def __init__(
-        self,
-        userinfo: UserInfo,
-        ssh_host: str,
-        approval_config,
-        notifier_type: str,
-        notifier_config,
-    ) -> None:
+    def __init__(self, userinfo: UserInfo) -> None:
         """Initialise a pending deployment for a federated user.
         If a request already exists for this user, initialise properties.
 
         Args:
             userinfo (UserInfo): user info of federated user
-            ssh_host (str): hostname where the SSH server is running
-            approval_config (dict): approval configuration
-            notifier_type (str): type of notifier to use
-            notifier_config (dict): configuration of notifier
         """
-        self._pending_db = databases.get(db_type="sqlite", **approval_config)
-        self._notifier = notifiers.get(
-            notifier_type=notifier_type,
-            ssh_host=ssh_host,
-            **notifier_config,
-        )
+        self._pending_db = databases.get("sqlite")
+        self._notifier = notifiers.get(CONFIG.approval.notifier)
         self.unique_id = userinfo.unique_id
         self._sub = userinfo.sub
         self._iss = userinfo.iss
         self._email = userinfo.email
         self._full_name = userinfo.full_name
-        self._ssh_host = ssh_host
 
         self._user = self._pending_db.get_user(userinfo.unique_id)
         self._memberships = self._pending_db.get_memberships(userinfo.unique_id)
@@ -300,7 +281,7 @@ class PendingDeployment:
         groups_cmd = "\n".join([m.cmd for m in self.groups])
         memberships_cmd = self.memberships.cmd if self.memberships else ""
         data = {
-            "hostname": self._ssh_host,
+            "hostname": CONFIG.login_info.ssh_host,
             "unique_id": self.unique_id,
             "full_name": self.full_name,
             "email": self.email,

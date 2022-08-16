@@ -30,11 +30,11 @@ class BwIdmConnection:
         self.session = requests.Session()
         if config:
             self.session.auth = (
-                config["backend.bwidm.auth"]["http_user"],
-                config["backend.bwidm.auth"]["http_pass"],
+                config.backend.bwidm.http_user,
+                config.backend.bwidm.http_pass,
             )
 
-        if not CONFIG["backend.bwidm"].getboolean("log_outgoing_http_requests", fallback=False):
+        if not CONFIG.backend.bwidm.log_outgoing_http_requests:
             logging.getLogger("requests").setLevel(logging.CRITICAL)
             logging.getLogger("werkzeug").setLevel(logging.CRITICAL)
             logging.getLogger("urllib3").setLevel(logging.CRITICAL)
@@ -61,7 +61,7 @@ class BwIdmConnection:
         url = reduce(
             lambda acc, frag: urljoin(acc, frag) if acc.endswith("/") else urljoin(acc + "/", frag),
             url_fragments,
-            CONFIG["backend.bwidm"]["url"],
+            CONFIG.backend.bwidm.url
         )
 
         # logger.debug(f"BWIDM: {url}")
@@ -117,7 +117,7 @@ class User:
         service, identified by its service short name
         """
         # FIXME: Consider putting this request into the global user object (to reduce load on regapp)
-        ssn = CONFIG["backend.bwidm.service"]["name"]
+        ssn = CONFIG.backend.bwidm.service_name
         registrations = BWIDM.get("external-reg", "find", "externalId", self.info.unique_id)
         # find registrations
         number_of_registrations = 0
@@ -210,7 +210,7 @@ class User:
 
     def set_prefixed_username(self, prefixed_username):
         """Update the internal representation of the user with the incoming username"""
-        bwIdmOrgId = CONFIG["backend.bwidm"]["org_id"]
+        bwIdmOrgId = CONFIG.backend.bwidm.org_id
         username = prefixed_username.lstrip(f"{bwIdmOrgId}_")
         self.set_username(username)
 
@@ -251,7 +251,7 @@ class User:
                 "externalId",
                 self.info.unique_id,
                 "ssn",
-                CONFIG["backend.bwidm.service"]["name"],
+                CONFIG.backend.bwidm.service_name,
             )
 
             if rsp.status_code == 204:
@@ -279,7 +279,7 @@ class User:
                 "primaryGroup": {"id": self.primary_group.reg_info()["id"]},
                 "attributeStore": {
                     self.ATTR_USERNAME: self.force_username or self.info.username,
-                    self.ATTR_ORG_ID: CONFIG["backend.bwidm"]["org_id"],
+                    self.ATTR_ORG_ID: CONFIG.backend.bwidm.org_id,
                 },
             }
         )
@@ -298,7 +298,7 @@ class User:
             "externalId",
             self.info.unique_id,
             "ssn",
-            CONFIG["backend.bwidm.service"]["name"],
+            CONFIG.backend.bwidm.service_name,
         )
 
     def deactivate(self):
@@ -454,7 +454,7 @@ class Group:
 
     def exists(self):
         # FIXME: Group existence needs to be checked with using also
-        # CONFIG['backend.bwidm.service']['name']
+        # CONFIG.backend.bwidm.service_name
         return (
             b"no such group"
             not in BWIDM.get("group-admin", "find", "name", self.name, fail=False).content
@@ -462,7 +462,7 @@ class Group:
 
     def create(self):
         rsp = BWIDM.get(
-            "group-admin", "create", CONFIG["backend.bwidm.service"]["name"], self.name
+            "group-admin", "create", CONFIG.backend.bwidm.service_name, self.name
         ).json()
 
         if self.name != rsp["name"]:

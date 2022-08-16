@@ -23,7 +23,6 @@ from ldf_adapter.results import (
 from ldf_adapter.name_generators import NameGenerator
 from ldf_adapter.userinfo import UserInfo
 from ldf_adapter.approval import PendingDeployment
-from ldf_adapter.notifier import notifiers
 
 logger = logging.getLogger(__name__)
 
@@ -55,19 +54,15 @@ class User:
         Instead: Use self.data
         """
         # Info Display Hack
-        if CONFIG.getboolean("verbose-info-plugin", "active", fallback=False) is True:
+        if CONFIG.verbose_info_plugin.active:
             try:
                 if data["state_target"] == "deployed":
                     import json
                     import os
                     import stat
 
-                    filename = CONFIG.get(
-                        "verbose-info-plugin",
-                        "filename",
-                        fallback="/tmp/userinfo/userinfo.json",
-                    )
-                    dirname = CONFIG.get("verbose-info-plugin", "dirname", fallback="/tmp/userinfo")
+                    filename = CONFIG.verbose_info_plugin.filename
+                    dirname = CONFIG.verbose_info_plugin.dirname
                     try:
                         os.mkdir(dirname)
                         os.chmod(dirname, 0o0777)
@@ -90,72 +85,18 @@ class User:
 
         # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
-        self.service_user = backend.User(self.data)  # type: ignore
-        self.service_groups = [
-            backend.Group(grp) for grp in self.data.groups  # type:ignore
-        ]
+        self.service_user = backend.User(self.data)
+        self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
-        self.additional_groups = [
-            backend.Group(grp)  # type:ignore
-            for grp in list(set(CONFIG["ldf_adapter"].get("additional_groups", "").split()))
-        ]
-
-        if CONFIG.getboolean(
-            "ldf_adapter", "backend_supports_preferring_existing_user", fallback=False
-        ):
+        if CONFIG.ldf_adapter.backend_supports_preferring_existing_user:
             logger.debug("trying to update user from existing")
             if self.service_user.exists():
                 self.update_username_from_existing()
 
-        try:
-            self.login_info = dict(CONFIG["login_info"])
-            self.login_info["ssh_host"] = self.login_info.get("ssh_host", "localhost")
-        except KeyError:
-            logger.debug(
-                "No login_info found in config file. Defaults to {'ssh_host': 'localhost'}"
-            )
-            self.login_info = {"ssh_host": "localhost"}
-
-        if self.approval_enabled:
+        if CONFIG.approval.enabled:
             # initialise pending deployment and notification system
-            try:
-                approval_config = dict(CONFIG["approval"])
-            except KeyError as ex:
-                message = f"Could not find [approval] section in config file."
-                logger.error(f"{message}: {ex}")
-                raise FatalError(message=message)
-            notifier_type = approval_config.get("notifier", "email")
-            try:
-                notifier_config = dict(CONFIG[f"notifier.{notifier_type}"])
-            except KeyError as ex:
-                message = (
-                    f"Could not find section [approval.{notifier_type}] in configuration file."
-                )
-                logger.error(f"{message}: {ex}")
-                raise FatalError(message=message)
-            self.pending_deployment = PendingDeployment(
-                userinfo=self.data,
-                ssh_host=self.login_info["ssh_host"],
-                approval_config=approval_config,
-                notifier_type=notifier_type,
-                notifier_config=notifier_config,
-            )
+            self.pending_deployment = PendingDeployment(userinfo=self.data)
 
-    @property
-    def approval_enabled(self):
-        return CONFIG.getboolean("approval", "enabled", fallback=False)
-
-    @property
-    def assurance_disabled(self):
-        return CONFIG.get("assurance", "skip", fallback="No") == "Yes, do as I say!"
-
-    @property
-    def assurance_verified_undeploy(self):
-        return CONFIG.getboolean("assurance", "verified_undeploy", fallback=False)
-
-    @property
-    def interactive_mode_enabled(self):
-        return CONFIG.getboolean("ldf_adapter", "interactive", fallback=False)
 
     def assurance_verifier(self):
         """Produce a suitably function to check if a user is allowed.
@@ -174,11 +115,10 @@ class User:
         `True`, if the claims satisfy the configured expression (`"assurance.require"`), `False`
         otherwise.
         """
-        ass = CONFIG["assurance"]
-        prefix = ass["prefix"]
+        prefix = CONFIG.assurance.prefix
         prefix = prefix.rstrip("/") + "/"
 
-        tokens = regex.findall("&|\||\(|\)|[^\s()&|]+", ass["require"])
+        tokens = regex.findall("&|\||\(|\)|[^\s()&|]+", CONFIG.assurance.require)
 
         # We use a simple recursive descent parser to parse parenthesied expressions of strings,
         # composed with '&' (konjunction) and '|' (disjunction). The usual precedence rules apply.
@@ -273,7 +213,7 @@ class User:
             )
 
         if target == "deployed":
-            if self.assurance_disabled:
+            if CONFIG.assurance.skip:
                 logger.warning(
                     "Assurance checking is disabled: Users with ANY assurance will be authorised"
                 )
@@ -288,8 +228,8 @@ class User:
 
             return self.deploy()
         elif target == "not_deployed":
-            if not self.assurance_disabled and not self.assurance_verifier()(self.data.assurance):
-                if not self.assurance_verified_undeploy:
+            if not CONFIG.assurance.skip and not self.assurance_verifier()(self.data.assurance):
+                if not CONFIG.assurance.verified_undeploy:
                     logger.warning("Assurance level is insufficient. Undeploying anyway.")
                 else:
                     raise Rejection(
@@ -321,7 +261,7 @@ class User:
 
         Return a Deployed result, with a message describing what was done.
         """
-        if self.approval_enabled and self.pending_deployment.is_rejected():
+        if CONFIG.approval.enabled and self.pending_deployment.is_rejected():
             return Status(
                 state="rejected",
                 message="User deployment was rejected. No new deployment request will be sent.",
@@ -332,7 +272,7 @@ class User:
         new_memberships, removed_memberships = self.ensure_group_memberships()
         new_credentials = self.ensure_credentials_active()
 
-        if self.approval_enabled:
+        if CONFIG.approval.enabled:
             self.pending_deployment.notify()
             # if user existed
             if self.service_user.exists():
@@ -463,21 +403,21 @@ class User:
         Return a Status result with a message describing what was done.
         """
         if self.pending_deployment.is_pending() or self.pending_deployment.mod_pending():
-            if not hasattr(backend.User, "create_fromstring"):  # type: ignore
+            if not hasattr(backend.User, "create_fromstring"):
                 raise Failure(
                     message=(
                         "Backend does not support automatic user creation from string."
                         "Follow the instructions in the notification you received to manually create the user."
                     )
                 )
-            if not hasattr(backend.Group, "create_fromstring"):  # type: ignore
+            if not hasattr(backend.Group, "create_fromstring"):
                 raise Failure(
                     message=(
                         "Backend does not support automatic group creation from string."
                         "Follow the instructions in the notification you received to manually create the group(s)."
                     )
                 )
-            if not hasattr(backend.User, "mod_fromstring"):  # type: ignore
+            if not hasattr(backend.User, "mod_fromstring"):
                 raise Failure(
                     message=(
                         "Backend does not support automatic user modification from string."
@@ -538,7 +478,7 @@ class User:
         msg = "No message"
         try:
             if not self.service_user.exists():
-                if self.approval_enabled:
+                if CONFIG.approval.enabled:
                     if self.pending_deployment.is_pending():
                         return Status("pending", message="User deployment is pending approval.")
                     if self.pending_deployment.is_rejected():
@@ -571,7 +511,7 @@ class User:
 
         is_new_user = (
             not self.service_user.exists()
-            if not self.approval_enabled
+            if not CONFIG.approval.enabled
             else not self.service_user.exists() and not self.pending_deployment.exists()
         )
 
@@ -581,7 +521,7 @@ class User:
             primary_group_name = self.data.primary_group
 
             # Raise question in case of existing username in case we're interactive
-            if self.interactive_mode_enabled:  # interactive
+            if CONFIG.ldf_adapter.interactive:  # interactive
                 logger.debug("interactive mode")
                 if self.service_user.name_taken(username):
                     logger.info(
@@ -594,11 +534,9 @@ class User:
 
             else:  # non-interactive
                 logger.debug("noninteractive mode")
-                username_mode = CONFIG.get("username_generator", "mode", fallback="friendly")
+                username_mode = CONFIG.username_generator.mode
                 logger.debug(f"username_mode: {username_mode}")
-                pool_prefix = CONFIG.get(
-                    "username_generator", "pool_prefix", fallback=primary_group_name
-                )
+                pool_prefix = CONFIG.username_generator.pool_prefix or primary_group_name
 
                 name_generator = NameGenerator(
                     username_mode, userinfo=self.data, pool_prefix=pool_prefix
@@ -606,8 +544,10 @@ class User:
                 proposed_name = name_generator.suggest_name()
                 logger.debug(f"initially proposed_name: {proposed_name}")
 
-                while self.service_user.name_taken(proposed_name) or (
-                    self.approval_enabled and self.pending_deployment.name_taken(proposed_name)
+                while proposed_name is not None and (
+                    self.service_user.name_taken(proposed_name) or (
+                        CONFIG.approval.enabled and self.pending_deployment.name_taken(proposed_name)
+                    )
                 ):
                     proposed_name = name_generator.suggest_name()
                 if proposed_name is None:
@@ -632,11 +572,11 @@ class User:
                 logger.error(message)
                 raise FatalError(message=message)
 
-            if self.approval_enabled:
+            if CONFIG.approval.enabled:
                 self.pending_deployment.create_user(self.service_user)
             else:
                 self.service_user.create()
-        elif self.approval_enabled and self.pending_deployment.exists():  # the user is pending
+        elif CONFIG.approval.enabled and self.pending_deployment.exists():  # the user is pending
             username = self.pending_deployment.username
             self.service_user.set_username(username)
             logger.info(
@@ -649,7 +589,7 @@ class User:
 
         logger.debug(f"This is a new user: {is_new_user}")
 
-        if not self.approval_enabled:
+        if not CONFIG.approval.enabled:
             self.service_user.update()
         return is_new_user
 
@@ -686,14 +626,14 @@ class User:
             # bwIDM requires prior removal of the user, because ssh-key removal triggers an
             # asyncronous process. If user is removed during that, the user might be only partially
             # removed...
-            if CONFIG.get("ldf_adapter", "backend", fallback="") == "bwidm":
+            if CONFIG.ldf_adapter.backend == "bwidm":
                 self.service_user.delete()
                 self.service_user.uninstall_ssh_keys()
             else:
                 self.service_user.uninstall_ssh_keys()
                 self.service_user.delete()
             return True
-        elif self.approval_enabled and self.pending_deployment.exists():
+        elif CONFIG.approval.enabled and self.pending_deployment.exists():
             logger.info(
                 f"No user existed for {self.data.unique_id}, but cleaned up lingering pending/rejected entry for this user."
             )
@@ -763,7 +703,7 @@ class User:
             group_list.append(self.service_user.primary_group)
 
         group_list_names = [grp.name for grp in group_list]
-        for grp in self.additional_groups:
+        for grp in CONFIG.ldf_adapter.additional_groups:
             if grp.name not in group_list_names:
                 group_list.append(grp)
 
@@ -789,7 +729,7 @@ class User:
         for group in group_list:
             if group.name is not None:
                 logger.info("Creating group '{}'".format(group.name))
-                if self.approval_enabled:
+                if CONFIG.approval.enabled:
                     if self.pending_deployment.create_group(group):
                         new_groups.append(group.name)
                 else:
@@ -798,7 +738,7 @@ class User:
         return new_groups
 
     def ensure_group_memberships(self):
-        """Ensure that the user is a member of all the groups in self.service_groups and self.additional_groups.
+        """Ensure that the user is a member of all the groups in self.service_groups and CONFIG.additional_groups.
 
         Return two lists:
         - the names of all groups the user was added to
@@ -822,17 +762,17 @@ class User:
             f"User '{username}' will be removed from the following groups: {groups_to_remove}"
         )
 
-        if self.approval_enabled:
+        if CONFIG.approval.enabled:
             if not self.pending_deployment.mod(
                 service_user=self.service_user,
-                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],  # type: ignore
-                removal_groups=[backend.Group(grp) for grp in groups_to_remove],  # type: ignore
+                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],
+                removal_groups=[backend.Group(grp) for grp in groups_to_remove],
             ):
                 return [], []
         else:
             self.service_user.mod(
-                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],  # type: ignore
-                removal_groups=[backend.Group(grp) for grp in groups_to_remove],  # type: ignore
+                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],
+                removal_groups=[backend.Group(grp) for grp in groups_to_remove],
             )
 
         return groups_to_add, groups_to_remove
@@ -842,7 +782,7 @@ class User:
 
         Return a list of the names/ids of all the keys now active.
         """
-        if not self.approval_enabled:
+        if not CONFIG.approval.enabled:
             self.service_user.install_ssh_keys()
             return ["ssh:{name}/{id}".format(**key) for key in self.data.ssh_keys]
         return []
@@ -860,9 +800,9 @@ class User:
         login_info -- Everything in this section is merged into the credentials dictionary.
         """
         ssh_user = self.service_user.get_username()
-        commandline = "ssh {}@{}".format(ssh_user, self.login_info["ssh_host"])
+        commandline = "ssh {}@{}".format(ssh_user, CONFIG.login_info.ssh_host)
         return {
-            **self.login_info,
+            **CONFIG.login_info.to_dict(),
             "ssh_user": ssh_user,
             "commandline": commandline,
         }
@@ -873,7 +813,7 @@ class User:
         Test that the notification system is configured correctly if the approval workflow is
         enabled by sending a test notification to the admin.
         """
-        if self.approval_enabled:
+        if CONFIG.approval.enabled:
             self.pending_deployment.test_notifier()
             msg = "Notification sent successfully."
         else:

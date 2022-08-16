@@ -47,7 +47,7 @@ class UserInfo(Mapping):
         self.userinfo = data["user"]["userinfo"]
         self.answers = data.get("answers", {})
         self.credentials = data["user"].get("credentials", {})
-        self.allow_question = CONFIG.getboolean("ldf_adapter", "interactive", fallback=False)
+        self.allow_question = CONFIG.ldf_adapter.interactive
 
     @property
     def sub(self):
@@ -135,7 +135,7 @@ class UserInfo(Mapping):
         # We don't consider stripping the http[s]-prefix a change, since we always do that anyway,
         # and there shouldn't be two different issuers `http://example.org' and `https://example.org'.
         if iss != stripped_iss:
-            if CONFIG.getboolean("messages", "log_name_changes", fallback=True):
+            if CONFIG.messages.log_name_changes:
                 logger.warning(
                     "Issuer '{}' changed to '{}' for general compatibilty".format(stripped_iss, iss)
                 )
@@ -253,7 +253,7 @@ class UserInfo(Mapping):
 
         Group names are prefixed with the delegated namespace from the entitlement.
         """
-        if CONFIG.getboolean("username_generator", "strip_sub_groups", fallback=False):
+        if CONFIG.username_generator.strip_sub_groups:
             logger.debug("Stripping all subgroups")
             return set(
                 filter(
@@ -327,7 +327,7 @@ class UserInfo(Mapping):
         grp = regex.sub("^9", "nine_", grp)
 
         if grp != orig_grp:
-            if CONFIG.getboolean("messages", "log_name_changes", fallback=True):
+            if CONFIG.messages.log_name_changes:
                 logger.warning(
                     "Group name '{}' changed to '{}' for general compatibilty".format(orig_grp, grp)
                 )
@@ -343,7 +343,7 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def primary_group(self):
-        config_group = CONFIG["ldf_adapter"].get("primary_group")
+        config_group = CONFIG.ldf_adapter.primary_group
         logger.debug(f"Using configured primary group: {config_group}")
         if config_group:
             return config_group
@@ -361,7 +361,7 @@ class UserInfo(Mapping):
                     list(self.groups),
                 )
             else:  # make something up, regarding the primary group:
-                if CONFIG.getboolean("messages", "log_primary_group_definition", fallback=True):
+                if CONFIG.messages.log_primary_group_definition:
                     logger.warning(
                         "/----- No primary group issue --------------------------------------------\\"
                     )
@@ -387,7 +387,7 @@ class UserInfo(Mapping):
                 return old_answer
 
             else:  # still no group found.
-                fallback_group = CONFIG["ldf_adapter"].get("fallback_group", None)
+                fallback_group = CONFIG.ldf_adapter.fallback_group
                 if fallback_group:
                     return fallback_group
                 else:
