@@ -326,7 +326,7 @@ class User(generic.User):
             raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
 
     def limit(self):
-        self.__set_shell("/sbin/nologin")
+        self.__set_shell("/sbin/nologin")  # or /usr/sbin/nologin ?
 
     def unlimit(self):
         self.__set_shell(CONFIG.backend.local_unix.shell)

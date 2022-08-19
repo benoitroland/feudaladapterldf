@@ -108,12 +108,6 @@ backend = my_backend
 [backend.my_backend]
 foo = bar
 # Configuration for your backend goes here
-
-[backend.my_backend.login_info]
-login_host = example.org
-login_help = To login, ask your mama for help.
-# Here goes a bunch of arbitrary static information to be included in the credentials section
-# in the feudalClient webinterface
 ```
 
 Supported backends:
@@ -121,12 +115,39 @@ Supported backends:
 - [LDAP](LDAP.md)
 - bwIDM
 
+## Development
+
+To add a new backend:
+- extend the `User` and `Group` classes in the [generic backend](ldf_adapter/backend/generic.py) by implementing all the required abstract methods
+- the extended classes **must** also be named `User` and `Group`
+- place the classes in a python file in [ldf_adapter/backend](ldf_adapter/backend) (e.g. `my_backend.py`)
+- the name of the backend will be the name of the file, and it will be loaded dynamically when used (e.g. `my_backend`)
+- use the new backend by setting the `backend` in the `[ldf_adapter]` section in the config file to your new backend name
+  ```
+  [ldf_adapter]
+  backend = my_backend
+  ```
+- if you need to add any configuration for your backend, add a new section in the config file:
+  ```
+  [backend.my_backend]
+  key1 = value1
+  key2 = value2
+  ```
+- define types and default values for the configuration in [ldf_adapter/config.py](ldf_adapter/config.py) (check out the comments on adding a new section)
+- you will then be able to use these configuration values in your backend with:
+  ```
+  from ldf_adapter.config import CONFIG
+  print("key1: ", CONFIG.backend.my_backend.key1)
+  print("key2: ", CONFIG.backend.my_backend.key2)
+  ```
+
+
 # Unit Tests
 There are unit tests, located under [tests](tests) (The package structure in `tests` corresponds to
 that of the main package). To run the tests, just do:
 
 ```sh
-./setup.py test
+tox
 ```
 
 # Integration with Feudal:
