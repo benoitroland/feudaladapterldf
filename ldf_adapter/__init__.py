@@ -280,7 +280,7 @@ class User:
                 if new_memberships != [] or removed_memberships != []:
                     what_changed += ", but groups changed. A request for updating user groups was submitted for approval"
                 what_changed += "."
-                return Status(state="deployed", message=what_changed)
+                return Deployed(message=what_changed, credentials=self.credentials)
             # user is pending
             if was_created:
                 what_changed = "Request for deployment was submitted for approval."
