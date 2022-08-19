@@ -121,6 +121,8 @@ class ConfigSection:
         """Converts some of the fields to the correct type"""
         for field in fields(self):
             value = getattr(self, field.name)
+            if value is None:
+                continue
             field_type = field.type
             if field.type.__module__ == "typing":
                 if (
@@ -366,9 +368,9 @@ class ConfigNotifiers(ConfigListOfSections):
 @dataclass
 class ConfigBackends(ConfigListOfSections):
     """Collection of config sections for all backends"""
-    local_unix: Optional[ConfigLocalUnix] = None
-    ldap: Optional[ConfigLdap] = None
-    bwidm: Optional[ConfigBwIdm] = None
+    local_unix: ConfigLocalUnix = ConfigLocalUnix()
+    ldap: ConfigLdap = ConfigLdap()
+    bwidm: ConfigBwIdm = ConfigBwIdm()
 
 
 @dataclass

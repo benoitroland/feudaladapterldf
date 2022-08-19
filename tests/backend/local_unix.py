@@ -4,12 +4,11 @@ import random
 from pathlib import Path
 import subprocess
 import os
-import sys
 import logging
 
 import ldf_adapter.backend.local_unix
 from ldf_adapter.results import Failure
-
+from conftest import MockUserInfo
 
 logger = logging.getLogger(__name__)
 
@@ -46,21 +45,6 @@ def local_unix_user(input, exists, taken, monkeypatch):
         else:
             new_command = command
         return old_subprocess_run(new_command, *args[1:], **kwargs)
-
-    class MockUserInfo:
-        """Mocks a UserInfo object to be passed to local_unix.User
-        Only a few properties are necessary:
-            - unique_id
-            - username
-            - primary_group
-            - ssh_keys
-        """
-
-        def __init__(self, data):
-            self.unique_id = data["unique_id"]
-            self.username = data["username"]
-            self.primary_group = data["primary_group"]
-            self.ssh_keys = data["ssh_keys"]
 
     with monkeypatch.context() as mp:
         # patch root used by local_unix.User and subprocess.run to use this root for creating users

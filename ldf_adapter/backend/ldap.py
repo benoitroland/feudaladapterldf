@@ -6,10 +6,10 @@ It"s in the proof-of-concept state.
 import logging
 from ldap3 import (
     AUTO_BIND_NO_TLS,
+    SAFE_RESTARTABLE,
     Server,
     Connection,
     ALL,
-    BASE,
     MODIFY_REPLACE,
     MODIFY_DELETE,
     MODIFY_ADD,
@@ -61,10 +61,16 @@ class LdapSearchResult:
         """
         try:
             search_result = ldap_connection.search(*args, **kwargs)
-            self.status = search_result[0]
-            self.result = search_result[1]
-            self.response = search_result[2]
-            self.request = search_result[3]
+            if ldap_connection.strategy_type in [SAFE_SYNC, SAFE_RESTARTABLE]:
+                self.status = search_result[0]
+                self.result = search_result[1]
+                self.response = search_result[2]
+                self.request = search_result[3]
+            else:
+                self.status = ldap_connection.response not in [None, []]
+                self.result = ldap_connection.result
+                self.response = ldap_connection.response
+                self.request = ldap_connection.request
         except Exception as e:
             msg = "Error searching in LDAP"
             logger.error(f"{msg}: {e}")
@@ -83,6 +89,13 @@ class LdapSearchResult:
         except Exception as e:
             logger.warning(f"Attribute {attribute_name} not found in response: {e}")
             return None
+
+    def get_attributes(self):
+        attributes = self.response[0]["attributes"]
+        for key, value in attributes.items():
+            if isinstance(value, list):
+                attributes[key] = value[0]
+        return attributes
 
     def get_attribute_for_all(self, attribute_name):
         try:
@@ -120,10 +133,9 @@ class LdapConnection:
         self.gid_max = CONFIG.backend.ldap.gid_max
 
         # initialise connection used to generate LDIFs
-        self.ldif_connection = Connection(
-            server=None, client_strategy=LDIF, auto_bind=AUTO_BIND_NO_TLS
-        )
-        # initialise and bind connection to LDAP
+        self.ldif_connection = Connection(server=None, client_strategy=LDIF)
+        self.ldif_connection.bind()
+        # initialise and bind connection to LDAP server
         try:
             server = Server(f"ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}", get_info=ALL)
             if CONFIG.backend.ldap.admin_user and CONFIG.backend.ldap.admin_password:
@@ -132,13 +144,11 @@ class LdapConnection:
                     server,
                     CONFIG.backend.ldap.admin_user,
                     CONFIG.backend.ldap.admin_password,
-                    auto_bind=AUTO_BIND_NO_TLS,
                     client_strategy=SAFE_SYNC,
+                    auto_bind=AUTO_BIND_NO_TLS,
                 )
             else:
-                self.connection = Connection(
-                    server, auto_bind=AUTO_BIND_NO_TLS, client_strategy=SAFE_SYNC
-                )
+                self.connection = Connection(server, client_strategy=SAFE_SYNC, auto_bind=AUTO_BIND_NO_TLS)
         except Exception as e:
             msg = f"Could not connect to server ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
             logger.error(f"{msg}: {e}")
@@ -152,56 +162,58 @@ class LdapConnection:
             if self.mode == Mode.FULL_ACCESS:
                 search_uid = self.search_next_uid()
                 if not search_uid.found():
-                    self.connection.add(
+                    result = self.connection.add(
                         f"cn=uidNext,{self.user_base}",
                         object_class=["uidNext"],
                         attributes={"cn": "uidNext", "uidNumber": self.uid_min},
                     )
+                    search_uid = self.search_next_uid()
                 else:
-                    logger.info("Using existing uidNext value.")
+                    logger.info(f"uidNext already initialised: {search_uid.get_attribute('uidNumber')}.")
 
                 search_gid = self.search_next_gid()
                 if not search_gid.found():
-                    self.connection.add(
+                    result = self.connection.add(
                         f"cn=gidNext,{self.group_base}",
                         object_class=["gidNext"],
                         attributes={"cn": "gidNext", "gidNumber": self.gid_min},
                     )
+                    search_gid = self.search_next_gid()
                 else:
-                    logger.info("Using existing gidNext value.")
+                    logger.info(f"gidNext already initialised: {search_gid.get_attribute('gidNumber')}.")
         except Exception as e:
             msg = "Error adding entries in LDAP for tracking available UID and GID values"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
-    def search_user_by_oidc_uid(self, oidc_uid):
+    def search_user_by_oidc_uid(self, oidc_uid, attributes=[]):
         return LdapSearchResult(
             self.connection,
             [
                 f"{self.user_base}",
                 f"(&({self.attr_oidc_uid}={oidc_uid})(objectClass=inetOrgPerson)(objectClass=posixAccount))",
             ],
-            {"attributes": [self.attr_local_uid, "gidNumber"]},
+            {"attributes": attributes},
         )
 
-    def search_user_by_local_username(self, username):
+    def search_user_by_local_username(self, username, get_unique_id=False):
         return LdapSearchResult(
             self.connection,
             [
                 f"{self.user_base}",
                 f"(&({self.attr_local_uid}={username})(objectClass=inetOrgPerson)(objectClass=posixAccount))",
             ],
-            {"attributes": [self.attr_oidc_uid]},
+            {"attributes": [self.attr_local_uid, self.attr_oidc_uid] if get_unique_id else [self.attr_local_uid]},
         )
 
-    def search_group_by_name(self, group_name):
+    def search_group_by_name(self, group_name, attributes=[]):
         return LdapSearchResult(
             self.connection,
             [
                 f"{self.group_base}",
                 f"(&(cn={group_name})(objectClass=posixGroup))",
             ],
-            {"attributes": ["memberUid", "gidNumber"]},
+            {"attributes": attributes},
         )
 
     def search_group_by_gid(self, gid):
@@ -268,15 +280,20 @@ class LdapConnection:
         search_result = self.search_next_uid()
         if search_result.found():
             uid = search_result.get_attribute("uidNumber")
+            try:
+                uid = int(uid)
+            except Exception as e:
+                logger.error(f"Could not convert uidNumber to int: {e}")
+                raise Failure(message="Could not parse uidNumber from LDAP")
 
-            # make sure uid is not taken already
+            # make sure uid is not taken already and still in allowed range
             next_uid = uid
-            while self.is_uid_taken(next_uid):
+            while self.is_uid_taken(next_uid) and next_uid <= self.uid_max:
                 next_uid += 1
 
             # make sure uid still in allowed range
             if next_uid > self.uid_max:
-                raise Exception("No available UIDs left in configured range.")
+                raise Failure(message="No available UIDs left in configured range.")
 
             # specify uid in MODIFY_DELETE operation to avoid race conditions
             # the operation will fail if the value has been modified in the meantime
@@ -290,15 +307,20 @@ class LdapConnection:
         search_result = self.search_next_gid()
         if search_result.found():
             gid = search_result.get_attribute("gidNumber")
+            try:
+                gid = int(gid)
+            except Exception as e:
+                logger.error(f"Could not convert gidNumber to int: {e}")
+                raise Failure(message="Could not parse gidNumber from LDAP")
 
-            # make sure gid is not taken already
+            # make sure gid is not taken already and still in allowed range
             next_gid = gid
-            while self.is_gid_taken(next_gid):
+            while self.is_gid_taken(next_gid) and next_gid <= self.gid_max:
                 next_gid += 1
 
             # make sure gid still in allowed range
             if next_gid > self.gid_max:
-                raise Exception("No available GIDs left in configured range.")
+                raise Failure(message="No available GIDs left in configured range.")
 
             # specify gid in MODIFY_DELETE operation to avoid race conditions
             # the operation will fail if the value has been modified in the meantime
@@ -317,13 +339,9 @@ class LdapConnection:
             dn = f"uid={local_username},{self.user_base}"
             object_class = ["top", "inetOrgPerson", "posixAccount"]
             attributes = {
-                "sn": userinfo.family_name,
-                "givenName": userinfo.given_name,
-                "cn": userinfo.full_name,
-                "mail": userinfo.email,
                 "uid": local_username,
                 "uidNumber": self.get_next_uid(),
-                "gidNumber": self.search_group_by_name(primary_group_name).get_attribute(
+                "gidNumber": self.search_group_by_name(primary_group_name, attributes=["gidNumber"]).get_attribute(
                     "gidNumber"
                 ),
                 "homeDirectory": f"{self.home_base}/{local_username}",
@@ -331,15 +349,30 @@ class LdapConnection:
                 self.attr_local_uid: local_username,
                 self.attr_oidc_uid: userinfo.unique_id,
             }
+            if userinfo.family_name is not None:
+                attributes["sn"] = userinfo.family_name
+            if userinfo.given_name is not None:
+                attributes["givenName"] = userinfo.given_name
+            if userinfo.full_name is not None:
+                attributes["cn"] = userinfo.full_name
+            if userinfo.email is not None:
+                attributes["mail"] = userinfo.email
             return self.connection.add(
                 dn,
                 object_class=object_class,
                 attributes=attributes,
             )
         except Exception as e:
-            msg = f"Failed to add an LDAP entry for uid {userinfo.unique_id} with local username {local_username}."
+            msg = f"Failed to add an LDAP entry for uid {userinfo.unique_id} with local username {local_username}"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
+
+    def get_all_user_info(self, unique_id):
+        """Return all user info for a given unique_id."""
+        search_result = self.search_user_by_oidc_uid(unique_id, attributes=["*"])
+        if not search_result.found():
+            raise Failure(message=f"User with unique_id {unique_id} not found.")
+        return search_result.get_attributes()
 
     def add_user_ldif(self, userinfo, local_username, primary_group_name):
         """Return LDIF representation for a new user entry for `local_username` with
@@ -348,14 +381,10 @@ class LdapConnection:
         """
         dn = f"uid={local_username},{self.user_base}"
         object_class = ["top", "inetOrgPerson", "posixAccount"]
-        gidNumber = self.search_group_by_name(primary_group_name).get_attribute("gidNumber")
+        gidNumber = self.search_group_by_name(primary_group_name, attributes=["gidNumber"]).get_attribute("gidNumber")
         if not gidNumber:
             gidNumber = ""
         attributes = {
-            "sn": userinfo.family_name,
-            "givenName": userinfo.given_name,
-            "cn": userinfo.full_name,
-            "mail": userinfo.email,
             "uid": local_username,
             "uidNumber": "",
             "gidNumber": gidNumber,
@@ -364,6 +393,14 @@ class LdapConnection:
             self.attr_local_uid: local_username,
             self.attr_oidc_uid: userinfo.unique_id,
         }
+        if userinfo.family_name is not None:
+            attributes["sn"] = userinfo.family_name
+        if userinfo.given_name is not None:
+            attributes["givenName"] = userinfo.given_name
+        if userinfo.full_name is not None:
+            attributes["cn"] = userinfo.full_name
+        if userinfo.email is not None:
+            attributes["mail"] = userinfo.email
         self.ldif_connection.add(dn, object_class=object_class, attributes=attributes)
         return self.ldif_connection.response
 
@@ -378,38 +415,42 @@ class LdapConnection:
                 {self.attr_oidc_uid: [(MODIFY_REPLACE, [userinfo.unique_id])]},
             )
         except Exception as e:
-            msg = f"Failed to modify the LDAP entry for uid {userinfo.unique_id} with local username {local_username}."
+            msg = f"Failed to modify the LDAP entry for uid {userinfo.unique_id} with local username {local_username}"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
     def update_user(self, userinfo, local_username):
         """Update the LDAP entry for given `local_username` with
         all information in `userinfo`.
-        If user doesn't exist, a Failure exception is raised.
+        If user doesn't exist, nothing happens.
         """
         try:
+            changes = {
+                "homeDirectory": [(MODIFY_REPLACE, [f"{self.home_base}/{local_username}"])],
+                "loginShell": [(MODIFY_REPLACE, [self.shell])],
+                self.attr_local_uid: [(MODIFY_REPLACE, [local_username])],
+                self.attr_oidc_uid: [(MODIFY_REPLACE, [userinfo.unique_id])],
+            }
+            if userinfo.family_name is not None:
+                changes["sn"] = [(MODIFY_REPLACE, [userinfo.family_name])]
+            if userinfo.given_name is not None:
+                changes["givenName"] = [(MODIFY_REPLACE, [userinfo.given_name])]
+            if userinfo.full_name is not None:
+                changes["cn"] = [(MODIFY_REPLACE, [userinfo.full_name])]
+            if userinfo.email is not None:
+                changes["mail"] = [(MODIFY_REPLACE, [userinfo.email])]
             return self.connection.modify(
                 f"uid={local_username},{self.user_base}",
-                {
-                    "sn": [(MODIFY_REPLACE, [userinfo.family_name])],
-                    "givenName": [(MODIFY_REPLACE, [userinfo.given_name])],
-                    "cn": [(MODIFY_REPLACE, [userinfo.full_name])],
-                    "mail": [(MODIFY_REPLACE, [userinfo.email])],
-                    "uid": [(MODIFY_REPLACE, [local_username])],
-                    "homeDirectory": [(MODIFY_REPLACE, [f"{self.home_base}/{local_username}"])],
-                    "loginShell": [(MODIFY_REPLACE, [self.shell])],
-                    self.attr_local_uid: [(MODIFY_REPLACE, [local_username])],
-                    self.attr_oidc_uid: [(MODIFY_REPLACE, [userinfo.unique_id])],
-                },
+                changes,
             )
         except Exception as e:
-            msg = f"Failed to modify the LDAP entry for uid {userinfo.unique_id} with local username {local_username}."
+            msg = f"Failed to modify the LDAP entry for uid {userinfo.unique_id} with local username {local_username}"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
     def delete_user(self, local_username):
         """Delete the LDAP entry for given `local_username`.
-        If user doesn't exist, a Failure exception is raised.
+        If user doesn't exist, no failure is raised.
         """
         try:
             return self.connection.delete(f"uid={local_username},{self.user_base}")
@@ -430,7 +471,7 @@ class LdapConnection:
                 },
             )
         except Exception as e:
-            msg = f"Failed to modify the LDAP entry for group {group_name} with local username {local_username}."
+            msg = f"Failed to modify the LDAP entry for group {group_name} with local username {local_username}"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -456,7 +497,7 @@ class LdapConnection:
                 },
             )
         except Exception as e:
-            msg = f"Failed to modify the LDAP entry for group {group_name} with local username {local_username}."
+            msg = f"Failed to modify the LDAP entry for group {group_name} with local username {local_username}"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -511,10 +552,18 @@ class LdapConnection:
         )
         return self.ldif_connection.response
 
+    def get_all_group_info(self, name):
+        """Return all group info for a given name."""
+        search_result = self.search_group_by_name(name, attributes=["*"])
+        if not search_result.found():
+            raise Failure(message=f"Group with name {name} not found.")
+        return search_result.get_attributes()
+
     @staticmethod
     def load():
+        """Load config from a file."""
+        logger.debug("................... Initialising LDAP connection...")
         ldap = LdapConnection()
-        # init uidNext and gidNext entries in LDAP
         ldap.init_nextuidgid()
         return ldap
 
@@ -553,7 +602,7 @@ class User:
         If this returns True,  calling `create` should have no effect or raise an error.
         """
         logger.info(f"Check if user exists: {self.unique_id}")
-        return LDAP.search_user_by_oidc_uid(self.unique_id).found()
+        return LDAP.search_user_by_oidc_uid(self.unique_id, attributes=[]).found()
 
     def name_taken(self, name):
         """Return whether the username is already taken by another user on the service,
@@ -561,7 +610,7 @@ class User:
 
         In 'pre_created' mode, taken means that the username has been mapped to another oidc uid.
         """
-        search_result = LDAP.search_user_by_local_username(name)
+        search_result = LDAP.search_user_by_local_username(name, get_unique_id=True)
         if search_result.found():  # there is an entry for name in LDAP
             oidc_uid = search_result.get_attribute(
                 LDAP.attr_oidc_uid
@@ -574,7 +623,7 @@ class User:
 
     def get_username(self):
         """Check if a user exists based on unique_id and return the name"""
-        return LDAP.search_user_by_oidc_uid(self.unique_id).get_attribute(LDAP.attr_local_uid)
+        return LDAP.search_user_by_oidc_uid(self.unique_id, attributes=[LDAP.attr_local_uid]).get_attribute(LDAP.attr_local_uid)
 
     def set_username(self, username):
         """Set local username on the service."""
@@ -582,7 +631,7 @@ class User:
 
     def get_primary_group(self):
         """Check if a user exists based on unique_id and return the primary group name."""
-        gid = LDAP.search_user_by_oidc_uid(self.unique_id).get_attribute("gidNumber")
+        gid = LDAP.search_user_by_oidc_uid(self.unique_id, attributes=["gidNumber"]).get_attribute("gidNumber")
         return LDAP.search_group_by_gid(gid).get_attribute("cn")
 
     def get_groups(self):
@@ -591,6 +640,10 @@ class User:
         If the user doesn't exist, return an empty list.
         """
         return LDAP.get_user_groups(self.name)
+
+    def get_ldap_entry(self):
+        """Get all information about the user stored in LDAP."""
+        return LDAP.get_all_user_info(self.unique_id)
 
     def create(self):
         """Create the user on the service.
@@ -607,10 +660,10 @@ class User:
                 message=f"{msg} Please contact an administrator to create an account for you."
             )
         elif LDAP.mode == Mode.PRE_CREATED:
-            if not LDAP.search_user_by_local_username(self.name).found():
+            if not LDAP.search_user_by_local_username(self.name, get_unique_id=False).found():
                 msg = f"Local username {self.name} not found in LDAP for user {self.unique_id}."
                 logger.error(msg)
-                raise Failure(
+                raise Rejection(
                     message=f"{msg} Please contact an administrator to pre-create this account for you."
                 )
             else:
@@ -654,7 +707,7 @@ class User:
         elif LDAP.mode == Mode.PRE_CREATED:
             msg = f"LDAP backend in pre_created mode, entry for local username {self.name} cannot be deleted."
             logger.error(msg)
-            raise Failure(message=msg)
+            raise Rejection(message=msg)
         else:  # Mode.FULL_ACCESS
             LDAP.delete_user(self.name)
 
@@ -783,3 +836,7 @@ class Group:
 
     def create_tostring(self):
         return LDAP.add_group_ldif(self.name)
+
+    def get_ldap_entry(self):
+        """Get all information about the group stored in LDAP."""
+        return LDAP.get_all_group_info(self.name)
