@@ -1,0 +1,9 @@
+{
+    "state_target": "test",
+    "user": {
+        "userinfo": {
+            "sub": "",
+            "iss": ""
+        }
+    }
+}
