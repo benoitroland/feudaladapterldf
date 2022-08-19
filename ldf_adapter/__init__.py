@@ -97,6 +97,10 @@ class User:
             # initialise pending deployment and notification system
             self.pending_deployment = PendingDeployment(userinfo=self.data)
 
+        # apply fixes to group names for unix backend
+        if CONFIG.ldf_adapter.backend == "local_unix" and hasattr(backend.User, "fix_group_names"):
+            for grp in self._all_groups():
+                grp.fix_group_names()
 
     def assurance_verifier(self):
         """Produce a suitably function to check if a user is allowed.

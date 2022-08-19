@@ -422,7 +422,9 @@ class Group(generic.Group):
         if name is None:
             self.name = None
         else:
+            self.original_name = name
             self.name = make_shadow_compatible(name)
+            self.name_v004 = make_shadow_compatible_v044(name)
 
     @staticmethod
     def ROOT():
@@ -482,6 +484,42 @@ class Group(generic.Group):
     @property
     def __group_entry(self):
         return Group.__all_group_entries().get(self.name, {})
+
+
+    @staticmethod
+    def __rename(original_name, old_name, new_name):
+        logger.warning(f"Local group already exists for {original_name} with an old naming convention.")
+        logger.warning(f"Renaming group {old_name} to {new_name}.")
+        try:
+            subprocess.run(["groupmod", "--new-name", new_name, old_name], check=True)
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create group: {msg or '<no output>'}")
+
+    @staticmethod
+    def __fix_duplicates(fix_id, original_name, old_name, new_name):
+        logger.error(f"{fix_id}: Two local groups exist for {original_name}, created with different versions of make_shadow_compatible.")
+        logger.error(f"{fix_id}: Please make sure all files owned by group {old_name} are owned by group {new_name} before removing group {old_name}.")
+
+    def fix_group_names(self):
+        """Apply fix for groups that were created with different make_shadow_compatible versions.
+
+        3 use cases:
+        - group with broken name does not exist: nothing to do
+        - group with broken name exists, but new name does not exist yet: rename broken group
+        - both group names exist: log this for an admin to merge the groups
+        """
+        if self.name is None or self.name_v004 is None:
+            return
+        if self.name == self.name_v004:
+            return
+        all_groups = Group.__all_group_entries()
+        if self.name_v004 in all_groups:
+            if self.name not in all_groups:
+                Group.__rename(self.original_name, self.name_v004, self.name)
+            else:
+                Group.__fix_duplicates("FIX v0.4.4", self.original_name, self.name_v004, self.name)
 
     @staticmethod
     def get_group_by_id(gid):
@@ -611,4 +649,112 @@ def make_shadow_compatible(orig_word) -> str:
     if word != orig_word:
         logger.debug("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
 
+    return word
+
+
+def make_shadow_compatible_v044(orig_word) -> str:
+    """
+    This is the function in feudalAdapter v0.4.4, needed here to rollback the side-effects incurred by it.
+
+    Ensure that orig_word is a valid user/group name for standard shadow utils.
+
+    While this could in theory be achieved by simply substituting all non-allowed chars with a valid
+    one, we try to transliterate sensibly, so that usernames look nicer and to avoid collisions. See
+    inline comments for further details.
+
+    Summary of transliteration process:
+    - german umlauts are replaced with their phonetic equivalents
+    - a few special characters are replaced by sensible equivalents:
+        - ! to i
+        - $ to s
+        - * to x
+        - @ to _at_
+    - unicode characters are decoded to ascii
+    - all other special characters are replaced with _
+    - shortening names longer than 32 chars to 32 as follows:
+        - fragments (substrings separated by _) are shortened starting with the first fragment
+          until the length 32 is reached
+        - a fragment is shortened by removing the necessary amount of characters from the end,
+          and adding .. at the end to denote the shortening took place, e.g. "abcdef" -> "abc.."
+        - the length of any fragment has to be > 3 to be considered for shortening
+        - the first character of a fragment is always kept, ie. the strongest shortening of "abcdef" will be "a.."
+        - names that are still longer than 32 chars after this process will raise a ValueError
+
+    Any change made to the word is logged with level WARNING.
+
+    """
+    if orig_word is None:
+        return None
+        # For some reason "None" still comes in on the docker-compose setup. 
+        # raise Failure(message="Cannot use username 'None' in make_shadow_compatible")
+    # Encode German Umlauts
+    word = orig_word.translate(
+        str.maketrans(
+            {
+                "ä": "ae",
+                "ö": "oe",
+                "ü": "ue",
+                "Ä": "Ae",
+                "Ö": "Oe",
+                "Ü": "Ue",
+                "ß": "ss",
+                "!": "i",
+                "$": "s",
+                "*": "x",
+                "@": "_at_",
+            }
+        )
+    )
+
+    # Unicode -> Ascii
+    word = unidecode(word)
+
+    # Downcase
+    word = word.lower()
+
+    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
+    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
+    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
+    # aber nur *ganz* am Ende ...
+    # word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
+    # since we already replace $ with s, no need to check for $ at the end
+    word = regex.sub(r"[^-0-9_a-z]", "_", word)
+
+    # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
+    if not regex.match(r"^[a-z_]", word):
+        word = "_" + word
+    if regex.match(r"_-", word):
+        word = "_" + word[2:]        
+
+    # usernames and group names can only be 32 characters long.
+    # split names in fragments and loop over them 
+    # to progressively remove the characters in excess.
+    # .. used to indicate where the shortening took place.
+    orig_excess_chars = len(word) - 32
+    excess_chars = len(word) - 32
+    fragments = word.split("_")
+
+    if excess_chars > 0:
+
+            for n in range(len(fragments)):
+                if len(fragments[n]) <= 3: continue
+                if excess_chars == 0: break
+                excess_chars += 2
+
+                for nchar in range (len(fragments[n]) - 1):
+                        fragments[n] = fragments[n][:len(fragments[n]) - 1]
+                        excess_chars -= 1
+                        if excess_chars == 0: break
+
+                fragments[n] = fragments[n] + ".."
+
+    if orig_excess_chars > 0:
+
+        if excess_chars > 0:
+            return None
+        else:
+            if len(fragments) > 1:
+                word = "_".join(fragments)
+            else:
+                word = fragments[0]
     return word

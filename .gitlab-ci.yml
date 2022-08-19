@@ -1,0 +1,44 @@
+stages:
+    - test
+    - build
+    - deploy
+
+python37:
+  image: python:3.7
+  before_script:
+    - pip install tox
+  stage: test
+  script: tox -e py37
+
+python38:
+  image: python:3.8
+  before_script:
+    - pip install tox
+  stage: test
+  script: tox -e py38
+
+python39:
+  image: python:3.9
+  before_script:
+    - pip install tox
+  stage: test
+  script: tox -e py39
+
+python310:
+  image: python:3.10
+  before_script:
+    - pip install tox
+  stage: test
+  script: tox -e py310
+
+coverage:
+  image: python:3.9
+  before_script:
+    - pip install tox
+  stage: test
+  script: tox -e report
+  coverage: '/TOTAL.+ ([0-9]{1,3}%)/'
+  artifacts:
+    paths:
+      - htmlcov
+    expire_in: 1 day

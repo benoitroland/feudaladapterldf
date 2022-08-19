@@ -294,7 +294,6 @@ def test_group_exist(local_unix_group, exists):
     assert local_unix_group.exists() == exists
 
 
-
 INPUT_SHADOW_COMPATIBLE = [
     ("user", "user"),
     ("", "_"),
@@ -314,6 +313,40 @@ INPUT_SHADOW_COMPATIBLE = [
     # ("_________________________________", "_.._____________________________"), # ??
 ]
 
+INPUT_SHADOW_COMPATIBLE_FAIL = [
+    "_________________________________",  # all _ => no fragments can be shortened
+]
+
+INPUT_SHADOW_COMPATIBLE_V044 = [
+    ("user", "user"),  # valid name
+    ("", "_"),  # empty name
+    ("äöüÄÖÜß!$*@", "aeoeueaeoeuessisx_at_"),  # umlauts and few other special characters can be replaced
+    ("#%^&()=+[]{}\\|;:'\",<.>/?", "________________________"),  # all other special chars replaced with _, when first char is special
+    ("u#%^&()=+[]{}\\|;:'\",<.>/?", "u________________________"),  # all other special chars replaced with _, when first char is a letter
+    (u"\u5317\u4EB0", "bei_jing_"),  # unicode
+    (u"\u20AC", "eur"),  # unicode
+    ("user$", "users"),  # $ replaced with s even ar the end (although valid shadow name)
+    ("-user", "_user"),  # - as first character replaced with _
+    ("-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),  # - as first character replaced with _
+    # from here on, length > 32 needs to be shortened to 32; fragments are defined as substrings separated by _
+    ("helmholtz-de_KIT_Helmholtz-member", "helmholtz.._kit_helmholtz-member"),  # real world example: all lowercase, first fragment shortened from the end (denoted by ..)
+    ("-abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_abcdefaaaaaaaaaaaaaaaaaaaaaaa.."),  # - as first character replaced with _, one fragment, shortened from the end
+    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "abcdefaaaaaaaaaaaaaaaaaaaaaaaa.."),  # one fragment
+    ("abcdefghij_abcdefghij_abcdefghij_abcdefghijk", "a.._abc.._abcdefghij_abcdefghijk"),  # multiple fragments, two fragments need to be shortened, start with the first fragment; first character is always kept from a fragment
+    ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa_bbbbbbbbbb", "abcdefaaaaaaaaaaaaa.._bbbbbbbbbb"),  # multiple fragments, shortening first fragment is sufficient
+    ("abcdefghijkl_b_cc__abcdefghijklmnop_eeeeeeee", "a.._b_cc__abcdefghijk.._eeeeeeee"),  # fragments with length 0, 1, 2 are not shortened
+    ("a_ab_abc_abcde_abcde_abcdefghi_abcdefghijklm", "a_ab_abc_a.._a.._a.._abcdefghi.."),  # fragments with length 1, 2, 3 are not shortened
+    ("aaaaaaaaaa_bbbb_cccc_ddddddddddddddddddddddd", "a.._b.._c.._dddddddddddddddddd.."),  # all fragments are shortened
+    ("abcdefabcdefabcdefabcdefabcdefabcdefabcdef_aaaaaaa", "abcdefabcdefabcdefabcd.._aaaaaaa"),  # only first fragment is shortened
+    ("abcdefabcdef_a_ab_cd_ef_abc_abcd_abcdef_abcdefghij", "a.._a_ab_cd_ef_abc_a.._a.._abc..")  # fragments with length 1, 2, 3 are not shortened
+]
+
+INPUT_SHADOW_COMPATIBLE_FAIL_V044 = [
+    "_________________________________",  # all _ => no fragments can be shortened
+    "a_b_c_d_e_f_g_h_i_j_k_l_m_n_o_p_q",  # all fragments of length 1, cannot be shortened
+    "aa_bb_cc_dd_ee_ff_gg_hh_ii_jj_kk_",  # all fragments of length 2, cannot be shortened
+    "aaa_bbb_ccc_ddd_eee_fff_ggg_hhh_iii",  # all fragments of length 3, cannot be shortened
+]
 
 @pytest.mark.parametrize('raw', [x[0] for x in INPUT_SHADOW_COMPATIBLE])
 def test_make_shadow_compatible_length(raw):
@@ -342,6 +375,20 @@ def test_make_shadow_compatible(raw, cooked):
         - @ to _at_
     - unicode characters are decoded to ascii
     - all other special characters are replaced with _
-    - what about shortening? TODO: define expected behaviour
+    - shortening names longer than 32 chars to 32 as follows:
+        - fragments (substrings separated by _) are shortened starting with the first fragment
+          until the length 32 is reached
+        - a fragment is shortened by removing the necessary amount of characters from the end,
+          and adding .. at the end to denote the shortening took place, e.g. "abcdef" -> "abc.."
+        - the length of any fragment has to be > 3 to be considered for shortening
+        - the first character of a fragment is always kept, ie. the strongest shortening of "abcdef" will be "a.."
     """
     assert ldf_adapter.backend.local_unix.make_shadow_compatible(raw) == cooked
+
+@pytest.mark.parametrize("raw", INPUT_SHADOW_COMPATIBLE_FAIL)
+def test_make_shadow_compatible_fail(raw):
+    """expected behaviour: raise ValueError
+    - some names might have too many fragments and cannot be shortened
+    """
+    with pytest.raises(ValueError):
+        ldf_adapter.backend.local_unix.make_shadow_compatible(raw)
