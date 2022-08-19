@@ -354,7 +354,7 @@ class ConfigVerboseInfoPlugin(ConfigSection):
 
 # Add more config sections here by inheriting from ConfigSection and providing a __section__name__
 # method that returns the section name.
-# Then add the section to either one of the ConfigListOfSectionss below (if it is a subsection, e.g.
+# Then add the section to either one of the ConfigListOfSections below (if it is a subsection, e.g.
 # [backend.<new backend name>]), or directly to the root Configuration class below.
 
 

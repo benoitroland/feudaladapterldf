@@ -142,6 +142,51 @@ To add a new backend:
   ```
 
 
+# Approval workflow
+
+The `feudalAdapter` also supports a so-called *approval workflow*, which allows site admins to oversee all deployment requests from users, and accept or reject them manually. This workflow uses additional user states (`pending`, `rejected`), as well as a local database for storing deployment requests.
+
+How it works:
+- on a request to reach the `deployed` state, a local user (+ its groups) is "reserved" by storing this deployment request in the local database
+- the response to this request is a "pending" user
+- the site admin is notified of this request (currently supported notification systems: `email`)
+  - for local_unix backend, notification contains all necessary `useradd`, `usermod` commands
+  - for ldap backend, notification contains LDIF representation
+- the site admin can then accept or reject this request by manually adding the user or, if supported, using "accepted"/"rejected" as state_target
+- users are not notified of acceptance/rejection
+- subsequent deployment requests for existing users check if there have been changes to the userinfo (e.g. group memberships) and notify the admin only when updates are necessary.
+
+
+## Configuration
+
+Enable and configure the approval in the config file:
+```
+[approval]
+enabled = True
+
+### user db location -- default: /var/lib/feudal/pending_users.db
+# currently, only sqlite is used as db for pending requests.
+# user_db_location = /var/lib/feudal/pending_users.db
+
+### notifier -- default: email
+# how to notify admins of incoming deployment requests; supported: email
+# to test that the configuration works, try `feudal-adapter --test`
+notifier = email
+```
+
+The `email` notifier will need to be configured, as it will not work out of the box. You'll need an SMTP server for sending emails. If your organisation does not provide one, you can use `gmail` (requires you to create and provide an app password).
+
+A few more configs:
+- `sent_from`: the address that the emails will be sent from
+- `admin_email`: the email of the site admin that will approve the requests
+- `templates_dir`: the folder where the email templates are located. Please make sure that the folder exists and contains all the files from [templates](templates). When installing `feudalAdapter` via pip, this folder is installed at `etc/feudal/templates`, relative to your python path. You are free to modify the content of the files.
+
+To test that your email notification system works, run:
+```
+feudal-adapter --test
+```
+
+
 # Unit Tests
 There are unit tests, located under [tests](tests) (The package structure in `tests` corresponds to
 that of the main package). To run the tests, just do:
