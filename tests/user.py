@@ -61,6 +61,7 @@ class MockDB:
 
 MOCK_DB = MockDB()
 
+
 class MockBackendUser:
     """Mock user for the backend"""
 
@@ -239,24 +240,33 @@ def test_deploy_fails_no_primary_group(user):
     with pytest.raises(SystemExit):
         user.deploy()
 
-@pytest.mark.parametrize("data,username", [
-    (settings.INPUT_UNITY, "marhar"),
-    (settings.INPUT_DEEP_IAM, "marhar"),
-    (settings.INPUT_INDIGO_IAM, "marhar"),
-    (settings.INPUT_KIT, "lo0018")
-])
+
+@pytest.mark.parametrize(
+    "data,username",
+    [
+        (settings.INPUT_UNITY, "marhar"),
+        (settings.INPUT_DEEP_IAM, "marhar"),
+        (settings.INPUT_INDIGO_IAM, "marhar"),
+        (settings.INPUT_KIT, "lo0018"),
+    ],
+)
 def test_deploy_name_taken(user, username, monkeypatch):
-    monkeypatch.setattr(MockBackendUser, "name_taken", lambda x, n: True if n == "marcus" else False)
+    monkeypatch.setattr(
+        MockBackendUser, "name_taken", lambda x, n: True if n == "marcus" else False
+    )
     assert user.deploy().attributes["state"] == "deployed"
     assert user.get_status().attributes == {"state": "deployed", "message": f"username {username}"}
 
 
-@pytest.mark.parametrize("data,username", [
-    (settings.INPUT_UNITY, "marcus"),
-    (settings.INPUT_DEEP_IAM, "marcus"),
-    (settings.INPUT_INDIGO_IAM, "marcus"),
-    (settings.INPUT_KIT, "lo0018")
-])
+@pytest.mark.parametrize(
+    "data,username",
+    [
+        (settings.INPUT_UNITY, "marcus"),
+        (settings.INPUT_DEEP_IAM, "marcus"),
+        (settings.INPUT_INDIGO_IAM, "marcus"),
+        (settings.INPUT_KIT, "lo0018"),
+    ],
+)
 def test_deploy(user, username):
     result = user.deploy()
     assert result.attributes["state"] == "deployed"
@@ -268,20 +278,30 @@ def test_deploy(user, username):
 # test deploy groups
 # test deploy group changes
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_suspend(user):
     user.deploy()
     assert user.suspend().attributes["state"] == "suspended"
     assert user.get_status().attributes["state"] == "suspended"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_suspend_not_deployed(user):
     assert user.suspend().attributes["state"] == "not_deployed"
     assert user.get_status().attributes["state"] == "not_deployed"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_resume_after_suspend(user):
     user.deploy()
     user.suspend()
@@ -289,20 +309,31 @@ def test_resume_after_suspend(user):
     assert user.get_status().attributes["state"] == "deployed"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_resume_not_suspended(user):
     user.deploy()
     assert user.resume().attributes["state"] == "deployed"
     assert user.get_status().attributes["state"] == "deployed"
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_suspend_after_limit(user):
     user.deploy()
     user.limit()
     assert user.suspend().attributes["state"] == "suspended"
     assert user.get_status().attributes["state"] == "suspended"
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_resume_after_limit(user):
     user.deploy()
     user.limit()
@@ -310,20 +341,29 @@ def test_resume_after_limit(user):
     assert user.get_status().attributes["state"] == "limited"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_limit(user):
     user.deploy()
     assert user.limit().attributes["state"] == "limited"
     assert user.get_status().attributes["state"] == "limited"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_limit_not_deployed(user):
     assert user.limit().attributes["state"] == "not_deployed"
     assert user.get_status().attributes["state"] == "not_deployed"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_unlimit(user):
     user.deploy()
     user.limit()
@@ -331,14 +371,20 @@ def test_unlimit(user):
     assert user.get_status().attributes["state"] == "deployed"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_unlimit_not_limited(user):
     user.deploy()
     assert user.unlimit().attributes["state"] == "deployed"
     assert user.get_status().attributes["state"] == "deployed"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_limit_after_suspend(user):
     user.deploy()
     user.suspend()
@@ -346,7 +392,10 @@ def test_limit_after_suspend(user):
     assert user.get_status().attributes["state"] == "suspended"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_unlimit_after_limit_and_suspend(user):
     user.deploy()
     user.suspend()
@@ -354,7 +403,11 @@ def test_unlimit_after_limit_and_suspend(user):
     assert user.unlimit().attributes["state"] == "suspended"
     assert user.get_status().attributes["state"] == "suspended"
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_undeploy_doesnt_exist(user):
     result = user.undeploy()
     assert result.attributes["state"] == "not_deployed"
@@ -362,7 +415,10 @@ def test_undeploy_doesnt_exist(user):
     assert user.get_status().attributes["state"] == "not_deployed"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_undeploy(user):
     user.deploy()
     result = user.undeploy()
@@ -371,7 +427,10 @@ def test_undeploy(user):
     assert user.get_status().attributes["state"] == "not_deployed"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_undeploy_after_suspend(user):
     user.deploy()
     user.suspend()
@@ -379,7 +438,10 @@ def test_undeploy_after_suspend(user):
     assert user.get_status().attributes["state"] == "not_deployed"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_undeploy_after_limit(user):
     user.deploy()
     user.limit()
@@ -387,7 +449,10 @@ def test_undeploy_after_limit(user):
     assert user.get_status().attributes["state"] == "not_deployed"
 
 
-@pytest.mark.parametrize("data", [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT])
+@pytest.mark.parametrize(
+    "data",
+    [settings.INPUT_UNITY, settings.INPUT_DEEP_IAM, settings.INPUT_INDIGO_IAM, settings.INPUT_KIT],
+)
 def test_deploy_exists(user):
     user.deploy()
     result = user.deploy()

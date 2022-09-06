@@ -51,7 +51,9 @@ MOCK_MEMBERSHIPS_UPDATED = PendingMemberships(
 def pending_db(db_type):
     databases._builders = {}
     if db_type == "sqlite":
-        with mock.patch("ldf_adapter.approval.db.sqlite.CONFIG.approval.user_db_location", ":memory:"):
+        with mock.patch(
+            "ldf_adapter.approval.db.sqlite.CONFIG.approval.user_db_location", ":memory:"
+        ):
             yield databases.get(db_type)
     else:
         yield databases.get(db_type)
