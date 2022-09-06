@@ -4,6 +4,18 @@
 # pylint: disable=missing-docstring, too-few-public-methods
 """Results for feudalClient"""
 
+import sys
+
+
+class FatalError(Exception):
+    """Raised when a fatal error occurs."""
+
+    exit_code: int = 42
+
+    def __init__(self, message: str) -> None:
+        print(f"\nERROR: {message}\n")
+        sys.exit(FatalError.exit_code)
+
 
 class Result:
     """A Result returned by the adapter to the feudalClient.

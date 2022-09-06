@@ -2,9 +2,125 @@ import pytest
 import regex
 import random
 from pathlib import Path
+import subprocess
+import os
+import logging
 
-from ldf_adapter.backend.local_unix import make_shadow_compatible
+import ldf_adapter.backend.local_unix
 from ldf_adapter.results import Failure
+from conftest import MockUserInfo
+
+logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(scope="function")
+def local_unix_user(input, exists, taken, monkeypatch):
+    """Creates a backend user from provided dict data.
+    input should contain:
+        - userinfo, which should contain: unique_id, username, primary_group and ssh_keys.
+        - new_root: the folder relative to which the user and group dbs will be stored
+        - home_base (optional): the base directory for users' home directories
+    If exists, it also adds an entry to the user database in /etc/passwd
+    Otherwise, if taken, it adds an entry in the user db for this user's username
+    """
+    # save original subprocess.run for calling inside the mocked one
+    old_subprocess_run = subprocess.run
+
+    def mock_root():
+        return input["new_root"]
+
+    def mock_subprocess_run(*args, **kwargs):
+        """patches calls to system utilities:
+        - only for: useradd, userdel, usermod, chage
+        - add prefix argument to command
+        - patch pkill to do nothing
+        - lett all other system calls go through
+        """
+        logger.debug(args)
+        command = args[0]
+        if command[0] in ["useradd", "userdel", "usermod", "chage"]:
+            new_command = [command[0], "--prefix", mock_root()] + command[1:]
+        elif command[0] == "/usr/bin/pkill":
+            return None
+        else:
+            new_command = command
+        return old_subprocess_run(new_command, *args[1:], **kwargs)
+
+    with monkeypatch.context() as mp:
+        # patch root used by local_unix.User and subprocess.run to use this root for creating users
+        mp.setattr("subprocess.run", mock_subprocess_run)
+        mp.setattr("ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.shell", "/bin/bash")
+        mp.setattr("ldf_adapter.backend.local_unix.User.ROOT", mock_root)
+        mp.setattr("ldf_adapter.backend.local_unix.Group.ROOT", mock_root)
+        if input.get("home_base"):
+            mp.setattr("ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.home_base", input["home_base"].rstrip("/"))
+        # init root and necessary files in new root directory (/etc/{passwd,group,shadow})
+        os.makedirs(mock_root())
+        os.makedirs(Path(mock_root()) / "etc")
+        (Path(mock_root()) / "etc" / "passwd").touch()
+        (Path(mock_root()) / "etc" / "group").touch()
+        (Path(mock_root()) / "etc" / "shadow").touch()
+        if exists:
+            (Path(mock_root()) / "etc" / "passwd").write_text(input["passwd_entry"])
+        elif taken:
+            (Path(mock_root()) / "etc" / "passwd").write_text(input["passwd_taken"])
+        (Path(mock_root()) / "etc" / "group").write_text(input["group_entry"])
+        # init service user from unix backend
+        service_user = ldf_adapter.backend.local_unix.User(MockUserInfo(input["userinfo"]))
+        yield service_user
+        # clean up files
+        old_subprocess_run(["rm", "-rf", mock_root()])
+
+
+@pytest.fixture(scope="function")
+def local_unix_group(input, exists, monkeypatch):
+    """Creates a backend user from provided dict data.
+    input should contain:
+        - name: the group name (no constraints on allowed names)
+        - new_root: the folder relative to which the user and group dbs will be stored
+    If exists=True, also adds an entry to the group database in /etc/group
+    """
+    # save original subprocess.run for calling inside the mocked one
+    old_subprocess_run = subprocess.run
+
+    def mock_root():
+        return input["new_root"]
+
+    def mock_subprocess_run(*args, **kwargs):
+        """patches calls to system utilities:
+        - only for: groupadd
+        - add prefix argument to command
+        - lett all other system calls go through
+        """
+        logger.debug(args)
+        command = args[0]
+        if command[0] in ["groupadd"]:
+            new_command = [command[0], "--prefix", mock_root()] + command[1:]
+        else:
+            new_command = command
+        return old_subprocess_run(new_command, *args[1:], **kwargs)
+
+    with monkeypatch.context() as mp:
+        # patch root used by local_unix.Group and subprocess.run to use this root for creating groups
+        mp.setattr("subprocess.run", mock_subprocess_run)
+        mp.setattr("ldf_adapter.backend.local_unix.Group.ROOT", mock_root)
+        if input.get("home_base"):
+            mp.setattr("ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.home_base", input["home_base"].rstrip("/"))
+        # init root and necessary files in new root directory (/etc/{passwd,group,shadow})
+        os.makedirs(mock_root())
+        os.makedirs(Path(mock_root()) / "etc")
+        (Path(mock_root()) / "etc" / "group").touch()
+
+        if exists:
+            (Path(mock_root()) / "etc" / "group").write_text(input["group_entry"])
+
+        # init service user from unix backend
+        service_group = ldf_adapter.backend.local_unix.Group(input["name"])
+
+        yield service_group
+
+        # clean up files
+        old_subprocess_run(["rm", "-rf", mock_root()])
 
 
 INPUT_UNIX = {
@@ -236,7 +352,7 @@ INPUT_SHADOW_COMPATIBLE_FAIL_V044 = [
 def test_make_shadow_compatible_length(raw):
     """a shadow-compatible name must be at most 32 characters long
     """
-    assert len(make_shadow_compatible(raw)) <= 32
+    assert len(ldf_adapter.backend.local_unix.make_shadow_compatible(raw)) <= 32
 
 
 @pytest.mark.parametrize('raw', [x[0] for x in INPUT_SHADOW_COMPATIBLE])
@@ -244,7 +360,7 @@ def test_make_shadow_compatible_allowed_chars(raw):
     """a shadow-compatible name must start with a lowercase letter or underscore
     and can also contain numbers and - in addition to lowercase letters and _
     """
-    word = make_shadow_compatible(raw)
+    word = ldf_adapter.backend.local_unix.make_shadow_compatible(raw)
     assert regex.match(r'[a-z_]', word[0]) and regex.match(r'[-0-9_a-z]', word)
 
 
@@ -267,7 +383,7 @@ def test_make_shadow_compatible(raw, cooked):
         - the length of any fragment has to be > 3 to be considered for shortening
         - the first character of a fragment is always kept, ie. the strongest shortening of "abcdef" will be "a.."
     """
-    assert make_shadow_compatible(raw) == cooked
+    assert ldf_adapter.backend.local_unix.make_shadow_compatible(raw) == cooked
 
 @pytest.mark.parametrize("raw", INPUT_SHADOW_COMPATIBLE_FAIL)
 def test_make_shadow_compatible_fail(raw):
@@ -275,4 +391,4 @@ def test_make_shadow_compatible_fail(raw):
     - some names might have too many fragments and cannot be shortened
     """
     with pytest.raises(ValueError):
-        make_shadow_compatible(raw)
+        ldf_adapter.backend.local_unix.make_shadow_compatible(raw)

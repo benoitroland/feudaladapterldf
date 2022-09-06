@@ -1,0 +1,33 @@
+{
+    "state_target": "deployed",
+    "user": {
+        "userinfo": {
+            "email": "diana.gudu@kit.edu",
+            "eduperson_assurance": [
+                "https://refeds.org/assurance/IAP/medium",
+                "https://refeds.org/assurance/IAP/local-enterprise",
+                "https://refeds.org/assurance/ID/eppn-unique-no-reassign",
+                "https://refeds.org/assurance/ATP/ePA-1m",
+                "https://refeds.org/assurance/ATP/ePA-1d",
+                "https://refeds.org/assurance/ID/unique",
+                "https://refeds.org/assurance/profile/cappuccino",
+                "https://refeds.org/assurance/IAP/low"
+            ],
+            "email_verified": true,
+            "family_name": "Gudu",
+            "given_name": "Diana",
+            "groups": [
+                "KIT-Cloud",
+                "m-team",
+                "another"
+            ],
+            "iss": "https://iam.deep-hybrid-datacloud.eu/",
+            "name": "Diana Gudu",
+            "organisation_name": "deep-hdc",
+            "preferred_username": "dianagudu",
+            "sub": "84ff0332-c96c-4067-b496-84ee5a9b7558",
+            "updated_at": 1530001588
+        }
+    }
+}
+

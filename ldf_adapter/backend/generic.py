@@ -1,7 +1,8 @@
-"""Simple example backend, for documentation purposes only."""
+"""Generic backend User and Group, to be implemented by all backends."""
+from abc import ABC, abstractmethod
 
 
-class ExampleUser:
+class User(ABC):
     """Manages the user object on the service."""
 
     def __init__(self, userinfo):
@@ -11,6 +12,7 @@ class ExampleUser:
         """
         pass
 
+    @abstractmethod
     def exists(self):
         """Return whether the user exists on the service.
 
@@ -18,6 +20,7 @@ class ExampleUser:
         """
         return bool()
 
+    @abstractmethod
     def name_taken(self, name):
         """Return whether a given username is already taken by another user on the service.
 
@@ -26,6 +29,7 @@ class ExampleUser:
         """
         return bool()
 
+    @abstractmethod
     def create(self):
         """Create the user on the service.
 
@@ -33,6 +37,7 @@ class ExampleUser:
         """
         pass
 
+    @abstractmethod
     def update(self):
         """Update all relevant information about the user on the service.
 
@@ -40,6 +45,7 @@ class ExampleUser:
         """
         pass
 
+    @abstractmethod
     def delete(self):
         """Delete the user on the service.
 
@@ -47,19 +53,29 @@ class ExampleUser:
         """
         pass
 
-    def mod(self, supplementary_groups=None):
+    @abstractmethod
+    def mod(self, supplementary_groups=None, removal_groups=None):
         """Modify the user on the service.
 
-        The state of the user with respect to the provided Arguments after calling this function
-        should not depend on the state the user had previously.
+        The user's membership to groups not provided in the arguments will not change.
 
         If the user doesn't exists, behaviour is undefined.
 
         Arguments:
-        supplemantary_groups -- A list of groups to add the user to (type: list(ExampleGroup))
+        supplementary_groups -- A list of groups to add the user to (type: list(Group))
+        removal_groups -- A list of groups to remove the user from (type: list(Group))
         """
         pass
 
+    @abstractmethod
+    def get_groups(self):
+        """Get a list of names of all service groups that the user belongs to.
+
+        If the user doesn't exist, behaviour is undefined.
+        """
+        pass
+
+    @abstractmethod
     def install_ssh_keys(self):
         """Install users SSH keys on the service.
 
@@ -69,6 +85,7 @@ class ExampleUser:
         """
         pass
 
+    @abstractmethod
     def uninstall_ssh_keys(self):
         """Uninstall the users SSH keys on the service.
 
@@ -79,6 +96,7 @@ class ExampleUser:
         """
         pass
 
+    @abstractmethod
     def get_username(self):
         """Return local username on the service.
 
@@ -86,62 +104,54 @@ class ExampleUser:
         """
         pass
 
+    @abstractmethod
     def set_username(self, username):
         """Set local username on the service."""
         pass
 
-    @property
-    def credentials(self):
-        """Return any additional login information required to access the service after deployment.
-
-        This should not include the installed SSH keys.
-
-        If the user is not fully deployed, behaviour is undefined.
-        """
+    @abstractmethod
+    def get_primary_group(self):
+        """Check if a user exists based on unique_id and return the primary group name."""
         pass
 
-    def is_rejected(self):
-        """Optional, only if the backend supports it.
-        Return whether a pending user deployment request was rejected"""
-        return False
-
+    @abstractmethod
     def is_suspended(self):
         """Optional, only if the backend supports it.
         Return whether the user was suspended (e.g. due to a security incident)"""
         return False
 
-    def is_pending(self):
-        """Optional, only if the backend supports it.
-        Return whether the user deployment request is pending approval"""
-        return False
-
+    @abstractmethod
     def is_limited(self):
         """Optional, only if the backend supports it.
         Return whether the user has limited access"""
         return False
 
+    @abstractmethod
     def suspend(self):
         """Optional, only if the backend supports it.
         Suspends the user such that no access to the service is possible"""
         pass
 
+    @abstractmethod
     def resume(self):
         """Optional, only if the backend supports it.
         Restores the suspended user"""
         pass
 
+    @abstractmethod
     def limit(self):
         """Optional, only if the backend supports it.
         Limits the user's capabilities on the service (e.g. read-only access)"""
         pass
 
+    @abstractmethod
     def unlimit(self):
         """Optional, only if the backend supports it.
         Restores a user with limited access to full capabilities"""
         pass
 
 
-class ExampleGroup:
+class Group(ABC):
     """Manages the group object on the service."""
 
     def __init__(self, name):
@@ -151,10 +161,12 @@ class ExampleGroup:
         """
         pass
 
+    @abstractmethod
     def exists(self):
         """Return whether the group already exists."""
         pass
 
+    @abstractmethod
     def create(self):
         """Create the group on the service.
 

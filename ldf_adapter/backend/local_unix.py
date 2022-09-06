@@ -18,16 +18,14 @@ import logging
 import regex
 from unidecode import unidecode
 
-from ..config import CONFIG
-from ..results import Failure
+from ldf_adapter.config import CONFIG
+from ldf_adapter.results import Failure
+from ldf_adapter.backend import generic
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SHELL = "/bin/sh"
-DEFAULT_HOME_BASE = "/home"
 
-
-class User:
+class User(generic.User):
     def __init__(self, userinfo):
         """
         Arguments:
@@ -42,12 +40,12 @@ class User:
         if self.exists():
             logger.debug(f"This user does actually exist. The name is: {self.get_username()}")
             self.set_username(self.get_username())
+            self.primary_group = Group(self.get_primary_group())
         else:
             self.set_username(userinfo.username)
+            self.primary_group = Group(userinfo.primary_group)
 
         self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
-        self.primary_group = Group(userinfo.primary_group)
-        self.credentials = {}
 
     @staticmethod
     def ROOT():
@@ -62,11 +60,6 @@ class User:
             in [entry["gecos"] for entry in User.__all_passwd_entries("gecos").values()]
         )
 
-    def is_rejected(self):
-        """Optional, only if the backend supports it.
-        Inform the user whether a user was rejected"""
-        return False
-
     def is_suspended(self):
         """Optional, only if the backend supports it.
         Inform the user whether a user was suspended (e.g. due to a security incident)"""
@@ -76,6 +69,7 @@ class User:
                 result = subprocess.run(
                     ["chage"] + options + [self.name],
                     stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     check=True,
                 )
             except CalledProcessError as e:
@@ -99,11 +93,6 @@ class User:
             except Exception as e:
                 logger.error(e)
                 raise Failure(message=f"Could not get: {e or '<no output>'}")
-        return False
-
-    def is_pending(self):
-        """Optional, only if the backend supports it.
-        Inform the user whether his creation is pending"""
         return False
 
     def is_limited(self):
@@ -134,25 +123,32 @@ class User:
         """Set local username on the service."""
         self.name = make_shadow_compatible(username)
 
+    def get_primary_group(self):
+        """Check if a user exists based on unique_id and return the primary group name."""
+        return Group.get_group_by_id(self.__gid)
+
+    def _create_cmd(self):
+        return [
+            "useradd",
+            "--comment",
+            self.unique_id,
+            "-g",
+            self.primary_group.name,
+            "--shell",
+            CONFIG.backend.local_unix.shell,
+            "-b",
+            CONFIG.backend.local_unix.home_base,
+            "-m",
+            self.name,
+        ]
+
     def create(self):
         logger.debug(f"Creating user '{self.name}' for {self.unique_id} ")
         try:
-            shell = CONFIG["backend.local_unix"].get("shell", DEFAULT_SHELL)
-            home_base =  CONFIG["backend.local_unix"].get("home_base", DEFAULT_HOME_BASE).rstrip("/")
             subprocess.run(
-                [
-                    "useradd",
-                    "--comment",
-                    self.unique_id,
-                    "-g",
-                    self.primary_group.name,
-                    "--shell",
-                    shell,
-                    "-b",
-                    home_base,
-                    "-m",
-                    self.name,
-                ],
+                self._create_cmd(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 check=True,
             )
         except CalledProcessError as e:
@@ -160,14 +156,27 @@ class User:
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
 
+    def create_tostring(self):
+        return " ".join(self._create_cmd())
+
+    @staticmethod
+    def create_fromstring(create_cmd):
+        # some sanity checks
+        if not create_cmd.startswith("useradd"):
+            raise Failure(
+                message=f"Cannot create user (command is not applicable to this backend): {create_cmd}"
+            )
+        try:
+            subprocess.run(
+                create_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
+
     def update(self):
-        self.credentials["ssh_user"] = self.name
-        self.credentials["ssh_host"] = CONFIG["backend.local_unix.login_info"].get(
-            "ssh_host", "undefined"
-        )
-        self.credentials["commandline"] = "ssh {}@{}".format(
-            self.credentials["ssh_user"], self.credentials["ssh_host"]
-        )
+        pass
 
     def delete(self):
         if not self.exists():
@@ -176,41 +185,122 @@ class User:
         name = self.__passwd_entry["login"]
 
         try:
-            subprocess.run(["/usr/bin/pkill", "-u", name], check=True)
+            subprocess.run(
+                ["/usr/bin/pkill", "-u", name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         except CalledProcessError:
             pass
         try:
-            subprocess.run(["userdel", name], check=True)
+            subprocess.run(
+                ["userdel", name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot delete user: {msg or '<no output>'}")
 
-    def mod(self, supplementary_groups=None):
-        """Adds user to given groups.
-        param list supplementary_groups: a list of Group objects;
-        the corresponding unix groups are assumed to exist.
+    def _mod_cmd(self, supplementary_groups=None, removal_groups=None):
+        """Create command to modify unix user with given groups.
+
+        The user's current groups are merged with the given additional groups,
+        and the removal_groups are removed from the list, to generate a list of groups
+        that the user should belong to after executing this command.
+        A single `usermod` command is created to add and remove the user from all the given groups.
+
+        Args:
+            supplementary_groups (list[Group], optional): groups to be appended to the user's groups. Defaults to None.
+            removal_groups (list[Group], optional): groups to remove the user from. Defaults to None.
+
+        Returns:
+            list: usermod command to modify unix user
         """
         options = []
+        group_list = self.get_groups()
         if supplementary_groups is not None:
-            logger.debug(
-                "Ensuring user '{}' is member of these groups {}".format(
-                    self.name, [g.name for g in supplementary_groups]
-                )
-            )
-            options += ["--groups", ",".join([g.name for g in supplementary_groups])]
+            for grp in supplementary_groups:
+                group_list.append(grp.name)
+        if removal_groups is not None:
+            removal_group_names = [grp.name for grp in removal_groups]
+            group_list = [grp for grp in group_list if grp not in removal_group_names]
 
+        # make sure the groups are unique -- this should not be necessary.
+        group_list = list(set(group_list))
+
+        if group_list != []:
+            options += ["--groups", ",".join(group_list)]
+
+        return ["usermod"] + options + [self.name]
+
+    def mod(self, supplementary_groups=None, removal_groups=None):
+        """Adds user to given groups and remove user from given groups.
+
+        param list supplementary_groups: a list of Group objects;
+        param list removal_groups: a list of Group objects;
+        the corresponding unix groups are assumed to exist.
+        """
         try:
-            subprocess.run(["usermod"] + options + [self.name], check=True)
+            subprocess.run(
+                self._mod_cmd(
+                    supplementary_groups=supplementary_groups, removal_groups=removal_groups
+                ),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
 
+    def mod_tostring(self, supplementary_groups=None, removal_groups=None):
+        return " ".join(
+            self._mod_cmd(supplementary_groups=supplementary_groups, removal_groups=removal_groups)
+        )
+
+    @staticmethod
+    def mod_fromstring(mod_cmd):
+        # some sanity checks
+        if not mod_cmd.startswith("usermod"):
+            raise Failure(
+                message=f"Cannot modify user (command is not applicable to this backend): {mod_cmd}"
+            )
+        try:
+            subprocess.run(
+                mod_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
+
+    def get_groups(self):
+        """Get a list of names of all service groups that the user belongs to.
+
+        If the user doesn't exist, return an empty list.
+        """
+        try:
+            result = subprocess.run(
+                ["id", "-Gn", self.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
+            return result.stdout.decode("utf-8").strip().split()
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.warning("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.info("Returning empty group list for user %s", self.name)
+            return []
+
     def __expire(self, expiration_date=datetime.today().strftime("%Y-%m-%d")):
         options = ["-E", expiration_date]
         try:
-            subprocess.run(["chage"] + options + [self.name], check=True)
+            subprocess.run(
+                ["chage"] + options + [self.name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
@@ -224,23 +314,27 @@ class User:
 
     def __set_shell(self, shell):
         try:
-            subprocess.run(["usermod", "-s", shell, self.name], check=True)
+            subprocess.run(
+                ["usermod", "-s", shell, self.name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
 
     def limit(self):
-        self.__set_shell("/sbin/nologin")
+        self.__set_shell("/sbin/nologin")  # or /usr/sbin/nologin ?
 
     def unlimit(self):
-        shell = CONFIG["backend.local_unix"].get("shell", DEFAULT_SHELL)
-        self.__set_shell(shell)
+        self.__set_shell(CONFIG.backend.local_unix.shell)
 
     def install_ssh_keys(self):
         try:
             if len(self.ssh_keys) > 0:
-                if CONFIG["backend.local_unix"].getboolean("deploy_user_ssh_keys", True):
+                if CONFIG.backend.local_unix.deploy_user_ssh_keys:
                     logger.debug(f"Deploying these ssh keys: {self.ssh_keys}")
                     self.__authorized_keys.parent.mkdir(parents=True, exist_ok=True)
                     self.__authorized_keys.parent.chmod(0o700)
@@ -289,6 +383,13 @@ class User:
 
     @staticmethod
     def __all_passwd_entries(ID_FIELD="gecos") -> dict:
+        """Get all passwd entries using ID_FIELD to index entries.
+
+        Args:
+            ID_FIELD (str, optional): any of the fields defined in PASSWD_FIELDS. Defaults to "name".
+        Returns:
+            dict: all passwd entries indexed by ID_FIELD, where each entry is represented as a dict with fields PASSWD_FIELDS.
+        """
         PASSWD_PATH = Path(User.ROOT()) / "etc" / "passwd"
         PASSWD_FIELDS = ["login", "pw", "uid", "gid", "gecos", "home", "shell"]
 
@@ -315,9 +416,9 @@ class User:
             return {user[ID_FIELD]: user for user in users}
 
 
-class Group:
+class Group(generic.Group):
     def __init__(self, name):
-        logger.debug(F"my own group name: {name}")
+        logger.debug(f"my own group name: {name}")
         if name is None:
             self.name = None
         else:
@@ -334,13 +435,37 @@ class Group:
     def exists(self):
         return bool(self.__group_entry)
 
+    def _create_cmd(self):
+        return ["groupadd", self.name]
+
     def create(self):
         try:
-            subprocess.run(["groupadd", self.name], check=True)
+            subprocess.run(
+                self._create_cmd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot create group: {msg or '<no output>'}")
+
+    def create_tostring(self):
+        return " ".join(self._create_cmd())
+
+    @staticmethod
+    def create_fromstring(create_cmd):
+        # some sanity checks
+        if not create_cmd.startswith("groupadd"):
+            raise Failure(
+                message=f"Cannot create group (command is not applicable to this backend): {create_cmd}"
+            )
+        try:
+            subprocess.run(
+                create_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
+        except CalledProcessError as e:
+            msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
+            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            raise Failure(message=f"Cannot create group ({msg or '<no output>'})")
 
     def delete(self):
         # groupdel
@@ -397,10 +522,24 @@ class Group:
                 Group.__fix_duplicates("FIX v0.4.4", self.original_name, self.name_v004, self.name)
 
     @staticmethod
-    def __all_group_entries():
+    def get_group_by_id(gid):
+        """Gets the group name for a given GID."""
+        try:
+            return Group.__all_group_entries(ID_FIELD="gid")[str(gid)]["name"]
+        except KeyError:
+            return None
+
+    @staticmethod
+    def __all_group_entries(ID_FIELD="name"):
+        """Get all group entries using ID_FIELD to index entries.
+
+        Args:
+            ID_FIELD (str, optional): any of the fields defined in GROUP_FIELDS. Defaults to "name".
+        Returns:
+            dict: all group entries indexed by ID_FIELD, where each entry is represented as a dict with fields GROUP_FIELDS.
+        """
         GROUP_PATH = Path(Group.ROOT()) / "etc" / "group"
         GROUP_FIELDS = ["name", "password", "gid", "members"]
-        ID_FIELD = "name"
         LIST_FIELD = "members"
 
         try:
@@ -415,12 +554,12 @@ class Group:
             # for empty file return empty dict
             if raw.strip() == "":
                 return {}
-            users = [dict(zip(GROUP_FIELDS, line.split(":"))) for line in raw.strip().split("\n")]
+            groups = [dict(zip(GROUP_FIELDS, line.split(":"))) for line in raw.strip().split("\n")]
 
-            for user in users:
-                user[LIST_FIELD] = user[LIST_FIELD].split(",")  # type: ignore
+            for group in groups:
+                group[LIST_FIELD] = group[LIST_FIELD].split(",")  # type: ignore
 
-            return {user[ID_FIELD]: user for user in users}
+            return {group[ID_FIELD]: group for group in groups}
 
 
 def make_shadow_compatible(orig_word) -> str:

@@ -17,13 +17,13 @@ class Entitlement:
     # (because of repeated captures, see https://bugs.python.org/issue7132)
     re = regex.compile(
         r"urn:"
-        + r"(?P<nid>[^:]+):(?P<delegated_namespace>[^:]+)"
-        + r"(:(?P<subnamespace>[^:]+))*?"  # Namespace-ID and delegated URN namespace
-        + r":group:"  # Sub-namespaces
-        + r"(?P<group>[^:]+)"
-        + r"(:(?P<subgroup>[^:]+))*?"  # Root group
-        + r"(:role=(?P<role>.+))?"  # Sub-groups
-        + r"#(?P<group_authority>.+)"  # Role of the user in the deepest group  # Authoritative soruce of the entitlement (URN)
+        + r"(?P<nid>[^:]+):(?P<delegated_namespace>[^:]+)"  # Namespace-ID and delegated URN namespace
+        + r"(:(?P<subnamespace>[^:]+))*?"  # Sub-namespaces
+        + r":group:"
+        + r"(?P<group>[^:]+)"  # Root group
+        + r"(:(?P<subgroup>[^:]+))*?"  # Sub-groups
+        + r"(:role=(?P<role>.+))?"  # Role of the user in the deepest group
+        + r"#(?P<group_authority>.+)"  # Authoritative soruce of the entitlement (URN)
     )
 
     def __init__(self, raw):

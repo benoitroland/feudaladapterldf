@@ -9,10 +9,9 @@ from unidecode import unidecode
 import logging
 import regex
 
-from . import logsetup
-from . import eduperson
-from .config import CONFIG
-from .results import raise_question
+from ldf_adapter import eduperson
+from ldf_adapter.config import CONFIG
+from ldf_adapter.results import raise_question
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,15 @@ class UserInfo(Mapping):
         self.userinfo = data["user"]["userinfo"]
         self.answers = data.get("answers", {})
         self.credentials = data["user"].get("credentials", {})
-        self.allow_question = CONFIG.getboolean("ldf_adapter", "interactive", fallback=False)
+        self.allow_question = CONFIG.ldf_adapter.interactive
+
+    @property
+    def sub(self):
+        return self.userinfo["sub"]
+
+    @property
+    def iss(self):
+        return self.userinfo["iss"]
 
     @property
     @lru_cache(maxsize=None)
@@ -128,7 +135,7 @@ class UserInfo(Mapping):
         # We don't consider stripping the http[s]-prefix a change, since we always do that anyway,
         # and there shouldn't be two different issuers `http://example.org' and `https://example.org'.
         if iss != stripped_iss:
-            if CONFIG.getboolean("messages", "log_name_changes", fallback=True):
+            if CONFIG.messages.log_name_changes:
                 logger.warning(
                     "Issuer '{}' changed to '{}' for general compatibilty".format(stripped_iss, iss)
                 )
@@ -246,7 +253,7 @@ class UserInfo(Mapping):
 
         Group names are prefixed with the delegated namespace from the entitlement.
         """
-        if CONFIG.getboolean("username_generator", "strip_sub_groups", fallback=False):
+        if CONFIG.username_generator.strip_sub_groups:
             logger.debug("Stripping all subgroups")
             return set(
                 filter(
@@ -320,7 +327,7 @@ class UserInfo(Mapping):
         grp = regex.sub("^9", "nine_", grp)
 
         if grp != orig_grp:
-            if CONFIG.getboolean("messages", "log_name_changes", fallback=True):
+            if CONFIG.messages.log_name_changes:
                 logger.warning(
                     "Group name '{}' changed to '{}' for general compatibilty".format(orig_grp, grp)
                 )
@@ -336,7 +343,7 @@ class UserInfo(Mapping):
     @property
     @lru_cache(maxsize=None)
     def primary_group(self):
-        config_group = CONFIG["ldf_adapter"].get("primary_group")
+        config_group = CONFIG.ldf_adapter.primary_group
         logger.debug(f"Using configured primary group: {config_group}")
         if config_group:
             return config_group
@@ -354,7 +361,7 @@ class UserInfo(Mapping):
                     list(self.groups),
                 )
             else:  # make something up, regarding the primary group:
-                if CONFIG.getboolean("messages", "log_primary_group_definition", fallback=True):
+                if CONFIG.messages.log_primary_group_definition:
                     logger.warning(
                         "/----- No primary group issue --------------------------------------------\\"
                     )
@@ -380,7 +387,7 @@ class UserInfo(Mapping):
                 return old_answer
 
             else:  # still no group found.
-                fallback_group = CONFIG["ldf_adapter"].get("fallback_group", None)
+                fallback_group = CONFIG.ldf_adapter.fallback_group
                 if fallback_group:
                     return fallback_group
                 else:
@@ -423,7 +430,7 @@ class UserInfo(Mapping):
         return (k for k in dir(UserInfo) if type(getattr(UserInfo, k)) is property)
 
     def __len__(self):
-        sum(1 for _ in filter(lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo)))
+        return sum(1 for _ in filter(lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo)))
 
     def __hash__(self):
         return id(self)  # Good enough for lru_cache

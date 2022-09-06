@@ -5,28 +5,24 @@ name = "ldf_adapter"
 # pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
 
 import logging
-import sys
 from feudal_globalconfig import globalconfig
 
 import regex
 
-# from unidecode import unidecode
-
-from . import logsetup
-
-# from . import eduperson
-
-from . import backend
-from .config import CONFIG
-from .results import (
+from ldf_adapter import backend
+from ldf_adapter.config import CONFIG
+from ldf_adapter.results import (
     Deployed,
+    Failure,
     NotDeployed,
     Rejection,
     Question,
     Status,
+    FatalError,
 )
-from .name_generators import NameGenerator
-from .userinfo import UserInfo
+from ldf_adapter.name_generators import NameGenerator
+from ldf_adapter.userinfo import UserInfo
+from ldf_adapter.approval import PendingDeployment
 
 logger = logging.getLogger(__name__)
 
@@ -58,21 +54,15 @@ class User:
         Instead: Use self.data
         """
         # Info Display Hack
-        if CONFIG.getboolean("verbose-info-plugin", "active", fallback=False) is True:
+        if CONFIG.verbose_info_plugin.active:
             try:
                 if data["state_target"] == "deployed":
                     import json
                     import os
                     import stat
 
-                    filename = CONFIG.get(
-                        "verbose-info-plugin",
-                        "filename",
-                        fallback="/tmp/userinfo/userinfo.json",
-                    )
-                    dirname = CONFIG.get(
-                        "verbose-info-plugin", "dirname", fallback="/tmp/userinfo"
-                    )
+                    filename = CONFIG.verbose_info_plugin.filename
+                    dirname = CONFIG.verbose_info_plugin.dirname
                     try:
                         os.mkdir(dirname)
                         os.chmod(dirname, 0o0777)
@@ -95,27 +85,21 @@ class User:
 
         # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
-        self.service_user = backend.User(self.data)  # type: ignore
-        self.service_groups = [
-            backend.Group(grp) for grp in self.data.groups  # type:ignore
-        ]
+        self.service_user = backend.User(self.data)
+        self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
-        self.additional_groups = [
-            backend.Group(grp) for grp in list(set(  # type:ignore
-                CONFIG["ldf_adapter"].get("additional_groups", "").split()
-            ))
-        ]
-
-        if CONFIG.get(
-            "ldf_adapter", "backend_supports_preferring_existing_user", fallback=False
-        ):
+        if CONFIG.ldf_adapter.backend_supports_preferring_existing_user:
             logger.debug("trying to update user from existing")
             if self.service_user.exists():
                 self.update_username_from_existing()
 
+        if CONFIG.approval.enabled:
+            # initialise pending deployment and notification system
+            self.pending_deployment = PendingDeployment(userinfo=self.data)
+
         # apply fixes to group names for unix backend
-        if CONFIG['ldf_adapter']['backend'] == "local_unix":
-            for grp in [self.service_user.primary_group] + self.service_groups + self.additional_groups:
+        if CONFIG.ldf_adapter.backend == "local_unix" and hasattr(backend.User, "fix_group_names"):
+            for grp in self._all_groups():
                 grp.fix_group_names()
 
     def assurance_verifier(self):
@@ -135,11 +119,10 @@ class User:
         `True`, if the claims satisfy the configured expression (`"assurance.require"`), `False`
         otherwise.
         """
-        ass = CONFIG["assurance"]
-        prefix = ass["prefix"]
+        prefix = CONFIG.assurance.prefix
         prefix = prefix.rstrip("/") + "/"
 
-        tokens = regex.findall("&|\||\(|\)|[^\s()&|]+", ass["require"])
+        tokens = regex.findall("&|\||\(|\)|[^\s()&|]+", CONFIG.assurance.require)
 
         # We use a simple recursive descent parser to parse parenthesied expressions of strings,
         # composed with '&' (konjunction) and '|' (disjunction). The usual precedence rules apply.
@@ -234,18 +217,14 @@ class User:
             )
 
         if target == "deployed":
-            if CONFIG.get("assurance", "skip", fallback="No") == "Yes, do as I say!":
+            if CONFIG.assurance.skip:
                 logger.warning(
                     "Assurance checking is disabled: Users with ANY assurance will be authorised"
                 )
-            if (
-                not CONFIG.get("assurance", "skip", fallback="No")
-                == "Yes, do as I say!"
-            ):
-                if not self.assurance_verifier()(self.data.assurance):
-                    raise Rejection(
-                        message="Your assurance level is insufficient to access this resource"
-                    )
+            elif not self.assurance_verifier()(self.data.assurance):
+                raise Rejection(
+                    message="Your assurance level is insufficient to access this resource"
+                )
 
             logger.debug(f"User comes with these groups")
             for g in self.service_groups:
@@ -253,21 +232,13 @@ class User:
 
             return self.deploy()
         elif target == "not_deployed":
-            if (
-                not CONFIG.get("assurance", "skip", fallback="No")
-                == "Yes, do as I say!"
-            ):
-                if not self.assurance_verifier()(self.data.assurance):
-                    if not CONFIG.getboolean(
-                        "assurance", "verified_undeploy", fallback=False
-                    ):
-                        logger.warning(
-                            "Assurance level is insufficient. Undeploying anyway."
-                        )
-                    else:
-                        raise Rejection(
-                            message="Your assurance level is insufficient to access this resource"
-                        )
+            if not CONFIG.assurance.skip and not self.assurance_verifier()(self.data.assurance):
+                if not CONFIG.assurance.verified_undeploy:
+                    logger.warning("Assurance level is insufficient. Undeploying anyway.")
+                else:
+                    raise Rejection(
+                        message="Your assurance level is insufficient to access this resource"
+                    )
             return self.undeploy()
         elif target == "get_status":
             return self.get_status()
@@ -277,6 +248,12 @@ class User:
             return self.suspend()
         elif target == "limited":
             return self.limit()
+        elif target == "accepted":
+            return self.accept()
+        elif target == "rejected":
+            return self.reject()
+        elif target == "test":
+            return self.test()
         else:
             raise ValueError(f"Invalid target state: {target}")
 
@@ -288,31 +265,47 @@ class User:
 
         Return a Deployed result, with a message describing what was done.
         """
-        self.ensure_groups_exist()
-        was_created = self.ensure_exists()
-        new_groups = self.ensure_group_memberships()
-        new_credentials = self.ensure_credentials_active()
-
-        what_changed = ""
-        if was_created:
-            what_changed += "User was created"
-        else:
-            # FIXME: a user that was not created might not exist for other reasons.
-            #        the code probably relies on Failures rosen.
-            #        A "pending" flow might require additional Classes for return
-            what_changed += "User already existed"
-
-        if new_groups:
-            what_changed += " and was added to groups {}".format(",".join(new_groups))
-
-        what_changed += "."
-
-        if new_credentials:
-            what_changed += " Credentials {} were activated.".format(
-                ",".join(new_credentials)
+        if CONFIG.approval.enabled and self.pending_deployment.is_rejected():
+            return Status(
+                state="rejected",
+                message="User deployment was rejected. No new deployment request will be sent.",
             )
 
-        return Deployed(credentials=self.credentials, message=what_changed)
+        self.ensure_groups_exist()
+        was_created = self.ensure_exists()
+        new_memberships, removed_memberships = self.ensure_group_memberships()
+        new_credentials = self.ensure_credentials_active()
+
+        if CONFIG.approval.enabled:
+            self.pending_deployment.notify()
+            # if user existed
+            if self.service_user.exists():
+                what_changed = "User already existed"
+                if new_memberships != [] or removed_memberships != []:
+                    what_changed += ", but groups changed. A request for updating user groups was submitted for approval"
+                what_changed += "."
+                return Deployed(message=what_changed, credentials=self.credentials)
+            # user is pending
+            if was_created:
+                what_changed = "Request for deployment was submitted for approval."
+            elif new_memberships != [] or removed_memberships != []:
+                what_changed = "Updated request for deployment was submitted for approval."
+            else:
+                what_changed = "Request for deployment was already submitted for approval. No new request was sent."
+            return Status(state="pending", message=what_changed)
+        else:
+            what_changed = "User was created" if was_created else "User already existed"
+            if new_memberships != []:
+                what_changed += " and was added to groups {}".format(",".join(new_memberships))
+            if removed_memberships != []:
+                what_changed += " and was removed from groups {}".format(
+                    ",".join(removed_memberships)
+                )
+            what_changed += "."
+            if new_credentials:
+                what_changed += " Credentials {} were activated.".format(",".join(new_credentials))
+
+            return Deployed(credentials=self.credentials, message=what_changed)
 
     def undeploy(self):
         """Ensure that the user dosen't exist.
@@ -320,7 +313,7 @@ class User:
         Return a NotDeployed result with a message saying if the user previously existed.
         """
         username = self.service_user.get_username()
-        was_removed = self.ensure_dosent_exist()
+        was_removed = self.ensure_doesnt_exist()
 
         what_changed = ""
         if was_removed:
@@ -408,6 +401,59 @@ class User:
             )
         return Status(state, message=what_changed)
 
+    def accept(self):
+        """Ensure that a pending request is accepted and the user is in state 'deployed'.
+
+        Return a Status result with a message describing what was done.
+        """
+        if self.pending_deployment.is_pending() or self.pending_deployment.mod_pending():
+            if not hasattr(backend.User, "create_fromstring"):
+                raise Failure(
+                    message=(
+                        "Backend does not support automatic user creation from string."
+                        "Follow the instructions in the notification you received to manually create the user."
+                    )
+                )
+            if not hasattr(backend.Group, "create_fromstring"):
+                raise Failure(
+                    message=(
+                        "Backend does not support automatic group creation from string."
+                        "Follow the instructions in the notification you received to manually create the group(s)."
+                    )
+                )
+            if not hasattr(backend.User, "mod_fromstring"):
+                raise Failure(
+                    message=(
+                        "Backend does not support automatic user modification from string."
+                        "Follow the instructions in the notification you received to manually add the user to groups."
+                    )
+                )
+            self.pending_deployment.accept()
+            return Deployed(credentials=self.credentials, message="User request was accepted.")
+        elif self.pending_deployment.is_rejected():
+            what_changed = "User request was already rejected, cannot accept it."
+            logger.debug(what_changed)
+            return Status(state="rejected", message=what_changed)
+        else:
+            what_changed = f"No pending request for user {self.data.unique_id} exists."
+            logger.debug(what_changed)
+            return Status(state=self.get_status().state, message=what_changed)
+
+    def reject(self):
+        """Ensure that a pending request is rejected and the user is in state 'not_deployed'.
+
+        Return a Status result with a message describing what was done.
+        """
+        if self.pending_deployment.is_pending() or self.pending_deployment.mod_pending():
+            self.pending_deployment.reject()
+            what_changed = "User deployment request was rejected."
+            logger.debug(what_changed)
+            return Status(state="rejected", message=what_changed)
+        else:
+            what_changed = f"No pending request for user {self.data.unique_id} exists."
+            logger.debug(what_changed)
+            return NotDeployed(message=what_changed)
+
     def get_status(self):
         """
         Return the current status (that he has in the underlying local user management system)
@@ -436,17 +482,16 @@ class User:
         msg = "No message"
         try:
             if not self.service_user.exists():
+                if CONFIG.approval.enabled:
+                    if self.pending_deployment.is_pending():
+                        return Status("pending", message="User deployment is pending approval.")
+                    if self.pending_deployment.is_rejected():
+                        return Status("rejected", message="User deployment was rejected.")
                 return Status("not_deployed", message=msg)
             msg = f"username {self.service_user.get_username()}"
-            if hasattr(self.service_user, "is_rejected"):
-                if self.service_user.is_rejected():
-                    return Status("rejected", message=msg)
             if hasattr(self.service_user, "is_suspended"):
                 if self.service_user.is_suspended():
                     return Status("suspended", message=msg)
-            if hasattr(self.service_user, "is_pending"):
-                if self.service_user.is_pending():
-                    return Status("pending", message=msg)
             if hasattr(self.service_user, "is_limited"):
                 if self.service_user.is_limited():
                     return Status("limited", message=msg)
@@ -464,11 +509,15 @@ class User:
         Also ensure that all info about the user is up to date on the service. This is done
         independently of creating the user, so that the user is updated even if they already existed.
 
-        Return True, if the user didn't exist before.
+        Return True, if the user didn't exist before and there was no pending request for its creation.
         """
         logger.debug(f"Ensuring a local user mapping for {self.data.unique_id} exits")
 
-        is_new_user = not self.service_user.exists()
+        is_new_user = (
+            not self.service_user.exists()
+            if not CONFIG.approval.enabled
+            else not self.service_user.exists() and not self.pending_deployment.exists()
+        )
 
         unique_id = self.data.unique_id
         if is_new_user:
@@ -476,9 +525,7 @@ class User:
             primary_group_name = self.data.primary_group
 
             # Raise question in case of existing username in case we're interactive
-            if CONFIG.getboolean(
-                "ldf_adapter", "interactive", fallback=False
-            ):  # interactive
+            if CONFIG.ldf_adapter.interactive:  # interactive
                 logger.debug("interactive mode")
                 if self.service_user.name_taken(username):
                     logger.info(
@@ -491,13 +538,9 @@ class User:
 
             else:  # non-interactive
                 logger.debug("noninteractive mode")
-                username_mode = CONFIG.get(
-                    "username_generator", "mode", fallback="friendly"
-                )
+                username_mode = CONFIG.username_generator.mode
                 logger.debug(f"username_mode: {username_mode}")
-                pool_prefix = CONFIG.get(
-                    "username_generator", "pool_prefix", fallback=primary_group_name
-                )
+                pool_prefix = CONFIG.username_generator.pool_prefix or primary_group_name
 
                 name_generator = NameGenerator(
                     username_mode, userinfo=self.data, pool_prefix=pool_prefix
@@ -505,7 +548,11 @@ class User:
                 proposed_name = name_generator.suggest_name()
                 logger.debug(f"initially proposed_name: {proposed_name}")
 
-                while self.service_user.name_taken(proposed_name):
+                while proposed_name is not None and (
+                    self.service_user.name_taken(proposed_name) or (
+                        CONFIG.approval.enabled and self.pending_deployment.name_taken(proposed_name)
+                    )
+                ):
                     proposed_name = name_generator.suggest_name()
                 if proposed_name is None:
                     raise Rejection(
@@ -527,10 +574,18 @@ class User:
                     f'a "fallback_group" have been defined in the config file {config_file_name}'
                 )
                 logger.error(message)
-                print(f"\nERROR: {message}\n")
-                sys.exit(2)
+                raise FatalError(message=message)
 
-            self.service_user.create()
+            if CONFIG.approval.enabled:
+                self.pending_deployment.create_user(self.service_user)
+            else:
+                self.service_user.create()
+        elif CONFIG.approval.enabled and self.pending_deployment.exists():  # the user is pending
+            username = self.pending_deployment.username
+            self.service_user.set_username(username)
+            logger.info(
+                f"Username {username} already assigned to '{self.data.unique_id}' in pending request."
+            )
         else:  # The user exists
             # Update service_user.name if unique_id already points to a username:
             username = self.service_user.get_username()
@@ -538,7 +593,8 @@ class User:
 
         logger.debug(f"This is a new user: {is_new_user}")
 
-        self.service_user.update()
+        if not CONFIG.approval.enabled:
+            self.service_user.update()
         return is_new_user
 
     def update_username_from_existing(self):
@@ -549,9 +605,7 @@ class User:
             existing_username = self.service_user.get_username()
             if existing_username is not None:
                 if hasattr(self.service_user, "set_username"):
-                    logger.debug(
-                        f"Setting username to {existing_username} ({self.data.unique_id})"
-                    )
+                    logger.debug(f"Setting username to {existing_username} ({self.data.unique_id})")
                     if hasattr(self.service_user, "set_prefixed_username"):
                         logger.debug("calling set_prefixed_username")
                         self.service_user.set_prefixed_username(existing_username)
@@ -563,7 +617,7 @@ class User:
             # the currently used service_user class has to method get_username
             existing_username = None
 
-    def ensure_dosent_exist(self):
+    def ensure_doesnt_exist(self):
         """Ensure that the user doesn't exist.
 
         Before deleting them, uninstall all SSH keys, to be sure that they are really gone.
@@ -572,23 +626,25 @@ class User:
         """
         if self.service_user.exists():
             self.service_user.username = self.service_user.get_username()
-            logger.info(
-                f"Deleting user '{self.service_user.username}' ({self.data.unique_id})"
-            )
+            logger.info(f"Deleting user '{self.service_user.username}' ({self.data.unique_id})")
             # bwIDM requires prior removal of the user, because ssh-key removal triggers an
             # asyncronous process. If user is removed during that, the user might be only partially
             # removed...
-            if CONFIG.get("ldf_adapter", "backend", fallback="") == "bwidm":
+            if CONFIG.ldf_adapter.backend == "bwidm":
                 self.service_user.delete()
                 self.service_user.uninstall_ssh_keys()
             else:
                 self.service_user.uninstall_ssh_keys()
                 self.service_user.delete()
             return True
-        else:
+        elif CONFIG.approval.enabled and self.pending_deployment.exists():
             logger.info(
-                f"No user existed for {self.data.unique_id} did exist. Nothing to do."
+                f"No user existed for {self.data.unique_id}, but cleaned up lingering pending/rejected entry for this user."
             )
+            self.pending_deployment.remove_data()
+            return False
+        else:
+            logger.info(f"No user existed for {self.data.unique_id}. Nothing to do.")
             return False
 
     def ensure_suspended(self):
@@ -600,9 +656,7 @@ class User:
             if hasattr(self.service_user, "suspend"):
                 self.service_user.suspend()
                 return True
-        logger.debug(
-            f"User {self.data.unique_id} in state {status.state}. Suspending not allowed."
-        )
+        logger.debug(f"User {self.data.unique_id} in state {status.state}. Suspending not allowed.")
         return False
 
     def ensure_limited(self):
@@ -614,9 +668,7 @@ class User:
             if hasattr(self.service_user, "limit"):
                 self.service_user.limit()
                 return True
-        logger.debug(
-            f"User {self.data.unique_id} in state {status.state}. Limiting not allowed."
-        )
+        logger.debug(f"User {self.data.unique_id} in state {status.state}. Limiting not allowed.")
         return False
 
     def ensure_resumed(self):
@@ -628,9 +680,7 @@ class User:
             if hasattr(self.service_user, "resume"):
                 self.service_user.resume()
                 return True
-        logger.debug(
-            f"User {self.data.unique_id} in state {status.state}. Resuming not allowed."
-        )
+        logger.debug(f"User {self.data.unique_id} in state {status.state}. Resuming not allowed.")
         return False
 
     def ensure_unlimited(self):
@@ -642,41 +692,22 @@ class User:
             if hasattr(self.service_user, "unlimit"):
                 self.service_user.unlimit()
                 return True
-        logger.debug(
-            f"User {self.data.unique_id} in state {status.state}. Unlimit not allowed."
-        )
+        logger.debug(f"User {self.data.unique_id} in state {status.state}. Unlimit not allowed.")
         return False
 
-    def ensure_groups_exist(self):
-        """Ensure that all the necessary groups exist.
+    def _all_groups(self):
+        """Get all groups the user belongs to. Includes primary group, service groups derived from
+        VOs, as well as additional configured local groups.
 
-        Create the groups on the service, if necessary.
+        Returns:
+            List[backend.Group]: a list of all the user's local groups.
         """
-        group_list = filter(
-            lambda grp: not grp.exists(),
-            [self.service_user.primary_group] + self.service_groups + self.additional_groups,
-        )
-        for group in group_list:
-            if group.name is not None:
-                logger.info("Creating group '{}'".format(group.name))
-                group.create()
-
-    def ensure_group_memberships(self):
-        """Ensure that the user is a member of all the groups in self.service_groups.
-
-        Return the names of all groups the user is now a member of.
-        """
-        # Note: current code will keep on adding the user to the primary group. This may be a
-        # problem with some backends
-
-        group_list = self.service_groups
-        if self.service_user.primary_group.name not in [
-            grp.name for grp in self.service_groups
-        ]:
+        group_list = self.service_groups.copy()
+        if self.service_user.primary_group.name not in [grp.name for grp in self.service_groups]:
             group_list.append(self.service_user.primary_group)
 
         group_list_names = [grp.name for grp in group_list]
-        for grp in self.additional_groups:
+        for grp in CONFIG.ldf_adapter.additional_groups:
             if grp.name not in group_list_names:
                 group_list.append(grp)
 
@@ -687,37 +718,109 @@ class User:
                 f'a "fallback_group" have been defined in the config file {config_file_name}'
             )
             logger.error(message)
-            print(f"\nERROR: {message}\n")
-            sys.exit(3)
+            raise FatalError(message=message)
+
+        return group_list
+
+    def ensure_groups_exist(self):
+        """Ensure that all the necessary groups exist.
+
+        Create the groups on the service, if necessary.
+        Return the names of the groups that were created (or requested to be created).
+        """
+        group_list = filter(lambda grp: not grp.exists(), self._all_groups())
+        new_groups = []
+        for group in group_list:
+            if group.name is not None:
+                logger.info("Creating group '{}'".format(group.name))
+                if CONFIG.approval.enabled:
+                    if self.pending_deployment.create_group(group):
+                        new_groups.append(group.name)
+                else:
+                    group.create()
+                    new_groups.append(group.name)
+        return new_groups
+
+    def ensure_group_memberships(self):
+        """Ensure that the user is a member of all the groups in self.service_groups and CONFIG.additional_groups.
+
+        Return two lists:
+        - the names of all groups the user was added to
+        - the names of all groups the user was removed from
+        """
         username = self.service_user.get_username()
+
+        all_groups = self._all_groups()  # list of backend.Group objects
+        all_groups_names = [grp.name for grp in all_groups]
         logger.info(
-            f"Ensuring user '{username}' ({self.data.unique_id}) is member of these groups: {[grp.name for grp in group_list]}"
+            f"Ensuring user '{username}' ({self.data.unique_id}) is member of these groups: {all_groups_names}"
         )
-        self.service_user.mod(supplementary_groups=group_list)
-        return [grp.name for grp in group_list]
+
+        groups_current = self.service_user.get_groups()  # list of group names
+        logger.info(f"User '{username}' is already in the following groups: {groups_current}")
+
+        groups_to_add = [grp for grp in all_groups_names if grp not in groups_current]
+        groups_to_remove = [grp for grp in groups_current if grp not in all_groups_names]
+        logger.info(f"User '{username}' will be added to the following groups: {groups_to_add}")
+        logger.info(
+            f"User '{username}' will be removed from the following groups: {groups_to_remove}"
+        )
+
+        if CONFIG.approval.enabled:
+            if not self.pending_deployment.mod(
+                service_user=self.service_user,
+                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],
+                removal_groups=[backend.Group(grp) for grp in groups_to_remove],
+            ):
+                return [], []
+        else:
+            self.service_user.mod(
+                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],
+                removal_groups=[backend.Group(grp) for grp in groups_to_remove],
+            )
+
+        return groups_to_add, groups_to_remove
 
     def ensure_credentials_active(self):
         """Install all SSH Keys on the service.
 
         Return a list of the names/ids of all the keys now active.
         """
-        self.service_user.install_ssh_keys()
-        return ["ssh:{name}/{id}".format(**key) for key in self.data.ssh_keys]
+        if not CONFIG.approval.enabled:
+            self.service_user.install_ssh_keys()
+            return ["ssh:{name}/{id}".format(**key) for key in self.data.ssh_keys]
+        return []
 
     @property
     def credentials(self):
         """The Credentials displayed to the user.
 
-        Simply merges all the credentials provided by the service_user with those configured for
-        the backend in the config file.
+        Simply merges all the credentials provided by the service_user with those
+        configured in the config file.
 
         See Deployed.__init__ for details on how this value is used.
 
         Relevant config:
-        ldf_adapter.backend -- The backend to be used
-        backend.{}.login_info -- Everything in this section is merged into the credentials dictionary.
+        login_info -- Everything in this section is merged into the credentials dictionary.
         """
+        ssh_user = self.service_user.get_username()
+        commandline = "ssh {}@{}".format(ssh_user, CONFIG.login_info.ssh_host)
         return {
-            **self.service_user.credentials,
-            **CONFIG["backend.{}.login_info".format(CONFIG["ldf_adapter"]["backend"])],
+            **CONFIG.login_info.to_dict(),
+            "ssh_user": ssh_user,
+            "commandline": commandline,
         }
+
+    def test(self):
+        """Various tests for the admin to check the feudal configuration.
+
+        Test that the notification system is configured correctly if the approval workflow is
+        enabled by sending a test notification to the admin.
+        """
+        if CONFIG.approval.enabled:
+            self.pending_deployment.test_notifier()
+            msg = "Notification sent successfully."
+        else:
+            msg = "Approval workflow is not enabled. No notification message was sent."
+        logger.info(msg)
+        return Status(state="test", message=msg)

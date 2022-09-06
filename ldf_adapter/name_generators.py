@@ -8,7 +8,8 @@ Generate useful user or group names
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
 import logging
-from .config import CONFIG
+from typing import Optional
+from ldf_adapter.config import CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class NameGenerator:
         else:
             self.generator = PooledNameGenerator(kwargs["pool_prefix"])
 
-    def suggest_name(self, *args, **kwargs) -> str:
+    def suggest_name(self, *args, **kwargs) -> Optional[str]:
         return self.generator.suggest_name(*args, **kwargs)
 
     def tried_names(self) -> list:
@@ -43,10 +44,10 @@ class FriendlyNameGenerator:
     """
 
     strategies = [
-        "{self.userinfo.preferred_username}",
-        "{self.userinfo.given_name}",
+        "{self.userinfo.preferred_username:>0}",
+        "{self.userinfo.given_name:>0}",
         "{self.userinfo.given_name:.3}{self.userinfo.family_name:.3}",
-        "{self.userinfo.family_name}",
+        "{self.userinfo.family_name:>0}",
         "{self.userinfo.given_name:.4}{self.userinfo.family_name:.3}",
         "{self.userinfo.given_name:.5}{self.userinfo.family_name:.3}",
         "{self.userinfo.given_name:.2}{self.userinfo.family_name:.3}",
@@ -59,7 +60,7 @@ class FriendlyNameGenerator:
         "{self.userinfo.given_name:.4}{self.userinfo.family_name:.2}",
         "{self.userinfo.given_name:.5}{self.userinfo.family_name:.2}",
         "{self.userinfo.given_name:.2}{self.userinfo.family_name:.2}",
-        "{self.userinfo.email}",
+        "{self.userinfo.email:>0}",
     ]
     next_strategy_idx = -1
 
@@ -68,7 +69,7 @@ class FriendlyNameGenerator:
         self.userinfo = userinfo
         self.dont_use_these_names = []
 
-    def suggest_name(self, forbidden_names: list = None) -> str:
+    def suggest_name(self, forbidden_names: Optional[list] = None) -> Optional[str]:
         """suggest a valid username"""
         # Copy forbidden names:
         for name in forbidden_names or []:
@@ -87,6 +88,9 @@ class FriendlyNameGenerator:
                 )
             except KeyError:
                 continue
+            except TypeError:
+                # e.g. when given_name is None with any formatting (:>0, :.2, etc)
+                continue
             except AttributeError as e:
                 print(f"ATTRIBUTE ERROR: {e}")
                 continue
@@ -96,15 +100,13 @@ class FriendlyNameGenerator:
                 logger.error(
                     f"The list of tried usernames is: \n {NL.join(self.dont_use_these_names)}"
                 )
-                raise
+                return None
 
-            if candidate_name.lower() not in self.dont_use_these_names:
+            if candidate_name not in self.dont_use_these_names:
                 self.dont_use_these_names.append(candidate_name)
-                if CONFIG.getboolean("messages", "log_username_creation", fallback=False):
+                if CONFIG.messages.log_username_creation:
                     logger.info(f"Potential username: '{candidate_name}'")
-                return candidate_name.lower()
-            else:
-                self.dont_use_these_names.append(candidate_name.lower())
+                return candidate_name
 
     def tried_names(self) -> list:
         return self.dont_use_these_names
@@ -113,17 +115,17 @@ class FriendlyNameGenerator:
 class PooledNameGenerator:
     """Name Generator for Pooled Accounts"""
 
-    index = 0
-    digits = CONFIG.getint("username_generator", "pool_digits", fallback=3)
-    username_prefix = ""
-
     def __init__(self, pool_prefix: str = "pool"):
-        self.username_prefix = CONFIG.get("username_generator", "pool_prefix", fallback=pool_prefix)
+        self.index = 0
+        self.digits = CONFIG.username_generator.pool_digits
+        self.username_prefix = CONFIG.username_generator.pool_prefix or pool_prefix
         if self.username_prefix is None:
             self.username_prefix = "pool"
 
-    def suggest_name(self) -> str:
+    def suggest_name(self) -> Optional[str]:
         """suggest a valid username"""
         self.index += 1
+        if self.index >= 10 ** self.digits:
+            return None
         candidate_name = f"{self.username_prefix}%0{self.digits}d" % self.index
         return candidate_name
