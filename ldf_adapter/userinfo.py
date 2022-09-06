@@ -430,7 +430,7 @@ class UserInfo(Mapping):
         return (k for k in dir(UserInfo) if type(getattr(UserInfo, k)) is property)
 
     def __len__(self):
-        sum(1 for _ in filter(lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo)))
+        return sum(1 for _ in filter(lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo)))
 
     def __hash__(self):
         return id(self)  # Good enough for lru_cache
