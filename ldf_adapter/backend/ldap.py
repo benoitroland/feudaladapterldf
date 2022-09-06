@@ -137,7 +137,9 @@ class LdapConnection:
         self.ldif_connection.bind()
         # initialise and bind connection to LDAP server
         try:
-            server = Server(f"ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}", get_info=ALL)
+            server = Server(
+                f"ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}", get_info=ALL
+            )
             if CONFIG.backend.ldap.admin_user and CONFIG.backend.ldap.admin_password:
                 # add SAFE_SYNC, so we get more return values
                 self.connection = Connection(
@@ -148,7 +150,9 @@ class LdapConnection:
                     auto_bind=AUTO_BIND_NO_TLS,
                 )
             else:
-                self.connection = Connection(server, client_strategy=SAFE_SYNC, auto_bind=AUTO_BIND_NO_TLS)
+                self.connection = Connection(
+                    server, client_strategy=SAFE_SYNC, auto_bind=AUTO_BIND_NO_TLS
+                )
         except Exception as e:
             msg = f"Could not connect to server ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
             logger.error(f"{msg}: {e}")
@@ -169,7 +173,9 @@ class LdapConnection:
                     )
                     search_uid = self.search_next_uid()
                 else:
-                    logger.info(f"uidNext already initialised: {search_uid.get_attribute('uidNumber')}.")
+                    logger.info(
+                        f"uidNext already initialised: {search_uid.get_attribute('uidNumber')}."
+                    )
 
                 search_gid = self.search_next_gid()
                 if not search_gid.found():
@@ -180,7 +186,9 @@ class LdapConnection:
                     )
                     search_gid = self.search_next_gid()
                 else:
-                    logger.info(f"gidNext already initialised: {search_gid.get_attribute('gidNumber')}.")
+                    logger.info(
+                        f"gidNext already initialised: {search_gid.get_attribute('gidNumber')}."
+                    )
         except Exception as e:
             msg = "Error adding entries in LDAP for tracking available UID and GID values"
             logger.error(f"{msg}: {e}")
@@ -203,7 +211,11 @@ class LdapConnection:
                 f"{self.user_base}",
                 f"(&({self.attr_local_uid}={username})(objectClass=inetOrgPerson)(objectClass=posixAccount))",
             ],
-            {"attributes": [self.attr_local_uid, self.attr_oidc_uid] if get_unique_id else [self.attr_local_uid]},
+            {
+                "attributes": [self.attr_local_uid, self.attr_oidc_uid]
+                if get_unique_id
+                else [self.attr_local_uid]
+            },
         )
 
     def search_group_by_name(self, group_name, attributes=[]):
@@ -341,9 +353,9 @@ class LdapConnection:
             attributes = {
                 "uid": local_username,
                 "uidNumber": self.get_next_uid(),
-                "gidNumber": self.search_group_by_name(primary_group_name, attributes=["gidNumber"]).get_attribute(
-                    "gidNumber"
-                ),
+                "gidNumber": self.search_group_by_name(
+                    primary_group_name, attributes=["gidNumber"]
+                ).get_attribute("gidNumber"),
                 "homeDirectory": f"{self.home_base}/{local_username}",
                 "loginShell": self.shell,
                 self.attr_local_uid: local_username,
@@ -381,7 +393,9 @@ class LdapConnection:
         """
         dn = f"uid={local_username},{self.user_base}"
         object_class = ["top", "inetOrgPerson", "posixAccount"]
-        gidNumber = self.search_group_by_name(primary_group_name, attributes=["gidNumber"]).get_attribute("gidNumber")
+        gidNumber = self.search_group_by_name(
+            primary_group_name, attributes=["gidNumber"]
+        ).get_attribute("gidNumber")
         if not gidNumber:
             gidNumber = ""
         attributes = {
@@ -623,7 +637,9 @@ class User:
 
     def get_username(self):
         """Check if a user exists based on unique_id and return the name"""
-        return LDAP.search_user_by_oidc_uid(self.unique_id, attributes=[LDAP.attr_local_uid]).get_attribute(LDAP.attr_local_uid)
+        return LDAP.search_user_by_oidc_uid(
+            self.unique_id, attributes=[LDAP.attr_local_uid]
+        ).get_attribute(LDAP.attr_local_uid)
 
     def set_username(self, username):
         """Set local username on the service."""
@@ -631,7 +647,9 @@ class User:
 
     def get_primary_group(self):
         """Check if a user exists based on unique_id and return the primary group name."""
-        gid = LDAP.search_user_by_oidc_uid(self.unique_id, attributes=["gidNumber"]).get_attribute("gidNumber")
+        gid = LDAP.search_user_by_oidc_uid(self.unique_id, attributes=["gidNumber"]).get_attribute(
+            "gidNumber"
+        )
         return LDAP.search_group_by_gid(gid).get_attribute("cn")
 
     def get_groups(self):

@@ -114,7 +114,9 @@ class ConfigSection:
         try:
             return cls(**config[cls.__section__name__()])
         except KeyError:
-            logger.debug("Missing config section %s, using default values.", cls.__section__name__())
+            logger.debug(
+                "Missing config section %s, using default values.", cls.__section__name__()
+            )
             return cls()
 
     def __post_init__(self):
@@ -125,10 +127,9 @@ class ConfigSection:
                 continue
             field_type = field.type
             if field.type.__module__ == "typing":
-                if (
-                    field.type.__str__().startswith("typing.Optional") or
-                    field.type.__str__().startswith("typing.Union")
-                ):
+                if field.type.__str__().startswith(
+                    "typing.Optional"
+                ) or field.type.__str__().startswith("typing.Union"):
                     field_type = field.type.__args__[0]  # get the type of the field
                 elif field.type.__str__().startswith("typing.List"):
                     field_type = list  # treat as a list
@@ -169,12 +170,17 @@ class ConfigListOfSections:
 
     def to_dict(self) -> dict:
         """Converts the config to a dict"""
-        return {field.name: getattr(self, field.name).to_dict() for field in fields(self) if field is not None}
+        return {
+            field.name: getattr(self, field.name).to_dict()
+            for field in fields(self)
+            if field is not None
+        }
 
 
 @dataclass
 class ConfigLdfAdapter(ConfigSection):
     """Config section for ldf_adapter."""
+
     backend: str = "local_unix"
     backend_supports_preferring_existing_user: bool = False
     primary_group: Optional[str] = None
@@ -190,6 +196,7 @@ class ConfigLdfAdapter(ConfigSection):
 @dataclass
 class ConfigMessages(ConfigSection):
     """Config section for messages. Selects which information will be logged"""
+
     log_file: str = "/var/log/feudal/adapter.log"
     log_level: Optional[str] = None
     log_to_console: str = ""
@@ -205,6 +212,7 @@ class ConfigMessages(ConfigSection):
 @dataclass
 class ConfigApproval(ConfigSection):
     """Config section for approval workflow"""
+
     enabled: bool = False
     user_db_location: str = "/var/lib/feudal/pending_users.db"
     notifier: str = "email"
@@ -217,6 +225,7 @@ class ConfigApproval(ConfigSection):
 @dataclass
 class ConfigEmail(ConfigSection):
     """Config section for email notifier"""
+
     smtp_server: str = "localhost"
     smtp_port: int = 25
     use_ssl: bool = False
@@ -233,6 +242,7 @@ class ConfigEmail(ConfigSection):
 @dataclass
 class ConfigCourier(ConfigSection):
     """Config section for courier notifier"""
+
     api_key: str = "foo"
 
     @classmethod
@@ -243,6 +253,7 @@ class ConfigCourier(ConfigSection):
 @dataclass
 class ConfigAssurance(ConfigSection):
     """Config section for assurance"""
+
     prefix: str = "https://refeds.org/assurance/"
     require: str = "profile/cappuccino"
     verified_undeploy: bool = False
@@ -256,6 +267,7 @@ class ConfigAssurance(ConfigSection):
 @dataclass
 class ConfigUsernameGenerator(ConfigSection):
     """Config section for username generation"""
+
     mode: str = "friendly"
     pool_prefix: Optional[str] = None
     pool_digits: int = 3
@@ -269,6 +281,7 @@ class ConfigUsernameGenerator(ConfigSection):
 @dataclass
 class ConfigLoginInfo(ConfigSection):
     """Config section for login information"""
+
     description: str = "Local SSH Test Service"
     login_help: str = "Login via `mccli ssh {ssh_host}`"
     ssh_host: str = "localhost"
@@ -281,6 +294,7 @@ class ConfigLoginInfo(ConfigSection):
 @dataclass
 class ConfigLocalUnix(ConfigSection):
     """Config section for local unix backend"""
+
     shell: str = "/bin/sh"
     home_base: str = "/home"
     deploy_user_ssh_keys: bool = True
@@ -297,6 +311,7 @@ class ConfigLocalUnix(ConfigSection):
 @dataclass
 class ConfigBwIdm(ConfigSection):
     """Config section for bwIDM backend"""
+
     url: str = "https://bwidm-test.scc.kit.edu/rest"
     org_id: str = "fdl"
     http_user: str = "foo"
@@ -312,6 +327,7 @@ class ConfigBwIdm(ConfigSection):
 @dataclass
 class ConfigLdap(ConfigSection):
     """Config section for ldap backend"""
+
     mode: str = "read_only"
     host: str = "localhost"
     port: Optional[int] = None
@@ -343,6 +359,7 @@ class ConfigLdap(ConfigSection):
 @dataclass
 class ConfigVerboseInfoPlugin(ConfigSection):
     """Config section for verbose plugin"""
+
     active: bool = False
     filename: str = "/tmp/userinfo/userinfo.json"
     dirname: str = "/tmp/userinfo"
@@ -361,6 +378,7 @@ class ConfigVerboseInfoPlugin(ConfigSection):
 @dataclass
 class ConfigNotifiers(ConfigListOfSections):
     """Collection of config sections for all notifiers"""
+
     email: Optional[ConfigEmail] = None
     courier: Optional[ConfigCourier] = None
 
@@ -368,6 +386,7 @@ class ConfigNotifiers(ConfigListOfSections):
 @dataclass
 class ConfigBackends(ConfigListOfSections):
     """Collection of config sections for all backends"""
+
     local_unix: ConfigLocalUnix = ConfigLocalUnix()
     ldap: ConfigLdap = ConfigLdap()
     bwidm: ConfigBwIdm = ConfigBwIdm()
@@ -376,6 +395,7 @@ class ConfigBackends(ConfigListOfSections):
 @dataclass
 class Configuration:
     """All configuration settings for the feudal adapter"""
+
     ldf_adapter: ConfigLdfAdapter = ConfigLdfAdapter()
     messages: ConfigMessages = ConfigMessages()
     approval: ConfigApproval = ConfigApproval()

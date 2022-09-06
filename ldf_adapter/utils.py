@@ -83,6 +83,7 @@ def to_int(int_str):
     except ValueError:
         raise FatalError(f"Error converting to int: unrecognised integer value {int_str}.")
 
+
 def to_list(list_str):
     """Convert a string containing comma-separated strings to list of strings.
     Raise a FatalError if the string cannot be converted.

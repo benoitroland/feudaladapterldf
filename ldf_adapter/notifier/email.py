@@ -82,7 +82,6 @@ class Notifier(generic.Notifier):
         self.use_ssl = CONFIG.notifier.email.use_ssl
         self.templates_dir = CONFIG.notifier.email.templates_dir
 
-
     def _build_email(self, send_to: str, subject: str, content: str) -> EmailMessage:
         """Build and email message.
 
@@ -137,12 +136,12 @@ class Notifier(generic.Notifier):
             logger.info("Notification type is NONE, not sending email")
             return False
         data = {**data, "admin_email": self.admin_email}
-        send_to = generic.NotificationTemplate(EMAIL_SETTINGS[notification_type].send_to_template).fill(
-            **data
-        )
-        subject = generic.NotificationTemplate(EMAIL_SETTINGS[notification_type].subject_template).fill(
-            **data
-        )
+        send_to = generic.NotificationTemplate(
+            EMAIL_SETTINGS[notification_type].send_to_template
+        ).fill(**data)
+        subject = generic.NotificationTemplate(
+            EMAIL_SETTINGS[notification_type].subject_template
+        ).fill(**data)
         content = generic.NotificationTemplate.load(
             Path(self.templates_dir) / EMAIL_SETTINGS[notification_type].body_template_file
         ).fill(**data)
@@ -163,4 +162,3 @@ class Notifier(generic.Notifier):
             "settings": json.dumps(settings, indent=4),
         }
         self.notify(notification_type=generic.NotificationType.ADMIN_TEST, data=data)
-

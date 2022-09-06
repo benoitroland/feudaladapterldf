@@ -61,7 +61,7 @@ class BwIdmConnection:
         url = reduce(
             lambda acc, frag: urljoin(acc, frag) if acc.endswith("/") else urljoin(acc + "/", frag),
             url_fragments,
-            CONFIG.backend.bwidm.url
+            CONFIG.backend.bwidm.url,
         )
 
         # logger.debug(f"BWIDM: {url}")

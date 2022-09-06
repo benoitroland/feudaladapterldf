@@ -357,12 +357,13 @@ class PendingDB(generic.PendingDB):
     """Implementation of PendingDB with sqlite3."""
 
     def __init__(self) -> None:
-        """Initialise sqlite-based DB for managing users and groups pending approval.
-        """
+        """Initialise sqlite-based DB for managing users and groups pending approval."""
         self.connector = SQLiteConnector(CONFIG.approval.user_db_location)
         if not self.connector.exists():
             self.connector.connect()
-            logger.debug("No sqlite DB found at %s, creating it...", CONFIG.approval.user_db_location)
+            logger.debug(
+                "No sqlite DB found at %s, creating it...", CONFIG.approval.user_db_location
+            )
             self.connector.create(
                 data_model=PendingUser, table_name="pending_users", primary_key="unique_id"
             )
@@ -375,7 +376,10 @@ class PendingDB(generic.PendingDB):
                 primary_key="unique_id",
             )
         else:
-            logger.debug("Existing sqlite DB found at %s. Loading pending data from it.", CONFIG.approval.user_db_location)
+            logger.debug(
+                "Existing sqlite DB found at %s. Loading pending data from it.",
+                CONFIG.approval.user_db_location,
+            )
             self.connector.connect()
 
     def add_user(self, user: PendingUser) -> bool:

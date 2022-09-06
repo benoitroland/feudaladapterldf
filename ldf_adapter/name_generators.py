@@ -125,7 +125,7 @@ class PooledNameGenerator:
     def suggest_name(self) -> Optional[str]:
         """suggest a valid username"""
         self.index += 1
-        if self.index >= 10 ** self.digits:
+        if self.index >= 10**self.digits:
             return None
         candidate_name = f"{self.username_prefix}%0{self.digits}d" % self.index
         return candidate_name

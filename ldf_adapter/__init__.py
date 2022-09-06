@@ -549,8 +549,10 @@ class User:
                 logger.debug(f"initially proposed_name: {proposed_name}")
 
                 while proposed_name is not None and (
-                    self.service_user.name_taken(proposed_name) or (
-                        CONFIG.approval.enabled and self.pending_deployment.name_taken(proposed_name)
+                    self.service_user.name_taken(proposed_name)
+                    or (
+                        CONFIG.approval.enabled
+                        and self.pending_deployment.name_taken(proposed_name)
                     )
                 ):
                     proposed_name = name_generator.suggest_name()

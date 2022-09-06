@@ -45,5 +45,3 @@ class Notifier(generic.Notifier):
 
     def test(self):
         return super().test()
-
-

@@ -485,10 +485,11 @@ class Group(generic.Group):
     def __group_entry(self):
         return Group.__all_group_entries().get(self.name, {})
 
-
     @staticmethod
     def __rename(original_name, old_name, new_name):
-        logger.warning(f"Local group already exists for {original_name} with an old naming convention.")
+        logger.warning(
+            f"Local group already exists for {original_name} with an old naming convention."
+        )
         logger.warning(f"Renaming group {old_name} to {new_name}.")
         try:
             subprocess.run(["groupmod", "--new-name", new_name, old_name], check=True)
@@ -499,8 +500,12 @@ class Group(generic.Group):
 
     @staticmethod
     def __fix_duplicates(fix_id, original_name, old_name, new_name):
-        logger.error(f"{fix_id}: Two local groups exist for {original_name}, created with different versions of make_shadow_compatible.")
-        logger.error(f"{fix_id}: Please make sure all files owned by group {old_name} are owned by group {new_name} before removing group {old_name}.")
+        logger.error(
+            f"{fix_id}: Two local groups exist for {original_name}, created with different versions of make_shadow_compatible."
+        )
+        logger.error(
+            f"{fix_id}: Please make sure all files owned by group {old_name} are owned by group {new_name} before removing group {old_name}."
+        )
 
     def fix_group_names(self):
         """Apply fix for groups that were created with different make_shadow_compatible versions.
@@ -685,7 +690,7 @@ def make_shadow_compatible_v044(orig_word) -> str:
     """
     if orig_word is None:
         return None
-        # For some reason "None" still comes in on the docker-compose setup. 
+        # For some reason "None" still comes in on the docker-compose setup.
         # raise Failure(message="Cannot use username 'None' in make_shadow_compatible")
     # Encode German Umlauts
     word = orig_word.translate(
@@ -724,10 +729,10 @@ def make_shadow_compatible_v044(orig_word) -> str:
     if not regex.match(r"^[a-z_]", word):
         word = "_" + word
     if regex.match(r"_-", word):
-        word = "_" + word[2:]        
+        word = "_" + word[2:]
 
     # usernames and group names can only be 32 characters long.
-    # split names in fragments and loop over them 
+    # split names in fragments and loop over them
     # to progressively remove the characters in excess.
     # .. used to indicate where the shortening took place.
     orig_excess_chars = len(word) - 32
@@ -736,17 +741,20 @@ def make_shadow_compatible_v044(orig_word) -> str:
 
     if excess_chars > 0:
 
-            for n in range(len(fragments)):
-                if len(fragments[n]) <= 3: continue
-                if excess_chars == 0: break
-                excess_chars += 2
+        for n in range(len(fragments)):
+            if len(fragments[n]) <= 3:
+                continue
+            if excess_chars == 0:
+                break
+            excess_chars += 2
 
-                for nchar in range (len(fragments[n]) - 1):
-                        fragments[n] = fragments[n][:len(fragments[n]) - 1]
-                        excess_chars -= 1
-                        if excess_chars == 0: break
+            for nchar in range(len(fragments[n]) - 1):
+                fragments[n] = fragments[n][: len(fragments[n]) - 1]
+                excess_chars -= 1
+                if excess_chars == 0:
+                    break
 
-                fragments[n] = fragments[n] + ".."
+            fragments[n] = fragments[n] + ".."
 
     if orig_excess_chars > 0:
 
