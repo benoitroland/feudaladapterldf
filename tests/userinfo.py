@@ -3,7 +3,7 @@ import mock
 from itertools import repeat
 
 from ldf_adapter.userinfo import UserInfo
-import settings
+from . import settings
 
 
 @pytest.mark.parametrize('sub', [

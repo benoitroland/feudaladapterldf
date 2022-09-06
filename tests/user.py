@@ -6,7 +6,7 @@ from typing import List
 import logging
 
 import ldf_adapter
-import settings
+from . import settings
 
 logger = logging.getLogger(__name__)
 
