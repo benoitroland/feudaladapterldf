@@ -709,7 +709,10 @@ class User:
         """Return command (LDIF) for creating user in LDAP.
         If in pre_created mode and a local username exists, only map the user to it.
         """
-        if LDAP.mode == Mode.PRE_CREATED and LDAP.search_user_by_local_username(self.name, get_unique_id=False).found():
+        if (
+            LDAP.mode == Mode.PRE_CREATED
+            and LDAP.search_user_by_local_username(self.name, get_unique_id=False).found()
+        ):
             return LDAP.map_user_ldif(self.userinfo, self.name)
         return LDAP.add_user_ldif(self.userinfo, self.name, self.primary_group.name)
 
