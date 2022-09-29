@@ -433,6 +433,21 @@ class LdapConnection:
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
+    def map_user_ldif(self, userinfo, local_username):
+        """Return LDIF representation for updating the LDAP entry for given `local_username` with
+        mapped oidc uid. If user doesn't exist, a Failure exception is raised.
+        """
+        try:
+            self.ldif_connection.modify(
+                f"uid={local_username},{self.user_base}",
+                {self.attr_oidc_uid: [(MODIFY_REPLACE, [userinfo.unique_id])]},
+            )
+            return self.ldif_connection.response
+        except Exception as e:
+            msg = f"Failed to get LDIF to modify the LDAP entry for uid {userinfo.unique_id} with local username {local_username}"
+            logger.error(f"{msg}: {e}")
+            raise Failure(message=msg)
+
     def update_user(self, userinfo, local_username):
         """Update the LDAP entry for given `local_username` with
         all information in `userinfo`.
@@ -685,12 +700,17 @@ class User:
                     message=f"{msg} Please contact an administrator to pre-create this account for you."
                 )
             else:
+                # we assume that it was checked via name_taken that the username is not already mapped
                 LDAP.map_user(self.userinfo, self.name)
         else:  # Mode.FULL_ACCESS
             LDAP.add_user(self.userinfo, self.name, self.primary_group.name)
 
     def create_tostring(self):
-        """Return command (LDIF) for creating user in LDAP"""
+        """Return command (LDIF) for creating user in LDAP.
+        If in pre_created mode and a local username exists, only map the user to it.
+        """
+        if LDAP.mode == Mode.PRE_CREATED and LDAP.search_user_by_local_username(self.name, get_unique_id=False).found():
+            return LDAP.map_user_ldif(self.userinfo, self.name)
         return LDAP.add_user_ldif(self.userinfo, self.name, self.primary_group.name)
 
     def update(self):
@@ -752,12 +772,19 @@ class User:
                 msg = f"LDAP backend in read_only mode, local username {self.name} cannot be added to given groups."
                 logger.warning(msg)
             elif LDAP.mode == Mode.PRE_CREATED:
+                msg = "LDAP backend in pre_created mode, group {} does not exist so user {} cannot be added to it."
                 if supplementary_groups is not None:
                     for group in supplementary_groups:
-                        LDAP.add_user_to_group(self.name, group.name)
+                        if group.exists():
+                            LDAP.add_user_to_group(self.name, group.name)
+                        else:
+                            logger.warning(msg.format(group.name, self.name))
                 if removal_groups is not None:
                     for group in removal_groups:
-                        LDAP.remove_user_from_group(self.name, group.name)
+                        if group.exists():
+                            LDAP.remove_user_from_group(self.name, group.name)
+                        else:
+                            logger.warning(msg.format(group.name, self.name))
             else:  # Mode.FULL_ACCESS
                 if supplementary_groups is not None:
                     for group in supplementary_groups:
