@@ -112,6 +112,11 @@ def local_unix_group(input, exists, monkeypatch):
                 "ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.home_base",
                 input["home_base"].rstrip("/"),
             )
+        if input.get("punch4nfdi"):
+            mp.setattr(
+                "ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.punch4nfdi",
+                input["punch4nfdi"],
+            )
         # init root and necessary files in new root directory (/etc/{passwd,group,shadow})
         os.makedirs(mock_root())
         os.makedirs(Path(mock_root()) / "etc")
@@ -305,12 +310,19 @@ INPUT_SHADOW_COMPATIBLE = [
     ("-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
     ("-abcdefaaaaaaaaaaaaaaaaaaaaaaaaaa", "_..defaaaaaaaaaaaaaaaaaaaaaaaaaa"),
     ("abcdefaaaaaaaaaaaaaaaaaaaaaaaaaaa", "__defaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-    ("helmholtz-de_KIT_Helmholtz-member", "helmholtz-de_.._helmholtz-member")
+    ("helmholtz-de_KIT_Helmholtz-member", "helmholtz-de_.._helmholtz-member"),
     # ("a_b_c_d_e_f_a_a_a_a______________", "a_.._d_e_f_a_a_a_a______________"), # ??
     # ("_________________________________", "_.._____________________________"), # ??
 ]
 
+INPUT_SHADOW_COMPATIBLE_PUNCH4NFDI = [
+    ("dfn-de-nfdi-de-punch_punch4nfdi_punch", "punch4nfdi_punch"),
+    ("dfn-de-nfdi-de-punch_punch4nfdi_punch_intra", "punch4nfdi_punch_intra"),
+]
+
 INPUT_SHADOW_COMPATIBLE_FAIL = [
+    "dfn-de-nfdi-de-punch_punch4nfdi_punch_intra",
+    "dfn-de-nfdi-de-punch_punch4nfdi_punch_intra_physics_biology_chemistry",
     "_________________________________",  # all _ => no fragments can be shortened
 ]
 
@@ -425,6 +437,14 @@ def test_make_shadow_compatible(raw, cooked):
     assert ldf_adapter.backend.local_unix.make_shadow_compatible(raw) == cooked
 
 
+@pytest.mark.parametrize("raw,cooked", INPUT_SHADOW_COMPATIBLE_PUNCH4NFDI)
+def test_make_shadow_compatible_punch4nfdi(raw, cooked):
+    word = ldf_adapter.backend.local_unix.make_shadow_compatible_punch4nfdi(raw)
+    assert len(word) <= 32
+    assert regex.match(r"[a-z_]", word[0]) and regex.match(r"[-0-9_a-z]", word)
+    assert word == cooked
+
+
 @pytest.mark.parametrize("raw", INPUT_SHADOW_COMPATIBLE_FAIL)
 def test_make_shadow_compatible_fail(raw):
     """expected behaviour: raise ValueError
@@ -432,3 +452,18 @@ def test_make_shadow_compatible_fail(raw):
     """
     with pytest.raises(ValueError):
         ldf_adapter.backend.local_unix.make_shadow_compatible(raw)
+
+
+INPUT_UNIX_GROUP_PUNCH = {
+    "new_root": f"/tmp/newroot{random.randint(1000, 9999)}",
+    "name": "dfn-de-nfdi-de-punch_punch4nfdi_punch_intra",
+    "group_entry": "punch4nfdi_punch_intra:x:1000:",
+    "punch4nfdi": True,
+}
+
+
+@pytest.mark.parametrize("input,exists", [(INPUT_UNIX_GROUP_PUNCH, False)])
+def test_create_group_punch4nfdi_enabled(local_unix_group, input):
+    """Test that create method adds the appropriate entry in /etc/group when punch4nfdi flag is enabled."""
+    local_unix_group.create()
+    assert input["group_entry"] in (Path(input["new_root"]) / "etc" / "group").read_text()

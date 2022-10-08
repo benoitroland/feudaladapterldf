@@ -38,6 +38,24 @@ class User(ABC):
         pass
 
     @abstractmethod
+    def create_tostring(self):
+        """String representation of commands needed to deploy a new user.
+
+        Returns:
+            str: backend specific string containing user creation command(s)
+        """
+        pass
+
+    # def create_fromstring(self, create_cmd: str):
+    #     """Create a new user from string representation of commands needed to deploy a new user.
+    #     Optional, only needed if the backend supports it.
+    #
+    #     Arguments:
+    #         create_cmd str: backend specific string containing user creation command(s)
+    #     """
+    #     pass
+
+    @abstractmethod
     def update(self):
         """Update all relevant information about the user on the service.
 
@@ -54,18 +72,41 @@ class User(ABC):
         pass
 
     @abstractmethod
-    def mod(self, supplementary_groups=None, removal_groups=None):
+    def mod(self, supplementary_groups=None):
         """Modify the user on the service.
 
-        The user's membership to groups not provided in the arguments will not change.
+        After this operation, the user will only be part of the provided groups.
 
         If the user doesn't exists, behaviour is undefined.
 
         Arguments:
-        supplementary_groups -- A list of groups to add the user to (type: list(Group))
-        removal_groups -- A list of groups to remove the user from (type: list(Group))
+        supplementary_groups -- A list of groups the user must be part of (type: list(Group))
+
+        Returns:
+        two lists of groups: the groups the user was added to and the groups the user was removed from
         """
         pass
+
+    @abstractmethod
+    def mod_tostring(self, supplementary_groups=None):
+        """String representation of commands needed to modify a user to be added and removed from given groups.
+
+        Arguments:
+            supplementary_groups (list[Group], optional): the list of groups the user must be part of. Defaults to None.
+
+        Returns:
+            str: backend specific string containing all user modifications
+        """
+        pass
+
+    # def mod_fromstring(self, mod_cmd: str):
+    #     """Modify a user using string representation of commands needed to add & remove user to groups.
+    #     Optional, only needed if the backend supports it.
+    #
+    #     Arguments:
+    #         mod_cmd str: backend specific string containing all user modification command(s)
+    #     """
+    #     pass
 
     @abstractmethod
     def get_groups(self):

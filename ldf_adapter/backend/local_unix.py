@@ -40,11 +40,11 @@ class User(generic.User):
         if self.exists():
             logger.debug(f"This user does actually exist. The name is: {self.get_username()}")
             self.set_username(self.get_username())
-            self.primary_group = Group(self.get_primary_group())
         else:
             self.set_username(userinfo.username)
-            self.primary_group = Group(userinfo.primary_group)
 
+        # should be Group(self.get_primary_group()) when user exists?
+        self.primary_group = Group(userinfo.primary_group)
         self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
 
     @staticmethod
@@ -202,7 +202,7 @@ class User(generic.User):
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot delete user: {msg or '<no output>'}")
 
-    def _mod_cmd(self, supplementary_groups=None, removal_groups=None):
+    def _mod_cmd(self, supplementary_groups=None):
         """Create command to modify unix user with given groups.
 
         The user's current groups are merged with the given additional groups,
@@ -211,54 +211,52 @@ class User(generic.User):
         A single `usermod` command is created to add and remove the user from all the given groups.
 
         Args:
-            supplementary_groups (list[Group], optional): groups to be appended to the user's groups. Defaults to None.
-            removal_groups (list[Group], optional): groups to remove the user from. Defaults to None.
+            supplementary_groups (list[Group], optional): groups to be set as the user's groups. Defaults to None.
 
         Returns:
             list: usermod command to modify unix user
         """
         options = []
-        group_list = self.get_groups()
-        if supplementary_groups is not None:
-            for grp in supplementary_groups:
-                group_list.append(grp.name)
-        if removal_groups is not None:
-            removal_group_names = [grp.name for grp in removal_groups]
-            group_list = [grp for grp in group_list if grp not in removal_group_names]
-
-        # make sure the groups are unique -- this should not be necessary.
-        group_list = list(set(group_list))
-
-        if group_list != []:
-            options += ["--groups", ",".join(group_list)]
+        if supplementary_groups is not None and supplementary_groups != []:
+            logger.debug(
+                "Ensuring user '{}' is member of these groups {}".format(
+                    self.name, [g.name for g in supplementary_groups]
+                )
+            )
+            options += ["--groups", ",".join([g.name for g in supplementary_groups])]
 
         return ["usermod"] + options + [self.name]
 
-    def mod(self, supplementary_groups=None, removal_groups=None):
-        """Adds user to given groups and remove user from given groups.
+    def mod(self, supplementary_groups=None):
+        """Modify the user on the service.
+        After this operation, the user will only be part of the provided groups.
 
-        param list supplementary_groups: a list of Group objects;
-        param list removal_groups: a list of Group objects;
-        the corresponding unix groups are assumed to exist.
+        Arguments:
+        supplementary_groups (list[Group], optional): the list of groups the user must be part of. Defaults to None.
+            The corresponding unix groups are assumed to exist.
+
+        Returns:
+        two lists of groups: the groups the user was added to and the groups the user was removed from
         """
         try:
+            group_before = self.get_groups()
             subprocess.run(
-                self._mod_cmd(
-                    supplementary_groups=supplementary_groups, removal_groups=removal_groups
-                ),
+                self._mod_cmd(supplementary_groups=supplementary_groups),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 check=True,
             )
+            groups_after = self.get_groups()
+            groups_added = list(set(groups_after) - set(group_before))
+            groups_removed = list(set(group_before) - set(groups_after))
+            return groups_added, groups_removed
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
 
-    def mod_tostring(self, supplementary_groups=None, removal_groups=None):
-        return " ".join(
-            self._mod_cmd(supplementary_groups=supplementary_groups, removal_groups=removal_groups)
-        )
+    def mod_tostring(self, supplementary_groups=None):
+        return " ".join(self._mod_cmd(supplementary_groups=supplementary_groups))
 
     @staticmethod
     def mod_fromstring(mod_cmd):
@@ -423,7 +421,10 @@ class Group(generic.Group):
             self.name = None
         else:
             self.original_name = name
-            self.name = make_shadow_compatible(name)
+            if CONFIG.backend.local_unix.punch4nfdi:
+                self.name = make_shadow_compatible_punch4nfdi(name)
+            else:
+                self.name = make_shadow_compatible(name)
             self.name_v004 = make_shadow_compatible_v044(name)
 
     @staticmethod
@@ -653,6 +654,100 @@ def make_shadow_compatible(orig_word) -> str:
 
     if word != orig_word:
         logger.debug("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
+
+    return word
+
+
+def make_shadow_compatible_punch4nfdi(orig_word) -> str:
+    """Ensure that orig_word is a valid user/group name for standard shadow utils.
+    Special use case for punch4nfdi.
+
+    Summary of transliteration process:
+    - german umlauts are replaced with their phonetic equivalents
+    - a few special characters are replaced by sensible equivalents:
+        - ! to i
+        - $ to s
+        - * to x
+        - @ to _at_
+    - unicode characters are decoded to ascii
+    - all other special characters are replaced with _
+    - shortening names longer than 32 chars to 32 as follows:
+        - fragments (substrings separated by _) are shortened starting with the second fragment,
+          then going from the last fragment to the first, until the length 32 is reached
+        - the first fragment is shortened by removing characters from the end,
+          and adding .. at the end to denote the shortening took place, e.g. "abcdef" -> "abc.."
+        - the other fragments are shortened by removing characters from the beginning,
+          and adding .. at the beginning to denote the shortening took place, e.g. "abcdef" -> "..def"
+        - the length of any fragment has to be > 2 to be considered for shortening
+        - names that are still longer than 32 chars after this process will raise a ValueError
+    """
+    if orig_word is None:
+        return None
+    # Encode German Umlauts
+    word = orig_word.translate(
+        str.maketrans(
+            {
+                "ä": "ae",
+                "ö": "oe",
+                "ü": "ue",
+                "Ä": "Ae",
+                "Ö": "Oe",
+                "Ü": "Ue",
+                "ß": "ss",
+                "!": "i",
+                "$": "s",
+                "*": "x",
+                "@": "_at_",
+            }
+        )
+    )
+
+    # Unicode -> Ascii
+    word = unidecode(word)
+
+    # Downcase
+    word = word.lower()
+
+    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
+    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
+    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
+    # aber nur *ganz* am Ende ...
+    # word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
+    # since we already replace $ with s, no need to check for $ at the end
+    word = regex.sub(r"[^-0-9_a-z]", "_", word)
+
+    # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
+    if not regex.match(r"^[a-z_]", word):
+        word = "_" + word
+    if regex.match(r"_-", word):
+        word = "_" + word[2:]
+
+    # extract namespace and group from punch4nfdi entitlement
+    # require the presence of punch4nfdi in the word to skip username and entitlement not belonging to punch4nfdi
+    # error will be triggered for group length exceeding 32 characters
+    if regex.search(r"punch4nfdi", word):
+        pattern = regex.compile(r"(?P<namespace>\S+)_punch4nfdi(?P<group>\S{1,32}$|\b)")
+        word_split = pattern.search(word)
+        if word_split:
+            word_namespace = word_split.group("namespace")
+            word_group = "punch4nfdi" + word_split.group("group")
+            logger.warning(
+                f"entitlement: {word} - namespace: {word_namespace} - group: {word_group}"
+            )
+            word = word_group
+        else:
+            logger.error(
+                f"namespace and group could not be extracted from the punch4nfdi entitlement {word} because group has a length exceeding 32 characters"
+            )
+            raise (ValueError)
+    else:
+        pattern = regex.compile(r"(?P<word>^\S{1,32}$)")
+        word_split = pattern.search(word)
+        if not word_split:
+            logger.error(
+                f"username or entitlement {word} has a length of {len(word)} exceeding 32 characters"
+            )
+            raise (ValueError)
 
     return word
 

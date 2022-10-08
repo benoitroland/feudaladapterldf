@@ -2,7 +2,7 @@
 Implement approval workflow for user deployments.
 """
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from ldf_adapter import backend
 from ldf_adapter.results import Failure
@@ -156,7 +156,9 @@ class PendingDeployment:
         self._groups.append(pending_group)
         return True
 
-    def mod(self, service_user: backend.User, supplementary_groups: List[backend.Group], removal_groups: List[backend.Group]) -> bool:  # type: ignore
+    def mod(
+        self, service_user: backend.User, supplementary_groups: List[backend.Group]
+    ) -> Tuple[List[str], List[str]]:
         """Create or update info in pending db s.t. the given user is added and removed
         from the given groups.
 
@@ -167,33 +169,30 @@ class PendingDeployment:
 
         Return True if the pending db has been modified and False otherwise.
         """
-        if supplementary_groups == [] and removal_groups == []:
-            return False
-        supplementary_group_names = [g.name for g in supplementary_groups]
-        removal_group_names = [g.name for g in removal_groups]
+        supplementary_groups_names = [group.name for group in supplementary_groups]
+        current_groups = service_user.get_groups()
+        groups_to_add = list(set(supplementary_groups_names) - set(current_groups))
+        groups_to_remove = list(set(current_groups) - set(supplementary_groups_names))
 
         memberships = PendingMemberships(
             unique_id=service_user.unique_id,
-            supplementary_groups=supplementary_group_names,
-            removal_groups=removal_group_names,
+            supplementary_groups=supplementary_groups_names,
+            removal_groups=[],
             state=DeploymentState.PENDING,
-            cmd=service_user.mod_tostring(
-                supplementary_groups=supplementary_groups, removal_groups=removal_groups
-            ),
+            cmd=service_user.mod_tostring(supplementary_groups=supplementary_groups),
             infodict={},
         )
 
         if self._memberships is None:
-            self._pending_db.add_memberships(memberships)
-            self._memberships = memberships
-            return True
-        elif set(self._memberships.supplementary_groups) != set(supplementary_group_names) or set(
-            self._memberships.removal_groups
-        ) != set(removal_group_names):
+            if groups_to_add != [] or groups_to_remove != []:
+                self._pending_db.add_memberships(memberships)
+                self._memberships = memberships
+            return groups_to_add, groups_to_remove
+        elif set(self._memberships.supplementary_groups) != set(supplementary_groups_names):
             self._pending_db.update_memberships(memberships)
             self._memberships = memberships
-            return True
-        return False
+            return groups_to_add, groups_to_remove
+        return [], []
 
     def remove_data(self):
         """Remove from pending db all data associated to this user."""

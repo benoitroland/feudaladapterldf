@@ -111,26 +111,21 @@ class MockBackendUser:
     def delete(self):
         MOCK_DB.delete_user(self.unique_id)
 
-    def mod(self, supplementary_groups=None, removal_groups=None):
-        # add supplementary groups
-        if supplementary_groups:
-            MOCK_DB.users[self.unique_id].groups = list(
-                set(
-                    MOCK_DB.users[self.unique_id].groups
-                    + [group.name for group in supplementary_groups]
-                )
-            )
-            for group in supplementary_groups:
-                MOCK_DB.groups[group.name].members.append(self.username)
-        # remove removal groups
-        if removal_groups:
-            MOCK_DB.users[self.unique_id].groups = [
-                group
-                for group in MOCK_DB.users[self.unique_id].groups
-                if group not in removal_groups
-            ]
-            for group in removal_groups:
-                MOCK_DB.groups[group.name].members.remove(self.username)
+    def mod(self, supplementary_groups=None):
+        if supplementary_groups is None:
+            supplementary_groups_names = []
+        else:
+            supplementary_groups_names = [group.name for group in supplementary_groups]
+        current_groups = self.get_groups()
+        groups_to_add = list(set(supplementary_groups_names) - set(current_groups))
+        groups_to_remove = list(set(current_groups) - set(supplementary_groups_names))
+
+        MOCK_DB.users[self.unique_id].groups = supplementary_groups_names
+        for group in groups_to_add:
+            MOCK_DB.groups[group].members.append(self.username)
+        for group in groups_to_remove:
+            MOCK_DB.groups[group].members.remove(self.username)
+        return groups_to_add, groups_to_remove
 
     def get_groups(self):
         return MOCK_DB.users[self.unique_id].groups

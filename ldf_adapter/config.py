@@ -298,6 +298,7 @@ class ConfigLocalUnix(ConfigSection):
     shell: str = "/bin/sh"
     home_base: str = "/home"
     deploy_user_ssh_keys: bool = True
+    punch4nfdi: bool = False
 
     @classmethod
     def __section__name__(cls):
