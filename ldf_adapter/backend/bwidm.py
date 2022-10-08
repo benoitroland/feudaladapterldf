@@ -368,6 +368,8 @@ class User:
                 )
             if len(grp_add_retvals) > 0:
                 logger.debug(f"Group add retvals: {grp_add_retvals}")
+            return to_be_added_to, to_be_removed_from
+        return [], []
 
     def install_ssh_keys(self):
         self.external_user_update(

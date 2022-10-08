@@ -88,6 +88,13 @@ class User:
         self.service_user = backend.User(self.data)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
+        # add additional groups from config
+        self.additional_groups = [
+            backend.Group(grp)
+            for grp in CONFIG.ldf_adapter.additional_groups
+            if grp not in self.data.groups
+        ]
+
         if CONFIG.ldf_adapter.backend_supports_preferring_existing_user:
             logger.debug("trying to update user from existing")
             if self.service_user.exists():
@@ -99,7 +106,7 @@ class User:
 
         # apply fixes to group names for unix backend
         if CONFIG.ldf_adapter.backend == "local_unix" and hasattr(backend.User, "fix_group_names"):
-            for grp in self._all_groups():
+            for grp in self.service_groups + self.additional_groups:
                 grp.fix_group_names()
 
     def assurance_verifier(self):
@@ -522,7 +529,7 @@ class User:
         unique_id = self.data.unique_id
         if is_new_user:
             username = self.data.username
-            primary_group_name = self.data.primary_group
+            primary_group_name = self.service_user.primary_group.name
 
             # Raise question in case of existing username in case we're interactive
             if CONFIG.ldf_adapter.interactive:  # interactive
@@ -697,54 +704,29 @@ class User:
         logger.debug(f"User {self.data.unique_id} in state {status.state}. Unlimit not allowed.")
         return False
 
-    def _all_groups(self):
-        """Get all groups the user belongs to. Includes primary group, service groups derived from
-        VOs, as well as additional configured local groups.
-
-        Returns:
-            List[backend.Group]: a list of all the user's local groups.
-        """
-        group_list = self.service_groups.copy()
-        if self.service_user.primary_group.name not in [grp.name for grp in self.service_groups]:
-            group_list.append(self.service_user.primary_group)
-
-        group_list_names = [grp.name for grp in group_list]
-        for grp in CONFIG.ldf_adapter.additional_groups:
-            if grp.name not in group_list_names:
-                group_list.append(grp)
-
-        if group_list[0].name is None:
-            config_file_name = globalconfig.info["config_files_read"]
-            message = (
-                'User is not member of any group, and neither a "primary_group", nor '
-                f'a "fallback_group" have been defined in the config file {config_file_name}'
-            )
-            logger.error(message)
-            raise FatalError(message=message)
-
-        return group_list
-
     def ensure_groups_exist(self):
         """Ensure that all the necessary groups exist.
 
         Create the groups on the service, if necessary.
         Return the names of the groups that were created (or requested to be created).
         """
-        group_list = filter(lambda grp: not grp.exists(), self._all_groups())
+        group_list = self.service_groups + self.additional_groups
+        if self.data.primary_group not in self.data.groups + CONFIG.ldf_adapter.additional_groups:
+            group_list.append(self.service_user.primary_group)
+
         new_groups = []
-        for group in group_list:
-            if group.name is not None:
-                logger.info("Creating group '{}'".format(group.name))
-                if CONFIG.approval.enabled:
-                    if self.pending_deployment.create_group(group):
-                        new_groups.append(group.name)
-                else:
-                    group.create()
+        for group in filter(lambda grp: not grp.exists() and grp.name is not None, group_list):
+            logger.info("Creating group '{}'".format(group.name))
+            if CONFIG.approval.enabled:
+                if self.pending_deployment.create_group(group):
                     new_groups.append(group.name)
+            else:
+                group.create()
+                new_groups.append(group.name)
         return new_groups
 
     def ensure_group_memberships(self):
-        """Ensure that the user is a member of all the groups in self.service_groups and CONFIG.additional_groups.
+        """Ensure that the user is a member of all the groups in self.service_groups and self.additional_groups.
 
         Return two lists:
         - the names of all groups the user was added to
@@ -752,36 +734,33 @@ class User:
         """
         username = self.service_user.get_username()
 
-        all_groups = self._all_groups()  # list of backend.Group objects
-        all_groups_names = [grp.name for grp in all_groups]
-        logger.info(
-            f"Ensuring user '{username}' ({self.data.unique_id}) is member of these groups: {all_groups_names}"
-        )
+        group_list = self.service_groups + self.additional_groups
+        if self.data.primary_group not in self.data.groups + CONFIG.ldf_adapter.additional_groups:
+            group_list.append(self.service_user.primary_group)
 
-        groups_current = self.service_user.get_groups()  # list of group names
-        logger.info(f"User '{username}' is already in the following groups: {groups_current}")
-
-        groups_to_add = [grp for grp in all_groups_names if grp not in groups_current]
-        groups_to_remove = [grp for grp in groups_current if grp not in all_groups_names]
-        logger.info(f"User '{username}' will be added to the following groups: {groups_to_add}")
         logger.info(
-            f"User '{username}' will be removed from the following groups: {groups_to_remove}"
+            f"Ensuring user '{username}' ({self.data.unique_id}) is member of these groups: "
+            f"{[grp.name for grp in group_list]}"
         )
 
         if CONFIG.approval.enabled:
-            if not self.pending_deployment.mod(
-                service_user=self.service_user,
-                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],
-                removal_groups=[backend.Group(grp) for grp in groups_to_remove],
-            ):
-                return [], []
-        else:
-            self.service_user.mod(
-                supplementary_groups=[backend.Group(grp) for grp in groups_to_add],
-                removal_groups=[backend.Group(grp) for grp in groups_to_remove],
+            groups_added, groups_removed = self.pending_deployment.mod(
+                service_user=self.service_user, supplementary_groups=group_list
             )
-
-        return groups_to_add, groups_to_remove
+            logger.info(
+                f"User '{username}' has to be added to the following groups: {groups_added}"
+            )
+            logger.info(
+                f"User '{username}' has to be removed from the following groups: {groups_removed}"
+            )
+            return groups_added, groups_removed
+        else:
+            groups_added, groups_removed = self.service_user.mod(supplementary_groups=group_list)
+            logger.info(f"User '{username}' was added to the following groups: {groups_added}")
+            logger.info(
+                f"User '{username}' was removed from the following groups: {groups_removed}"
+            )
+            return groups_added, groups_removed
 
     def ensure_credentials_active(self):
         """Install all SSH Keys on the service.

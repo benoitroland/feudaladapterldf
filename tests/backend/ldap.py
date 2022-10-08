@@ -68,13 +68,10 @@ def ldap_group(mode, name, existing_entries, monkeypatch):
 
 
 @pytest.fixture(scope="function")
-def ldap_mod_entry(
-    mode, userinfo, supplementary_group_names, removal_group_names, existing_entries, monkeypatch
-):
+def ldap_mod_entry(mode, userinfo, supplementary_group_names, existing_entries, monkeypatch):
     """Creates a backend user and groups from provided data.
     'userinfo' should contain: unique_id, username, primary_group.
     'supplementary_group_names' is a list of group names
-    'removal_group_names' is a list of group names
     'existing_entries' are LDAP entries to be added beforehand;
         each entry contains a dn and a dict of attributes.
     """
@@ -88,18 +85,11 @@ def ldap_mod_entry(
         supplementary_groups = []
         for name in supplementary_group_names:
             supplementary_groups.append(ldf_adapter.backend.ldap.Group(name))
-        removal_groups = []
-        for name in removal_group_names:
-            removal_groups.append(ldf_adapter.backend.ldap.Group(name))
         for entry in existing_entries:
             ldf_adapter.backend.ldap.LDAP.connection.add(
                 entry["dn"], object_class=entry["object_class"], attributes=entry["attributes"]
             )
-        yield {
-            "user": service_user,
-            "supplementary_groups": supplementary_groups,
-            "removal_groups": removal_groups,
-        }
+        yield {"user": service_user, "supplementary_groups": supplementary_groups}
         del sys.modules["ldf_adapter.backend.ldap"]
 
 
@@ -462,7 +452,7 @@ def test_create_group_success(ldap_group, existing_entries):
     assert ldap_group.exists()
 
 
-@pytest.mark.parametrize("mode", ["read_only", "pre_created", "full_access"])
+@pytest.mark.parametrize("mode", ["read_only", "pre_created"])
 @pytest.mark.parametrize("userinfo", [USERINFO])
 @pytest.mark.parametrize(
     "existing_entries",
@@ -472,39 +462,45 @@ def test_create_group_success(ldap_group, existing_entries):
     ],
 )
 @pytest.mark.parametrize("supplementary_group_names", [[], ["group1", "group2"]])
-@pytest.mark.parametrize("removal_group_names", [[], ["testgroup"]])
 def test_mod_user_ignore(ldap_mod_entry):
     """nothing happens"""
-    ldap_mod_entry["user"].mod(
-        ldap_mod_entry["supplementary_groups"], ldap_mod_entry["removal_groups"]
-    )
+    added, removed = ldap_mod_entry["user"].mod(ldap_mod_entry["supplementary_groups"])
+    assert added == []
+    assert removed == []
 
 
 @pytest.mark.parametrize("mode", ["pre_created", "full_access"])
 @pytest.mark.parametrize("userinfo", [USERINFO])
 @pytest.mark.parametrize(
-    "existing_entries",
+    "existing_entries,removed_from",
     [
-        [LDAP_TESTGROUP_ENTRY, LDAP_GROUP1_ENTRY, LDAP_GROUP2_ENTRY],
-        [LDAP_USER_ENTRY, LDAP_TESTGROUP_ENTRY, LDAP_GROUP1_ENTRY, LDAP_GROUP2_ENTRY],
-        [LDAP_USER_ENTRY, LDAP_PRECREATED_TESTGROUP_ENTRY, LDAP_GROUP1_ENTRY, LDAP_GROUP2_ENTRY],
+        ([LDAP_TESTGROUP_ENTRY, LDAP_GROUP1_ENTRY, LDAP_GROUP2_ENTRY], ["testgroup"]),
+        (
+            [LDAP_USER_ENTRY, LDAP_TESTGROUP_ENTRY, LDAP_GROUP1_ENTRY, LDAP_GROUP2_ENTRY],
+            ["testgroup"],
+        ),
+        (
+            [
+                LDAP_USER_ENTRY,
+                LDAP_PRECREATED_TESTGROUP_ENTRY,
+                LDAP_GROUP1_ENTRY,
+                LDAP_GROUP2_ENTRY,
+            ],
+            [],
+        ),
     ],
 )
 @pytest.mark.parametrize("supplementary_group_names", [["group1", "group2"], []])
-@pytest.mark.parametrize("removal_group_names", [["testgroup"], []])
-def test_mod_user_success(ldap_mod_entry, userinfo):
-    ldap_mod_entry["user"].mod(
-        ldap_mod_entry["supplementary_groups"], ldap_mod_entry["removal_groups"]
-    )
+def test_mod_user_success(ldap_mod_entry, userinfo, removed_from):
+    added, removed = ldap_mod_entry["user"].mod(ldap_mod_entry["supplementary_groups"])
+
+    assert added == [grp.name for grp in ldap_mod_entry["supplementary_groups"]]
+    assert removed == removed_from
 
     for group in ldap_mod_entry["supplementary_groups"]:
         members = group.get_ldap_entry().get("memberUid") or []
         assert userinfo["username"] in members
         assert userinfo["username"] in members
-    for group in ldap_mod_entry["removal_groups"]:
-        members = group.get_ldap_entry().get("memberUid") or []
-        assert userinfo["username"] not in members
-        assert userinfo["username"] not in members
 
 
 @pytest.mark.parametrize("uid_min,uid_max", [(1000, 2000), (2000, 3000)])

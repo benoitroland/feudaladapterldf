@@ -40,11 +40,11 @@ class User(generic.User):
         if self.exists():
             logger.debug(f"This user does actually exist. The name is: {self.get_username()}")
             self.set_username(self.get_username())
-            self.primary_group = Group(self.get_primary_group())
         else:
             self.set_username(userinfo.username)
-            self.primary_group = Group(userinfo.primary_group)
 
+        # should be Group(self.get_primary_group()) when user exists?
+        self.primary_group = Group(userinfo.primary_group)
         self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
 
     @staticmethod
@@ -202,7 +202,7 @@ class User(generic.User):
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot delete user: {msg or '<no output>'}")
 
-    def _mod_cmd(self, supplementary_groups=None, removal_groups=None):
+    def _mod_cmd(self, supplementary_groups=None):
         """Create command to modify unix user with given groups.
 
         The user's current groups are merged with the given additional groups,
@@ -211,54 +211,52 @@ class User(generic.User):
         A single `usermod` command is created to add and remove the user from all the given groups.
 
         Args:
-            supplementary_groups (list[Group], optional): groups to be appended to the user's groups. Defaults to None.
-            removal_groups (list[Group], optional): groups to remove the user from. Defaults to None.
+            supplementary_groups (list[Group], optional): groups to be set as the user's groups. Defaults to None.
 
         Returns:
             list: usermod command to modify unix user
         """
         options = []
-        group_list = self.get_groups()
-        if supplementary_groups is not None:
-            for grp in supplementary_groups:
-                group_list.append(grp.name)
-        if removal_groups is not None:
-            removal_group_names = [grp.name for grp in removal_groups]
-            group_list = [grp for grp in group_list if grp not in removal_group_names]
-
-        # make sure the groups are unique -- this should not be necessary.
-        group_list = list(set(group_list))
-
-        if group_list != []:
-            options += ["--groups", ",".join(group_list)]
+        if supplementary_groups is not None and supplementary_groups != []:
+            logger.debug(
+                "Ensuring user '{}' is member of these groups {}".format(
+                    self.name, [g.name for g in supplementary_groups]
+                )
+            )
+            options += ["--groups", ",".join([g.name for g in supplementary_groups])]
 
         return ["usermod"] + options + [self.name]
 
-    def mod(self, supplementary_groups=None, removal_groups=None):
-        """Adds user to given groups and remove user from given groups.
+    def mod(self, supplementary_groups=None):
+        """Modify the user on the service.
+        After this operation, the user will only be part of the provided groups.
 
-        param list supplementary_groups: a list of Group objects;
-        param list removal_groups: a list of Group objects;
-        the corresponding unix groups are assumed to exist.
+        Arguments:
+        supplementary_groups (list[Group], optional): the list of groups the user must be part of. Defaults to None.
+            The corresponding unix groups are assumed to exist.
+
+        Returns:
+        two lists of groups: the groups the user was added to and the groups the user was removed from
         """
         try:
+            group_before = self.get_groups()
             subprocess.run(
-                self._mod_cmd(
-                    supplementary_groups=supplementary_groups, removal_groups=removal_groups
-                ),
+                self._mod_cmd(supplementary_groups=supplementary_groups),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 check=True,
             )
+            groups_after = self.get_groups()
+            groups_added = list(set(groups_after) - set(group_before))
+            groups_removed = list(set(group_before) - set(groups_after))
+            return groups_added, groups_removed
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
             logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
             raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
 
-    def mod_tostring(self, supplementary_groups=None, removal_groups=None):
-        return " ".join(
-            self._mod_cmd(supplementary_groups=supplementary_groups, removal_groups=removal_groups)
-        )
+    def mod_tostring(self, supplementary_groups=None):
+        return " ".join(self._mod_cmd(supplementary_groups=supplementary_groups))
 
     @staticmethod
     def mod_fromstring(mod_cmd):

@@ -752,7 +752,28 @@ class User:
         else:  # Mode.FULL_ACCESS
             LDAP.delete_user(self.name)
 
-    def mod(self, supplementary_groups=None, removal_groups=None):
+    def _get_group_lists(self, supplementary_groups=None):
+        """Get the names of the groups the user needs to be added to and removed from,
+        based on the given supplementary groups and the groups the user is currently in.
+
+        The supplementary_groups MUST also contain the primary group.
+
+        Arguments:
+            supplementary_groups (list(Group) | None): list of group names to which the user should belong.
+
+        Returns:
+            (list(str), list(str)): list of groups to add, list of groups to remove
+        """
+        if supplementary_groups is None:
+            supplementary_groups_names = []
+        else:
+            supplementary_groups_names = [group.name for group in supplementary_groups]
+        current_groups = self.get_groups()
+        groups_to_add = list(set(supplementary_groups_names) - set(current_groups))
+        groups_to_remove = list(set(current_groups) - set(supplementary_groups_names))
+        return groups_to_add, groups_to_remove
+
+    def mod(self, supplementary_groups=None):
         """Modify the user on the service.
 
         The state of the user with respect to the provided Arguments after calling this function
@@ -761,65 +782,63 @@ class User:
         If the user doesn't exists, behaviour is undefined.
 
         Arguments:
-            supplementary_groups (list[Group], optional): a list of groups to add the user to. Defaults to None.
-            removal_groups (list[Group], optional): groups to remove the user from. Defaults to None.
+            supplementary_groups (list[Group], optional): the list of groups the user must be part of. Defaults to None.
         """
-        if (supplementary_groups is None or supplementary_groups == []) and (
-            removal_groups is None or removal_groups == []
-        ):
+        groups_to_add, groups_to_remove = self._get_group_lists(supplementary_groups)
+        if groups_to_add == [] and groups_to_remove == []:
             logger.debug(
-                f"Empty supplementary and removal group lists for user {self.name}. Nothing to do here."
+                f"Empty add & remove group lists for user {self.name}. Nothing to do here."
             )
-        else:
-            if LDAP.mode == Mode.READ_ONLY:
-                msg = f"LDAP backend in read_only mode, local username {self.name} cannot be added to given groups."
-                logger.warning(msg)
-            elif LDAP.mode == Mode.PRE_CREATED:
-                msg = "LDAP backend in pre_created mode, group {} does not exist so user {} cannot be added to it."
-                if supplementary_groups is not None:
-                    for group in supplementary_groups:
-                        if group.exists():
-                            LDAP.add_user_to_group(self.name, group.name)
-                        else:
-                            logger.warning(msg.format(group.name, self.name))
-                if removal_groups is not None:
-                    for group in removal_groups:
-                        if group.exists():
-                            LDAP.remove_user_from_group(self.name, group.name)
-                        else:
-                            logger.warning(msg.format(group.name, self.name))
-            else:  # Mode.FULL_ACCESS
-                if supplementary_groups is not None:
-                    for group in supplementary_groups:
-                        LDAP.add_user_to_group(self.name, group.name)
-                if removal_groups is not None:
-                    for group in removal_groups:
-                        LDAP.remove_user_from_group(self.name, group.name)
+            return [], []
 
-    def mod_tostring(self, supplementary_groups=None, removal_groups=None):
+        if LDAP.mode == Mode.READ_ONLY:
+            msg = f"LDAP backend in read_only mode, local username {self.name} cannot be added to given groups."
+            logger.warning(msg)
+            return [], []
+        elif LDAP.mode == Mode.PRE_CREATED:
+            msg = "LDAP backend in pre_created mode, group {} does not exist so user {} cannot be added to it."
+            added_groups = []
+            removed_groups = []
+            for group in groups_to_add:
+                if Group(group).exists():
+                    LDAP.add_user_to_group(self.name, group)
+                    added_groups.append(group)
+                else:
+                    logger.warning(msg.format(group, self.name))
+            for group in groups_to_remove:
+                if Group(group).exists():
+                    LDAP.remove_user_from_group(self.name, group)
+                    removed_groups.append(group)
+                else:
+                    logger.warning(msg.format(group, self.name))
+            return added_groups, removed_groups
+        else:  # Mode.FULL_ACCESS
+            for group in groups_to_add:
+                LDAP.add_user_to_group(self.name, group)
+            for group in groups_to_remove:
+                LDAP.remove_user_from_group(self.name, group)
+            return groups_to_add, groups_to_remove
+
+    def mod_tostring(self, supplementary_groups=None):
         """LDIF representation for modifying a user to be added and removed from given groups.
 
-        Args:
-            supplementary_groups (list[Group], optional): a list of groups to add the user to. Defaults to None.
-            removal_groups (list[Group], optional): groups to remove the user from. Defaults to None.
+        Arguments:
+            supplementary_groups (list[Group], optional): the list of groups the user must be part of. Defaults to None.
 
         Returns:
             str: LDIF containing all user modifications
         """
-        if (supplementary_groups is None or supplementary_groups == []) and (
-            removal_groups is None or removal_groups == []
-        ):
+        groups_to_add, groups_to_remove = self._get_group_lists(supplementary_groups)
+        if groups_to_add == [] and groups_to_remove == []:
             logger.debug(
-                f"Empty supplementary and removal group lists for user {self.name}. Nothing to do here."
+                f"Empty add & remove group lists for user {self.name}. Nothing to do here."
             )
             return ""
         ldifs = []
-        if supplementary_groups is not None:
-            for group in supplementary_groups:
-                ldifs.append(LDAP.add_user_to_group_ldif(self.name, group.name))
-        if removal_groups is not None:
-            for group in removal_groups:
-                ldifs.append(LDAP.remove_user_from_group_ldif(self.name, group.name))
+        for group in groups_to_add:
+            ldifs.append(LDAP.add_user_to_group_ldif(self.name, group))
+        for group in groups_to_remove:
+            ldifs.append(LDAP.remove_user_from_group_ldif(self.name, group))
         return "\n\n".join(ldifs)
 
     def install_ssh_keys(self):
