@@ -421,7 +421,10 @@ class Group(generic.Group):
             self.name = None
         else:
             self.original_name = name
-            self.name = make_shadow_compatible(name)
+            if CONFIG.backend.local_unix.punch4nfdi:
+                self.name = make_shadow_compatible_punch4nfdi(name)
+            else:
+                self.name = make_shadow_compatible(name)
             self.name_v004 = make_shadow_compatible_v044(name)
 
     @staticmethod
@@ -651,6 +654,100 @@ def make_shadow_compatible(orig_word) -> str:
 
     if word != orig_word:
         logger.debug("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
+
+    return word
+
+
+def make_shadow_compatible_punch4nfdi(orig_word) -> str:
+    """Ensure that orig_word is a valid user/group name for standard shadow utils.
+    Special use case for punch4nfdi.
+
+    Summary of transliteration process:
+    - german umlauts are replaced with their phonetic equivalents
+    - a few special characters are replaced by sensible equivalents:
+        - ! to i
+        - $ to s
+        - * to x
+        - @ to _at_
+    - unicode characters are decoded to ascii
+    - all other special characters are replaced with _
+    - shortening names longer than 32 chars to 32 as follows:
+        - fragments (substrings separated by _) are shortened starting with the second fragment,
+          then going from the last fragment to the first, until the length 32 is reached
+        - the first fragment is shortened by removing characters from the end,
+          and adding .. at the end to denote the shortening took place, e.g. "abcdef" -> "abc.."
+        - the other fragments are shortened by removing characters from the beginning,
+          and adding .. at the beginning to denote the shortening took place, e.g. "abcdef" -> "..def"
+        - the length of any fragment has to be > 2 to be considered for shortening
+        - names that are still longer than 32 chars after this process will raise a ValueError
+    """
+    if orig_word is None:
+        return None
+    # Encode German Umlauts
+    word = orig_word.translate(
+        str.maketrans(
+            {
+                "ä": "ae",
+                "ö": "oe",
+                "ü": "ue",
+                "Ä": "Ae",
+                "Ö": "Oe",
+                "Ü": "Ue",
+                "ß": "ss",
+                "!": "i",
+                "$": "s",
+                "*": "x",
+                "@": "_at_",
+            }
+        )
+    )
+
+    # Unicode -> Ascii
+    word = unidecode(word)
+
+    # Downcase
+    word = word.lower()
+
+    # Das ist der doofe part. Für die ganzen Sonderzeichen gibt es nicht wirklich
+    # eine transliterierung in [-0-9_a-z], daher nehme ich einfach underscore,
+    # was ggf. zu Kollisionen führen kann. Witzig: Shadow erlaubt '$' im namen,
+    # aber nur *ganz* am Ende ...
+    # word = regex.sub(r'[^-0-9_a-z]', '_', word[:-1]) + regex.sub(r'[^-0-9_a-z$]', '_', word[-1])
+    # since we already replace $ with s, no need to check for $ at the end
+    word = regex.sub(r"[^-0-9_a-z]", "_", word)
+
+    # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
+    if not regex.match(r"^[a-z_]", word):
+        word = "_" + word
+    if regex.match(r"_-", word):
+        word = "_" + word[2:]
+
+    # extract namespace and group from punch4nfdi entitlement
+    # require the presence of punch4nfdi in the word to skip username and entitlement not belonging to punch4nfdi
+    # error will be triggered for group length exceeding 32 characters
+    if regex.search(r"punch4nfdi", word):
+        pattern = regex.compile(r"(?P<namespace>\S+)_punch4nfdi(?P<group>\S{1,32}$|\b)")
+        word_split = pattern.search(word)
+        if word_split:
+            word_namespace = word_split.group("namespace")
+            word_group = "punch4nfdi" + word_split.group("group")
+            logger.warning(
+                f"entitlement: {word} - namespace: {word_namespace} - group: {word_group}"
+            )
+            word = word_group
+        else:
+            logger.error(
+                f"namespace and group could not be extracted from the punch4nfdi entitlement {word} because group has a length exceeding 32 characters"
+            )
+            raise (ValueError)
+    else:
+        pattern = regex.compile(r"(?P<word>^\S{1,32}$)")
+        word_split = pattern.search(word)
+        if not word_split:
+            logger.error(
+                f"username or entitlement {word} has a length of {len(word)} exceeding 32 characters"
+            )
+            raise (ValueError)
 
     return word
 
