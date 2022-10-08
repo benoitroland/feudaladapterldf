@@ -19,3 +19,4 @@ AUTHORS
 ChangeLog
 build
 *.rpm
+.eggs/
