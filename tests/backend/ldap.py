@@ -494,8 +494,8 @@ def test_mod_user_ignore(ldap_mod_entry):
 def test_mod_user_success(ldap_mod_entry, userinfo, removed_from):
     added, removed = ldap_mod_entry["user"].mod(ldap_mod_entry["supplementary_groups"])
 
-    assert added == [grp.name for grp in ldap_mod_entry["supplementary_groups"]]
-    assert removed == removed_from
+    assert set(added) == set([grp.name for grp in ldap_mod_entry["supplementary_groups"]])
+    assert set(removed) == set(removed_from)
 
     for group in ldap_mod_entry["supplementary_groups"]:
         members = group.get_ldap_entry().get("memberUid") or []
