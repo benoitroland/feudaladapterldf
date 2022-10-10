@@ -1,0 +1,48 @@
+{
+    "state_target": "deployed",
+    "user": {
+        "userinfo": {
+            "display_name": "Diana Gudu",
+            "eduperson_assurance": [
+                "https://refeds.org/assurance/ATP/ePA-1m",
+                "https://refeds.org/assurance/IAP/low",
+                "https://refeds.org/assurance/profile/cappuccino",
+                "https://refeds.org/assurance/IAP/local-enterprise",
+                "https://refeds.org/assurance/IAP/medium",
+                "https://refeds.org/assurance/ATP/ePA-1d",
+                "https://refeds.org/assurance/ID/unique",
+                "https://refeds.org/assurance/ID/eppn-unique-no-reassign",
+                "https://refeds.org/assurance/ATP/ePA-1m",
+                "https://refeds.org/assurance/IAP/low",
+                "https://refeds.org/assurance/profile/cappuccino",
+                "https://refeds.org/assurance/IAP/local-enterprise",
+                "https://refeds.org/assurance/IAP/medium",
+                "https://refeds.org/assurance/ATP/ePA-1d",
+                "https://refeds.org/assurance/ID/unique",
+                "https://refeds.org/assurance/ID/eppn-unique-no-reassign",
+                "https://aarc-project.eu/policy/authn-assurance/assam"
+            ],
+            "eduperson_principal_name": "rg7642@kit.edu",
+            "eduperson_scoped_affiliation": [
+                "employee@login.helmholtz.de",
+                "member@login.helmholtz.de"
+            ],
+            "eduperson_unique_id": "1594a948e5aa44e89629ffa606c9681e@login.helmholtz.de",
+            "email": "diana.gudu@kit.edu",
+            "email_verified": true,
+            "family_name": "Gudu",
+            "given_name": "Diana",
+            "iss": "https://login.helmholtz.de/oauth2",
+            "name": "Diana Gudu",
+            "preferred_username": "diana.gudu",
+            "sn": "Gudu",
+            "sub": "1594a948-e5aa-44e8-9629-ffa606c9681e",
+            "eduperson_entitlement": [      
+                "urn:geant:dfn.de:nfdi.de:punch:group:PUNCH4NFDI:punch_intra#login.helmholtz.de",
+                "urn:geant:h-df.de:group:HDF#login.helmholtz.de",
+                "urn:geant:dfn.de:nfdi.de:punch:group:PUNCH4NFDI#login.helmholtz.de"
+            ]
+        }
+    }
+}
+
