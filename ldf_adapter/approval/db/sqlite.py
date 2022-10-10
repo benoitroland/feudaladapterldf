@@ -200,7 +200,7 @@ sqlite3.register_converter("boolean", lambda v: bool(int(v)))
 class SQLiteConnector:
     def __init__(self, location: str) -> None:
         self.location = location
-        Path(self.location).parent.mkdir(exist_ok=True)
+        Path(self.location).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
 
     def exists(self) -> bool:
         return Path(self.location).exists()
