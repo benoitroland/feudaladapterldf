@@ -222,7 +222,7 @@ class UserInfo(Mapping):
         def try_entitlement(attr):
             try:
                 return eduperson.Entitlement(attr)
-            except (ValueError):
+            except ValueError:
                 return None
 
         return filter(lambda x: x, map(try_entitlement, attr))

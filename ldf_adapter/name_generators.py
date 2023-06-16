@@ -77,7 +77,6 @@ class FriendlyNameGenerator:
                 self.dont_use_these_names.append(name.lower())
 
         while True:
-
             self.next_strategy_idx += 1
             try:
                 candidate_name = (

@@ -631,7 +631,6 @@ def make_shadow_compatible(orig_word) -> str:
 
     excess_chars = len(word) - 32
     if excess_chars > 0:
-
         if len(word.split("_")) == 1:  # no '_' found:
             word = "__" + word[excess_chars + 2 :]
             # logger.warning(F"shortened {orig_word} to {word}")
@@ -835,7 +834,6 @@ def make_shadow_compatible_v044(orig_word) -> str:
     fragments = word.split("_")
 
     if excess_chars > 0:
-
         for n in range(len(fragments)):
             if len(fragments[n]) <= 3:
                 continue
@@ -852,7 +850,6 @@ def make_shadow_compatible_v044(orig_word) -> str:
             fragments[n] = fragments[n] + ".."
 
     if orig_excess_chars > 0:
-
         if excess_chars > 0:
             return None
         else:
