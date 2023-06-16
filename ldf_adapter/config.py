@@ -388,24 +388,24 @@ class ConfigNotifiers(ConfigListOfSections):
 class ConfigBackends(ConfigListOfSections):
     """Collection of config sections for all backends"""
 
-    local_unix: ConfigLocalUnix = ConfigLocalUnix()
-    ldap: ConfigLdap = ConfigLdap()
-    bwidm: ConfigBwIdm = ConfigBwIdm()
+    local_unix: ConfigLocalUnix = field(default_factory=ConfigLocalUnix)
+    ldap: ConfigLdap = field(default_factory=ConfigLdap)
+    bwidm: ConfigBwIdm = field(default_factory=ConfigBwIdm)
 
 
 @dataclass
 class Configuration:
     """All configuration settings for the feudal adapter"""
 
-    ldf_adapter: ConfigLdfAdapter = ConfigLdfAdapter()
-    messages: ConfigMessages = ConfigMessages()
-    approval: ConfigApproval = ConfigApproval()
-    notifier: ConfigNotifiers = ConfigNotifiers()
-    assurance: ConfigAssurance = ConfigAssurance()
-    username_generator: ConfigUsernameGenerator = ConfigUsernameGenerator()
-    login_info: ConfigLoginInfo = ConfigLoginInfo()
-    backend: ConfigBackends = ConfigBackends()
-    verbose_info_plugin: ConfigVerboseInfoPlugin = ConfigVerboseInfoPlugin()
+    ldf_adapter: ConfigLdfAdapter = field(default_factory=ConfigLdfAdapter)
+    messages: ConfigMessages = field(default_factory=ConfigMessages)
+    approval: ConfigApproval = field(default_factory=ConfigApproval)
+    notifier: ConfigNotifiers = field(default_factory=ConfigNotifiers)
+    assurance: ConfigAssurance = field(default_factory=ConfigAssurance)
+    username_generator: ConfigUsernameGenerator = field(default_factory=ConfigUsernameGenerator)
+    login_info: ConfigLoginInfo = field(default_factory=ConfigLoginInfo)
+    backend: ConfigBackends = field(default_factory=ConfigBackends)
+    verbose_info_plugin: ConfigVerboseInfoPlugin = field(default_factory=ConfigVerboseInfoPlugin)
 
     @classmethod
     def load(cls, config: ConfigParser):
