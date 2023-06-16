@@ -1,7 +1,7 @@
 stages:
-    - test
-    - build
-    - deploy
+  - test
+  - build
+  - deploy
 
 .install_dependencies:
   before_script:
@@ -43,6 +43,12 @@ python310:
   extends: .install_dependencies
   stage: test
   script: tox -e py310
+
+python311:
+  image: python:3.11
+  extends: .install_dependencies
+  stage: test
+  script: tox -e py311
 
 coverage:
   image: python:3.10
