@@ -14,6 +14,7 @@ from functools import reduce
 from time import sleep
 import requests
 import os
+import subprocess
 from urllib.parse import urljoin
 
 from ldf_adapter.config import CONFIG
@@ -90,6 +91,7 @@ class User:
         self.info = userinfo
         self.primary_group = Group(userinfo.primary_group)
         self.force_username = None
+        self.post_create_script = CONFIG.backend.bwidm.post_create_script
 
     def exists(self):
         """
@@ -214,6 +216,39 @@ class User:
         username = prefixed_username.lstrip(f"{bwIdmOrgId}_")
         self.set_username(username)
 
+    def run_post_create_hook(self):
+        """ Run the post_create_script for the user if it is set."""
+        if not os.path.isfile(self.post_create_script):
+            logger.error(
+                f"post_create_script {self.post_create_script} for user {self.force_username} does not exist, skipping."
+            )
+            return
+        command = [self.post_create_script, self.force_username]
+        if self.post_create_script.endswith(".sh"):
+            command.insert(0, "bash")
+        elif self.post_create_script.endswith(".py"):
+            command.insert(0, "python3")
+        else:
+            logger.error(
+                f"post_create_script {self.post_create_script} for user {self.force_username} is not a bash or python script, skipping."
+            )
+            return
+        try:
+            logger.info(
+                f"Running post_create_script {command} for user {self.force_username}"
+            )
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(
+                f"Error running post_create_script {self.post_create_script} for user {self.force_username}: {e}. Skipping."
+            )
+            return
+
     def create(self):
         """Create or activate user."""
         if self._exists() and not self._is_active():
@@ -222,6 +257,8 @@ class User:
         else:
             logger.info("Creating user {unique_id}".format(**self.info))
             BWIDM.post("external-user", "create", json={"externalId": self.info.unique_id})
+        if self.post_create_script:
+            self.run_post_create_hook()
 
     def register(self):
         """register user for the configured service"""

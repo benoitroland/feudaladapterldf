@@ -302,6 +302,7 @@ class ConfigLocalUnix(ConfigSection):
     home_base: str = "/home"
     deploy_user_ssh_keys: bool = True
     punch4nfdi: bool = False
+    post_create_script: Optional[str] = None
 
     @classmethod
     def __section__name__(cls):
@@ -322,6 +323,7 @@ class ConfigBwIdm(ConfigSection):
     http_pass: str = "bar"
     service_name: str = "sshtest"
     log_outgoing_http_requests: bool = False
+    post_create_script: Optional[str] = None
 
     @classmethod
     def __section__name__(cls):

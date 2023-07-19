@@ -690,6 +690,39 @@ class User:
         """Get all information about the user stored in LDAP."""
         return LDAP.get_all_user_info(self.unique_id)
 
+    def run_post_create_hook(self):
+        """ Run the post_create_script for the user if it is set."""
+        if not os.path.isfile(self.post_create_script):
+            logger.error(
+                f"post_create_script {self.post_create_script} for user {self.name} does not exist, skipping."
+            )
+            return
+        command = [self.post_create_script, self.name]
+        if self.post_create_script.endswith(".sh"):
+            command.insert(0, "bash")
+        elif self.post_create_script.endswith(".py"):
+            command.insert(0, "python3")
+        else:
+            logger.error(
+                f"post_create_script {self.post_create_script} for user {self.name} is not a bash or python script, skipping."
+            )
+            return
+        try:
+            logger.info(
+                f"Running post_create_script {command} for user {self.name}"
+            )
+            subprocess.run(
+                command,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(
+                f"Error running post_create_script {self.post_create_script} for user {self.name}: {e}. Skipping."
+            )
+            return
+
     def create(self):
         """Create the user on the service.
 
@@ -720,39 +753,8 @@ class User:
             LDAP.add_user(self.userinfo, self.name, self.primary_group.name)
         # run the post_create_script if it is set
         if self.post_create_script:
-            if not os.path.isfile(self.post_create_script):
-                logger.error(
-                    f"post_create_script {self.post_create_script} for user {self.name} does not exist, skipping."
-                )
-                return
-            logger.debug(
-                f"Running post_create_script {self.post_create_script} for user {self.name}"
-            )
-            command = [self.post_create_script, self.name]
-            if self.post_create_script.endswith(".sh"):
-                command.insert(0, "bash")
-            elif self.post_create_script.endswith(".py"):
-                command.insert(0, "python3")
-            else:
-                logger.error(
-                    f"post_create_script {self.post_create_script} for user {self.name} is not a bash or python script, skipping."
-                )
-                return
-            try:
-                logger.info(
-                    f"Running post_create_script {command} for user {self.name}"
-                )
-                subprocess.run(
-                    command,
-                    check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-            except subprocess.CalledProcessError as e:
-                logger.error(
-                    f"Error running post_create_script {self.post_create_script} for user {self.name}: {e}. Skipping."
-                )
-                return
+            self.run_post_create_hook()
+
 
     def create_tostring(self):
         """Return command (LDIF) for creating user in LDAP.
