@@ -54,7 +54,9 @@ def reload_parser() -> ConfigParser:
     logger.debug(f"Files: {files}")
     try:
         globalconf_conf_file = Path(globalconfig.config["CONFIGFILE"])
-        logger.debug(f"Trying config of globalconfig: {globalconfig.config['CONFIGFILE']}")
+        logger.debug(
+            f"Trying config of globalconfig: {globalconfig.config['CONFIGFILE']}"
+        )
         if globalconf_conf_file.exists():
             files.insert(0, globalconf_conf_file)
     except KeyError:
@@ -115,7 +117,8 @@ class ConfigSection:
             return cls(**config[cls.__section__name__()])
         except KeyError:
             logger.debug(
-                "Missing config section %s, using default values.", cls.__section__name__()
+                "Missing config section %s, using default values.",
+                cls.__section__name__(),
             )
             return cls()
 
@@ -403,10 +406,14 @@ class Configuration:
     approval: ConfigApproval = field(default_factory=ConfigApproval)
     notifier: ConfigNotifiers = field(default_factory=ConfigNotifiers)
     assurance: ConfigAssurance = field(default_factory=ConfigAssurance)
-    username_generator: ConfigUsernameGenerator = field(default_factory=ConfigUsernameGenerator)
+    username_generator: ConfigUsernameGenerator = field(
+        default_factory=ConfigUsernameGenerator
+    )
     login_info: ConfigLoginInfo = field(default_factory=ConfigLoginInfo)
     backend: ConfigBackends = field(default_factory=ConfigBackends)
-    verbose_info_plugin: ConfigVerboseInfoPlugin = field(default_factory=ConfigVerboseInfoPlugin)
+    verbose_info_plugin: ConfigVerboseInfoPlugin = field(
+        default_factory=ConfigVerboseInfoPlugin
+    )
 
     @classmethod
     def load(cls, config: ConfigParser):

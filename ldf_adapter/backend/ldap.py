@@ -140,7 +140,8 @@ class LdapConnection:
         # initialise and bind connection to LDAP server
         try:
             server = Server(
-                f"ldaps://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}", get_info=ALL
+                f"ldaps://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}",
+                get_info=ALL,
             )
             if CONFIG.backend.ldap.admin_user and CONFIG.backend.ldap.admin_password:
                 # add SAFE_SYNC, so we get more return values
@@ -192,7 +193,9 @@ class LdapConnection:
                         f"gidNext already initialised: {search_gid.get_attribute('gidNumber')}."
                     )
         except Exception as e:
-            msg = "Error adding entries in LDAP for tracking available UID and GID values"
+            msg = (
+                "Error adding entries in LDAP for tracking available UID and GID values"
+            )
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -457,7 +460,9 @@ class LdapConnection:
         """
         try:
             changes = {
-                "homeDirectory": [(MODIFY_REPLACE, [f"{self.home_base}/{local_username}"])],
+                "homeDirectory": [
+                    (MODIFY_REPLACE, [f"{self.home_base}/{local_username}"])
+                ],
                 "loginShell": [(MODIFY_REPLACE, [self.shell])],
                 self.attr_local_uid: [(MODIFY_REPLACE, [local_username])],
                 self.attr_oidc_uid: [(MODIFY_REPLACE, [userinfo.unique_id])],
@@ -486,7 +491,9 @@ class LdapConnection:
         try:
             return self.connection.delete(f"uid={local_username},{self.user_base}")
         except Exception as e:
-            msg = f"Failed to delete the LDAP entry for local username {local_username}."
+            msg = (
+                f"Failed to delete the LDAP entry for local username {local_username}."
+            )
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -647,7 +654,9 @@ class User:
             oidc_uid = search_result.get_attribute(
                 LDAP.attr_oidc_uid
             )  # this is the oidc_uid mapped to name
-            if LDAP.mode == Mode.PRE_CREATED and oidc_uid is None:  # pre-created but not mapped
+            if (
+                LDAP.mode == Mode.PRE_CREATED and oidc_uid is None
+            ):  # pre-created but not mapped
                 return False
             return oidc_uid != self.unique_id  # name already mapped to another oidc uid
         else:  # no entry for name found in LDAP
@@ -665,9 +674,9 @@ class User:
 
     def get_primary_group(self):
         """Check if a user exists based on unique_id and return the primary group name."""
-        gid = LDAP.search_user_by_oidc_uid(self.unique_id, attributes=["gidNumber"]).get_attribute(
-            "gidNumber"
-        )
+        gid = LDAP.search_user_by_oidc_uid(
+            self.unique_id, attributes=["gidNumber"]
+        ).get_attribute("gidNumber")
         return LDAP.search_group_by_gid(gid).get_attribute("cn")
 
     def get_groups(self):
@@ -696,7 +705,9 @@ class User:
                 message=f"{msg} Please contact an administrator to create an account for you."
             )
         elif LDAP.mode == Mode.PRE_CREATED:
-            if not LDAP.search_user_by_local_username(self.name, get_unique_id=False).found():
+            if not LDAP.search_user_by_local_username(
+                self.name, get_unique_id=False
+            ).found():
                 msg = f"Local username {self.name} not found in LDAP for user {self.unique_id}."
                 logger.error(msg)
                 raise Rejection(
@@ -714,7 +725,9 @@ class User:
                     f"post_create_script {self.post_create_script} for user {self.name} does not exist, skipping."
                 )
                 return
-            logger.debug(f"Running post_create_script {self.post_create_script} for user {self.name}")
+            logger.debug(
+                f"Running post_create_script {self.post_create_script} for user {self.name}"
+            )
             command = [self.post_create_script, self.name]
             if self.post_create_script.endswith(".sh"):
                 command.insert(0, "bash")
@@ -726,7 +739,9 @@ class User:
                 )
                 return
             try:
-                logger.info(f"Running post_create_script {command} for user {self.name}")
+                logger.info(
+                    f"Running post_create_script {command} for user {self.name}"
+                )
                 subprocess.run(
                     command,
                     check=True,
@@ -745,7 +760,9 @@ class User:
         """
         if (
             LDAP.mode == Mode.PRE_CREATED
-            and LDAP.search_user_by_local_username(self.name, get_unique_id=False).found()
+            and LDAP.search_user_by_local_username(
+                self.name, get_unique_id=False
+            ).found()
         ):
             return LDAP.map_user_ldif(self.userinfo, self.name)
         return LDAP.add_user_ldif(self.userinfo, self.name, self.primary_group.name)
@@ -925,9 +942,7 @@ class Group:
         if self.exists():
             logger.info(f"Group {self.name} exists.")
         elif LDAP.mode == Mode.READ_ONLY:
-            msg = (
-                f"LDAP backend in read_only mode, new entry cannot be added for group {self.name}."
-            )
+            msg = f"LDAP backend in read_only mode, new entry cannot be added for group {self.name}."
             logger.warning(msg)
         elif LDAP.mode == Mode.PRE_CREATED:
             msg = f"LDAP backend in pre_created mode, new entry cannot be added for group {self.name}."
