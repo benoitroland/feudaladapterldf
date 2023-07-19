@@ -137,10 +137,13 @@ class LdapConnection:
         # initialise connection used to generate LDIFs
         self.ldif_connection = Connection(server=None, client_strategy=LDIF)
         self.ldif_connection.bind()
+        self.protocol = "ldap"
+        if CONFIG.backend.ldap.tls:
+            self.protocol = "ldaps"
         # initialise and bind connection to LDAP server
         try:
             server = Server(
-                f"ldaps://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}",
+                f"{self.protocol}://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}",
                 get_info=ALL,
             )
             if CONFIG.backend.ldap.admin_user and CONFIG.backend.ldap.admin_password:
@@ -157,7 +160,7 @@ class LdapConnection:
                     server, client_strategy=SAFE_SYNC, auto_bind=AUTO_BIND_NO_TLS
                 )
         except Exception as e:
-            msg = f"Could not connect to server ldaps://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
+            msg = f"Could not connect to server {self.protocol}://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
