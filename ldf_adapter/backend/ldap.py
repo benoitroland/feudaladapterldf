@@ -4,6 +4,8 @@ It"s in the proof-of-concept state.
 
 
 import logging
+import os
+import subprocess
 from ldap3 import (
     AUTO_BIND_NO_TLS,
     SAFE_RESTARTABLE,
@@ -138,7 +140,7 @@ class LdapConnection:
         # initialise and bind connection to LDAP server
         try:
             server = Server(
-                f"ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}", get_info=ALL
+                f"ldaps://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}", get_info=ALL
             )
             if CONFIG.backend.ldap.admin_user and CONFIG.backend.ldap.admin_password:
                 # add SAFE_SYNC, so we get more return values
@@ -154,7 +156,7 @@ class LdapConnection:
                     server, client_strategy=SAFE_SYNC, auto_bind=AUTO_BIND_NO_TLS
                 )
         except Exception as e:
-            msg = f"Could not connect to server ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
+            msg = f"Could not connect to server ldaps://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -624,6 +626,7 @@ class User:
             self.primary_group = Group(userinfo.primary_group)
 
         self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
+        self.post_create_script = CONFIG.backend.ldap.post_create_script
 
     def exists(self):
         """Return whether the user exists on the service.
@@ -704,6 +707,37 @@ class User:
                 LDAP.map_user(self.userinfo, self.name)
         else:  # Mode.FULL_ACCESS
             LDAP.add_user(self.userinfo, self.name, self.primary_group.name)
+        # run the post_create_script if it is set
+        if self.post_create_script:
+            if not os.path.isfile(self.post_create_script):
+                logger.error(
+                    f"post_create_script {self.post_create_script} for user {self.name} does not exist, skipping."
+                )
+                return
+            logger.debug(f"Running post_create_script {self.post_create_script} for user {self.name}")
+            command = [self.post_create_script, self.name]
+            if self.post_create_script.endswith(".sh"):
+                command.insert(0, "bash")
+            elif self.post_create_script.endswith(".py"):
+                command.insert(0, "python3")
+            else:
+                logger.error(
+                    f"post_create_script {self.post_create_script} for user {self.name} is not a bash or python script, skipping."
+                )
+                return
+            try:
+                logger.info(f"Running post_create_script {command} for user {self.name}")
+                subprocess.run(
+                    command,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+            except subprocess.CalledProcessError as e:
+                logger.error(
+                    f"Error running post_create_script {self.post_create_script} for user {self.name}: {e}. Skipping."
+                )
+                return
 
     def create_tostring(self):
         """Return command (LDIF) for creating user in LDAP.

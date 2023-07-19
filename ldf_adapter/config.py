@@ -341,6 +341,7 @@ class ConfigLdap(ConfigSection):
     attribute_local_uid: str = "uid"
     shell: str = "/bin/sh"
     home_base: str = "/home"
+    post_create_script: Optional[str] = None
     uid_min: int = 1000
     uid_max: int = 60000
     gid_min: int = 1000
