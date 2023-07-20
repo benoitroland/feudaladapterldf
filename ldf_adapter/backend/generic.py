@@ -156,37 +156,31 @@ class User(ABC, Hooks):
         """Check if a user exists based on unique_id and return the primary group name."""
         pass
 
-    @abstractmethod
     def is_suspended(self):
         """Optional, only if the backend supports it.
         Return whether the user was suspended (e.g. due to a security incident)"""
         return False
 
-    @abstractmethod
     def is_limited(self):
         """Optional, only if the backend supports it.
         Return whether the user has limited access"""
         return False
 
-    @abstractmethod
     def suspend(self):
         """Optional, only if the backend supports it.
         Suspends the user such that no access to the service is possible"""
         pass
 
-    @abstractmethod
     def resume(self):
         """Optional, only if the backend supports it.
         Restores the suspended user"""
         pass
 
-    @abstractmethod
     def limit(self):
         """Optional, only if the backend supports it.
         Limits the user's capabilities on the service (e.g. read-only access)"""
         pass
 
-    @abstractmethod
     def unlimit(self):
         """Optional, only if the backend supports it.
         Restores a user with limited access to full capabilities"""
