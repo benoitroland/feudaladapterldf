@@ -83,16 +83,18 @@ class User:
             except Exception as e:
                 logger.error(f"Got an exception in uncritical code: {e}")
 
+        hooks = {}
+        backend_config = CONFIG.backend.__getattribute__(CONFIG.ldf_adapter.backend)
+        if hasattr(backend_config, "post_create_script"):
+            hooks["post_create"] = backend_config.post_create_script
+        else:
+            logger.debug(
+                f"post_create_script not supported for backend {CONFIG.ldf_adapter.backend}"
+            )
+
         # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
-        self.service_user = backend.User(
-            self.data,
-            **{
-                "post_create": CONFIG.backend.__getattribute__(
-                    CONFIG.ldf_adapter.backend
-                ).post_create_script
-            },
-        )
+        self.service_user = backend.User(self.data, **hooks)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
         # add additional groups from config
