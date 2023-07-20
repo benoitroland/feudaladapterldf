@@ -85,7 +85,7 @@ class User:
 
         hooks = {}
         backend_config = CONFIG.backend.__getattribute__(CONFIG.ldf_adapter.backend)
-        if hasattr(backend_config, "post_create_script"):
+        if hasattr(backend_config, "post_create_script") and backend_config.post_create_script:
             hooks["post_create"] = backend_config.post_create_script
         else:
             logger.debug(
