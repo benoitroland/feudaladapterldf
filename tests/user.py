@@ -176,6 +176,9 @@ class MockBackendUser:
     def unlimit(self):
         MOCK_DB.users[self.unique_id].limited = False
 
+    def execute(self, hook, *hook_args):
+        pass
+
 
 class MockBackendGroup:
     def __init__(self, name):
