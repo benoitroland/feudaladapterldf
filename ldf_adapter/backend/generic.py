@@ -1,16 +1,17 @@
 """Generic backend User and Group, to be implemented by all backends."""
 from abc import ABC, abstractmethod
+from ldf_adapter.backend.hooks import Hooks
 
 
-class User(ABC):
+class User(ABC, Hooks):
     """Manages the user object on the service."""
 
-    def __init__(self, userinfo):
+    def __init__(self, userinfo, **hooks):
         """
         Arguments:
         userinfo -- (type: UserInfo)
         """
-        pass
+        super().__init__(**hooks)
 
     @abstractmethod
     def exists(self):

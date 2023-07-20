@@ -14,12 +14,12 @@ from functools import reduce
 from time import sleep
 import requests
 import os
-import subprocess
 from urllib.parse import urljoin
 
 from ldf_adapter.config import CONFIG
 from ldf_adapter import utils
 from ldf_adapter.logsetup import jsonlogger
+from ldf_adapter.backend import generic
 
 logger = logging.getLogger(__name__)
 
@@ -87,13 +87,14 @@ class BwIdmConnection:
 BWIDM = BwIdmConnection(CONFIG)
 
 
-class User:
+class User(generic.User):
     ATTR_USERNAME = "urn:oid:0.9.2342.19200300.100.1.1"
     ATTR_ORG_ID = "http://bwidm.de/bwidmOrgId"
     VALUE_USER_ACTIVE = "ACTIVE"
     VALUE_USER_INACTIVE = "ON_HOLD"
 
-    def __init__(self, userinfo):
+    def __init__(self, userinfo, **hooks):
+        super().__init__(userinfo, **hooks)
         self.info = userinfo
         self.primary_group = Group(userinfo.primary_group)
         self.force_username = None
@@ -235,39 +236,6 @@ class User:
         username = prefixed_username.lstrip(f"{bwIdmOrgId}_")
         self.set_username(username)
 
-    def run_post_create_hook(self):
-        """Run the post_create_script for the user if it is set."""
-        if not os.path.isfile(self.post_create_script):
-            logger.error(
-                f"post_create_script {self.post_create_script} for user {self.force_username} does not exist, skipping."
-            )
-            return
-        command = [self.post_create_script, self.force_username]
-        if self.post_create_script.endswith(".sh"):
-            command.insert(0, "bash")
-        elif self.post_create_script.endswith(".py"):
-            command.insert(0, "python3")
-        else:
-            logger.error(
-                f"post_create_script {self.post_create_script} for user {self.force_username} is not a bash or python script, skipping."
-            )
-            return
-        try:
-            logger.info(
-                f"Running post_create_script {command} for user {self.force_username}"
-            )
-            subprocess.run(
-                command,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                f"Error running post_create_script {self.post_create_script} for user {self.force_username}: {e}. Skipping."
-            )
-            return
-
     def create(self):
         """Create or activate user."""
         if self._exists() and not self._is_active():
@@ -278,8 +246,6 @@ class User:
             BWIDM.post(
                 "external-user", "create", json={"externalId": self.info.unique_id}
             )
-        if self.post_create_script:
-            self.run_post_create_hook()
 
     def register(self):
         """register user for the configured service"""
@@ -520,7 +486,7 @@ class User:
         return rsp.json() if json else rsp.content
 
 
-class Group:
+class Group(generic.Group):
     def __init__(self, name):
         self.name = name
 

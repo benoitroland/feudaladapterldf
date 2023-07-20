@@ -85,7 +85,14 @@ class User:
 
         # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
-        self.service_user = backend.User(self.data)
+        self.service_user = backend.User(
+            self.data,
+            **{
+                "post_create": CONFIG.backend.__getattribute__(
+                    CONFIG.ldf_adapter.backend
+                ).post_create_script
+            },
+        )
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
         # add additional groups from config
@@ -282,6 +289,8 @@ class User:
         was_created = self.ensure_exists()
         new_memberships, removed_memberships = self.ensure_group_memberships()
         new_credentials = self.ensure_credentials_active()
+        if was_created:
+            self.service_user.execute("post_create", self.service_user.get_username())
 
         if CONFIG.approval.enabled:
             self.pending_deployment.notify()

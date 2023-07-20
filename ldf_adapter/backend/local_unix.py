@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class User(generic.User):
-    def __init__(self, userinfo):
+    def __init__(self, userinfo, **hooks):
         """
         Arguments:
         userinfo -- Only these attributes are used:
@@ -35,6 +35,7 @@ class User(generic.User):
                 `unique_id`  stored in gecos, used to find the user
                 `ssh_keys`
         """
+        super().__init__(userinfo, **hooks)
         self.unique_id = userinfo.unique_id
         logger.debug(f"backend processing: {userinfo.unique_id}")
         if self.exists():
@@ -48,7 +49,6 @@ class User(generic.User):
         # should be Group(self.get_primary_group()) when user exists?
         self.primary_group = Group(userinfo.primary_group)
         self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
-        self.post_create_script = CONFIG.backend.local_unix.post_create_script
 
     @staticmethod
     def ROOT():
@@ -65,7 +65,8 @@ class User(generic.User):
 
     def is_suspended(self):
         """Optional, only if the backend supports it.
-        Inform the user whether a user was suspended (e.g. due to a security incident)"""
+        Inform the user whether a user was suspended (e.g. due to a security incident)
+        """
         if self.exists():
             options = ["-l"]
             try:
@@ -151,37 +152,6 @@ class User(generic.User):
             self.name,
         ]
 
-    def run_post_create_hook(self):
-        """Run the post_create_script for the user if it is set."""
-        if not os.path.isfile(self.post_create_script):
-            logger.error(
-                f"post_create_script {self.post_create_script} for user {self.name} does not exist, skipping."
-            )
-            return
-        command = [self.post_create_script, self.name]
-        if self.post_create_script.endswith(".sh"):
-            command.insert(0, "bash")
-        elif self.post_create_script.endswith(".py"):
-            command.insert(0, "python3")
-        else:
-            logger.error(
-                f"post_create_script {self.post_create_script} for user {self.name} is not a bash or python script, skipping."
-            )
-            return
-        try:
-            logger.info(f"Running post_create_script {command} for user {self.name}")
-            subprocess.run(
-                command,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(
-                f"Error running post_create_script {self.post_create_script} for user {self.name}: {e}. Skipping."
-            )
-            return
-
     def create(self):
         logger.debug(f"Creating user '{self.name}' for {self.unique_id} ")
         try:
@@ -197,8 +167,6 @@ class User(generic.User):
                 "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
             )
             raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
-        if self.post_create_script:
-            self.run_post_create_hook()
 
     def create_tostring(self):
         return " ".join(self._create_cmd())
