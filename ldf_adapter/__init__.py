@@ -85,7 +85,10 @@ class User:
 
         hooks = {}
         backend_config = CONFIG.backend.__getattribute__(CONFIG.ldf_adapter.backend)
-        if hasattr(backend_config, "post_create_script") and backend_config.post_create_script:
+        if (
+            hasattr(backend_config, "post_create_script")
+            and backend_config.post_create_script
+        ):
             hooks["post_create"] = backend_config.post_create_script
         else:
             logger.debug(
@@ -114,7 +117,9 @@ class User:
             self.pending_deployment = PendingDeployment(userinfo=self.data)
 
         # apply fixes to group names for unix backend
-        if CONFIG.ldf_adapter.backend == "local_unix" and hasattr(backend.User, "fix_group_names"):
+        if CONFIG.ldf_adapter.backend == "local_unix" and hasattr(
+            backend.User, "fix_group_names"
+        ):
             for grp in self.service_groups + self.additional_groups:
                 grp.fix_group_names()
 
@@ -248,9 +253,13 @@ class User:
 
             return self.deploy()
         elif target == "not_deployed":
-            if not CONFIG.assurance.skip and not self.assurance_verifier()(self.data.assurance):
+            if not CONFIG.assurance.skip and not self.assurance_verifier()(
+                self.data.assurance
+            ):
                 if not CONFIG.assurance.verified_undeploy:
-                    logger.warning("Assurance level is insufficient. Undeploying anyway.")
+                    logger.warning(
+                        "Assurance level is insufficient. Undeploying anyway."
+                    )
                 else:
                     raise Rejection(
                         message="Your assurance level is insufficient to access this resource"
@@ -307,21 +316,27 @@ class User:
             if was_created:
                 what_changed = "Request for deployment was submitted for approval."
             elif new_memberships != [] or removed_memberships != []:
-                what_changed = "Updated request for deployment was submitted for approval."
+                what_changed = (
+                    "Updated request for deployment was submitted for approval."
+                )
             else:
                 what_changed = "Request for deployment was already submitted for approval. No new request was sent."
             return Status(state="pending", message=what_changed)
         else:
             what_changed = "User was created" if was_created else "User already existed"
             if new_memberships != []:
-                what_changed += " and was added to groups {}".format(",".join(new_memberships))
+                what_changed += " and was added to groups {}".format(
+                    ",".join(new_memberships)
+                )
             if removed_memberships != []:
                 what_changed += " and was removed from groups {}".format(
                     ",".join(removed_memberships)
                 )
             what_changed += "."
             if new_credentials:
-                what_changed += " Credentials {} were activated.".format(",".join(new_credentials))
+                what_changed += " Credentials {} were activated.".format(
+                    ",".join(new_credentials)
+                )
 
             return Deployed(credentials=self.credentials, message=what_changed)
 
@@ -424,7 +439,10 @@ class User:
 
         Return a Status result with a message describing what was done.
         """
-        if self.pending_deployment.is_pending() or self.pending_deployment.mod_pending():
+        if (
+            self.pending_deployment.is_pending()
+            or self.pending_deployment.mod_pending()
+        ):
             if not hasattr(backend.User, "create_fromstring"):
                 raise Failure(
                     message=(
@@ -447,7 +465,9 @@ class User:
                     )
                 )
             self.pending_deployment.accept()
-            return Deployed(credentials=self.credentials, message="User request was accepted.")
+            return Deployed(
+                credentials=self.credentials, message="User request was accepted."
+            )
         elif self.pending_deployment.is_rejected():
             what_changed = "User request was already rejected, cannot accept it."
             logger.debug(what_changed)
@@ -462,7 +482,10 @@ class User:
 
         Return a Status result with a message describing what was done.
         """
-        if self.pending_deployment.is_pending() or self.pending_deployment.mod_pending():
+        if (
+            self.pending_deployment.is_pending()
+            or self.pending_deployment.mod_pending()
+        ):
             self.pending_deployment.reject()
             what_changed = "User deployment request was rejected."
             logger.debug(what_changed)
@@ -502,9 +525,13 @@ class User:
             if not self.service_user.exists():
                 if CONFIG.approval.enabled:
                     if self.pending_deployment.is_pending():
-                        return Status("pending", message="User deployment is pending approval.")
+                        return Status(
+                            "pending", message="User deployment is pending approval."
+                        )
                     if self.pending_deployment.is_rejected():
-                        return Status("rejected", message="User deployment was rejected.")
+                        return Status(
+                            "rejected", message="User deployment was rejected."
+                        )
                 return Status("not_deployed", message=msg)
             msg = f"username {self.service_user.get_username()}"
             if hasattr(self.service_user, "is_suspended"):
@@ -558,7 +585,9 @@ class User:
                 logger.debug("noninteractive mode")
                 username_mode = CONFIG.username_generator.mode
                 logger.debug(f"username_mode: {username_mode}")
-                pool_prefix = CONFIG.username_generator.pool_prefix or primary_group_name
+                pool_prefix = (
+                    CONFIG.username_generator.pool_prefix or primary_group_name
+                )
 
                 name_generator = NameGenerator(
                     username_mode, userinfo=self.data, pool_prefix=pool_prefix
@@ -600,7 +629,9 @@ class User:
                 self.pending_deployment.create_user(self.service_user)
             else:
                 self.service_user.create()
-        elif CONFIG.approval.enabled and self.pending_deployment.exists():  # the user is pending
+        elif (
+            CONFIG.approval.enabled and self.pending_deployment.exists()
+        ):  # the user is pending
             username = self.pending_deployment.username
             self.service_user.set_username(username)
             logger.info(
@@ -625,7 +656,9 @@ class User:
             existing_username = self.service_user.get_username()
             if existing_username is not None:
                 if hasattr(self.service_user, "set_username"):
-                    logger.debug(f"Setting username to {existing_username} ({self.data.unique_id})")
+                    logger.debug(
+                        f"Setting username to {existing_username} ({self.data.unique_id})"
+                    )
                     if hasattr(self.service_user, "set_prefixed_username"):
                         logger.debug("calling set_prefixed_username")
                         self.service_user.set_prefixed_username(existing_username)
@@ -646,7 +679,9 @@ class User:
         """
         if self.service_user.exists():
             self.service_user.username = self.service_user.get_username()
-            logger.info(f"Deleting user '{self.service_user.username}' ({self.data.unique_id})")
+            logger.info(
+                f"Deleting user '{self.service_user.username}' ({self.data.unique_id})"
+            )
             # bwIDM requires prior removal of the user, because ssh-key removal triggers an
             # asyncronous process. If user is removed during that, the user might be only partially
             # removed...
@@ -676,7 +711,9 @@ class User:
             if hasattr(self.service_user, "suspend"):
                 self.service_user.suspend()
                 return True
-        logger.debug(f"User {self.data.unique_id} in state {status.state}. Suspending not allowed.")
+        logger.debug(
+            f"User {self.data.unique_id} in state {status.state}. Suspending not allowed."
+        )
         return False
 
     def ensure_limited(self):
@@ -688,7 +725,9 @@ class User:
             if hasattr(self.service_user, "limit"):
                 self.service_user.limit()
                 return True
-        logger.debug(f"User {self.data.unique_id} in state {status.state}. Limiting not allowed.")
+        logger.debug(
+            f"User {self.data.unique_id} in state {status.state}. Limiting not allowed."
+        )
         return False
 
     def ensure_resumed(self):
@@ -700,7 +739,9 @@ class User:
             if hasattr(self.service_user, "resume"):
                 self.service_user.resume()
                 return True
-        logger.debug(f"User {self.data.unique_id} in state {status.state}. Resuming not allowed.")
+        logger.debug(
+            f"User {self.data.unique_id} in state {status.state}. Resuming not allowed."
+        )
         return False
 
     def ensure_unlimited(self):
@@ -712,7 +753,9 @@ class User:
             if hasattr(self.service_user, "unlimit"):
                 self.service_user.unlimit()
                 return True
-        logger.debug(f"User {self.data.unique_id} in state {status.state}. Unlimit not allowed.")
+        logger.debug(
+            f"User {self.data.unique_id} in state {status.state}. Unlimit not allowed."
+        )
         return False
 
     def ensure_groups_exist(self):
@@ -722,11 +765,16 @@ class User:
         Return the names of the groups that were created (or requested to be created).
         """
         group_list = self.service_groups + self.additional_groups
-        if self.data.primary_group not in self.data.groups + CONFIG.ldf_adapter.additional_groups:
+        if (
+            self.data.primary_group
+            not in self.data.groups + CONFIG.ldf_adapter.additional_groups
+        ):
             group_list.append(self.service_user.primary_group)
 
         new_groups = []
-        for group in filter(lambda grp: not grp.exists() and grp.name is not None, group_list):
+        for group in filter(
+            lambda grp: not grp.exists() and grp.name is not None, group_list
+        ):
             logger.info("Creating group '{}'".format(group.name))
             if CONFIG.approval.enabled:
                 if self.pending_deployment.create_group(group):
@@ -746,7 +794,10 @@ class User:
         username = self.service_user.get_username()
 
         group_list = self.service_groups + self.additional_groups
-        if self.data.primary_group not in self.data.groups + CONFIG.ldf_adapter.additional_groups:
+        if (
+            self.data.primary_group
+            not in self.data.groups + CONFIG.ldf_adapter.additional_groups
+        ):
             group_list.append(self.service_user.primary_group)
 
         logger.info(
@@ -766,8 +817,12 @@ class User:
             )
             return groups_added, groups_removed
         else:
-            groups_added, groups_removed = self.service_user.mod(supplementary_groups=group_list)
-            logger.info(f"User '{username}' was added to the following groups: {groups_added}")
+            groups_added, groups_removed = self.service_user.mod(
+                supplementary_groups=group_list
+            )
+            logger.info(
+                f"User '{username}' was added to the following groups: {groups_added}"
+            )
             logger.info(
                 f"User '{username}' was removed from the following groups: {groups_removed}"
             )

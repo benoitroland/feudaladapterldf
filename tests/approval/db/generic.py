@@ -52,7 +52,8 @@ def pending_db(db_type):
     databases._builders = {}
     if db_type == "sqlite":
         with mock.patch(
-            "ldf_adapter.approval.db.sqlite.CONFIG.approval.user_db_location", ":memory:"
+            "ldf_adapter.approval.db.sqlite.CONFIG.approval.user_db_location",
+            ":memory:",
         ):
             yield databases.get(db_type)
     else:
@@ -198,10 +199,16 @@ def test_notify_memberships(pending_db):
     # notify memberships that do exist
     pending_db.add_memberships(MOCK_MEMBERSHIPS)
     # get_memberships returns memberships in PENDING state
-    assert pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id).state == DeploymentState.PENDING
+    assert (
+        pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id).state
+        == DeploymentState.PENDING
+    )
     pending_db.notify_memberships(MOCK_MEMBERSHIPS.unique_id)
     # get memberships returns memberships in NOTIFIED state
-    assert pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id).state == DeploymentState.NOTIFIED
+    assert (
+        pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id).state
+        == DeploymentState.NOTIFIED
+    )
 
 
 @pytest.mark.parametrize("db_type", ["sqlite"])
@@ -217,4 +224,7 @@ def test_update_memberships(pending_db):
     pending_db.add_memberships(MOCK_MEMBERSHIPS)
     pending_db.update_memberships(MOCK_MEMBERSHIPS_UPDATED)
     # get_memberships returns updated value
-    assert pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id) == MOCK_MEMBERSHIPS_UPDATED
+    assert (
+        pending_db.get_memberships(MOCK_MEMBERSHIPS.unique_id)
+        == MOCK_MEMBERSHIPS_UPDATED
+    )

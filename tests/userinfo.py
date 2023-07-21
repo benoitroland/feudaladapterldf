@@ -67,7 +67,9 @@ def test_sub_masked_for_bwidm_eppn_rnd(sub):
     assert info._sub_masked_for_bwidm_eppn() == "".join(repeat("-", 80))
 
 
-@pytest.mark.parametrize("iss", ["example.org", "http://example.org", "https://example.org"])
+@pytest.mark.parametrize(
+    "iss", ["example.org", "http://example.org", "https://example.org"]
+)
 def test_iss_masked_for_bwidm_eppn_fixes_prefix(iss):
     info = UserInfo({"user": {"userinfo": {"iss": iss}}})
     assert info._iss_masked_for_bwidm_eppn() == "example.org"

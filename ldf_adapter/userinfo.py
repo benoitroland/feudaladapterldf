@@ -117,7 +117,9 @@ class UserInfo(Mapping):
 
         if sub != self.userinfo["sub"]:
             logger.warning(
-                "sub '{}' changed to '{}' to avoid confusion".format(self.userinfo["sub"], sub)
+                "sub '{}' changed to '{}' to avoid confusion".format(
+                    self.userinfo["sub"], sub
+                )
             )
         return sub
 
@@ -137,7 +139,9 @@ class UserInfo(Mapping):
         if iss != stripped_iss:
             if CONFIG.messages.log_name_changes:
                 logger.warning(
-                    "Issuer '{}' changed to '{}' for general compatibilty".format(stripped_iss, iss)
+                    "Issuer '{}' changed to '{}' for general compatibilty".format(
+                        stripped_iss, iss
+                    )
                 )
         return iss
 
@@ -196,7 +200,11 @@ class UserInfo(Mapping):
         except KeyError:
             family_name_from_name = None
 
-        return self.userinfo.get("family_name") or family_name_from_sn or family_name_from_name
+        return (
+            self.userinfo.get("family_name")
+            or family_name_from_sn
+            or family_name_from_name
+        )
 
     @property
     @lru_cache(maxsize=None)
@@ -263,7 +271,9 @@ class UserInfo(Mapping):
                         for (ns, grp) in chain.from_iterable(
                             (
                                 (
-                                    "-".join([ent.delegated_namespace] + ent.subnamespaces),
+                                    "-".join(
+                                        [ent.delegated_namespace] + ent.subnamespaces
+                                    ),
                                     grp,
                                 )
                                 for grp in ent.all_toplevel_groups
@@ -329,7 +339,9 @@ class UserInfo(Mapping):
         if grp != orig_grp:
             if CONFIG.messages.log_name_changes:
                 logger.warning(
-                    "Group name '{}' changed to '{}' for general compatibilty".format(orig_grp, grp)
+                    "Group name '{}' changed to '{}' for general compatibilty".format(
+                        orig_grp, grp
+                    )
                 )
 
         return grp
@@ -402,7 +414,9 @@ class UserInfo(Mapping):
         """Return the prefrred username of the user."""
         return self.userinfo.get("preferred_username", None)
 
-    def value_or_ask(self, value, answer_name, question_text, allow_question, default=None):
+    def value_or_ask(
+        self, value, answer_name, question_text, allow_question, default=None
+    ):
         """Return the submitted answer, the default value or raise a questionaire."""
         previous_answer = self.answers.get(answer_name)
         return (
@@ -419,9 +433,13 @@ class UserInfo(Mapping):
         )
 
     def __str__(self):
-        attrs = ("{} = {}".format(k, getattr(UserInfo, k).fget(self)) for k in iter(self))
+        attrs = (
+            "{} = {}".format(k, getattr(UserInfo, k).fget(self)) for k in iter(self)
+        )
 
-        return "<UserInfo\n{}\n>".format("\n".join("\t{}".format(attr) for attr in attrs))
+        return "<UserInfo\n{}\n>".format(
+            "\n".join("\t{}".format(attr) for attr in attrs)
+        )
 
     def __getitem__(self, key):
         return getattr(self, key, lambda: (_ for _ in ()).throw(KeyError(key)))
@@ -431,7 +449,10 @@ class UserInfo(Mapping):
 
     def __len__(self):
         return sum(
-            1 for _ in filter(lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo))
+            1
+            for _ in filter(
+                lambda k: type(getattr(UserInfo, k)) is property, dir(UserInfo)
+            )
         )
 
     def __hash__(self):

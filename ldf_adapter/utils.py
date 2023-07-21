@@ -46,7 +46,9 @@ def log_dictdiff(diff, log_function=print, prefix=""):
         else:
             (old, new) = v
             if old:
-                log_function("Updating {}{} from '{}' to '{}'".format(prefix, k, old, new))
+                log_function(
+                    "Updating {}{} from '{}' to '{}'".format(prefix, k, old, new)
+                )
             else:
                 log_function("Setting {}{} to '{}'".format(prefix, k, new))
 
@@ -71,7 +73,9 @@ def to_bool(bool_str):
         return True
     if bool_str.lower() in ["false", "no"]:
         return False
-    raise FatalError(f"Error converting to bool: unrecognised boolean value {bool_str}.")
+    raise FatalError(
+        f"Error converting to bool: unrecognised boolean value {bool_str}."
+    )
 
 
 def to_int(int_str):
@@ -81,7 +85,9 @@ def to_int(int_str):
     try:
         return int(int_str)
     except ValueError:
-        raise FatalError(f"Error converting to int: unrecognised integer value {int_str}.")
+        raise FatalError(
+            f"Error converting to int: unrecognised integer value {int_str}."
+        )
 
 
 def to_list(list_str):
@@ -91,7 +97,9 @@ def to_list(list_str):
     try:
         return list(set(list_str.split()))
     except ValueError:
-        raise FatalError(f"Error converting to list: unrecognised list value {list_str}.")
+        raise FatalError(
+            f"Error converting to list: unrecognised list value {list_str}."
+        )
 
 
 def dynamic_import(fq_module_name: str, class_name: str) -> Type:
@@ -107,7 +115,9 @@ def dynamic_import(fq_module_name: str, class_name: str) -> Type:
     try:
         return getattr(module, class_name)
     except AttributeError:
-        raise FatalError(message=f"Module {fq_module_name} does not contain class {class_name}")
+        raise FatalError(
+            message=f"Module {fq_module_name} does not contain class {class_name}"
+        )
 
 
 @dataclass
@@ -193,7 +203,11 @@ def create_factory(dir_name: str, parent_module: str, class_name: str) -> Object
     """
     factory = ObjectFactory()
     for file in glob.glob(join(dir_name, "*.py")):
-        if isfile(file) and not file.endswith("__init__.py") and not file.endswith("generic.py"):
+        if (
+            isfile(file)
+            and not file.endswith("__init__.py")
+            and not file.endswith("generic.py")
+        ):
             module_name = basename(file)[:-3]
             fq_module_name = f"{parent_module}.{module_name}"
             factory.register_builder(module_name, fq_module_name, class_name)

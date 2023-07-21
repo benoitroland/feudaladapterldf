@@ -125,7 +125,9 @@ class Questionnaire(ExceptionalResult):
     """
 
     def __init__(self, questions, defaults, **kwargs):
-        super().__init__(state="questionnaire", message="There are unanswered questions.", **kwargs)
+        super().__init__(
+            state="questionnaire", message="There are unanswered questions.", **kwargs
+        )
         self.questionnaire = questions
         self.questionnaire_answers = defaults
 

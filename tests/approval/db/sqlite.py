@@ -183,7 +183,12 @@ create_pending_memberships_table_cmd = """
 @pytest.mark.parametrize(
     "data_model,table_name,primary_key,expected_cmd",
     [
-        (MyDataModel, "my_data_model", ["id", "address"], create_my_data_model_table_cmd),
+        (
+            MyDataModel,
+            "my_data_model",
+            ["id", "address"],
+            create_my_data_model_table_cmd,
+        ),
         (PendingUser, "pending_users", "unique_id", create_pending_users_table_cmd),
         (PendingGroup, "pending_groups", "name", create_pending_groups_table_cmd),
         (
@@ -196,7 +201,9 @@ create_pending_memberships_table_cmd = """
 )
 def test_sql_command_create_table(data_model, table_name, primary_key, expected_cmd):
     assert (
-        "".join(sql_command_create_table(data_model, table_name, primary_key).split()).lower()
+        "".join(
+            sql_command_create_table(data_model, table_name, primary_key).split()
+        ).lower()
         == "".join(expected_cmd.split()).lower()
     )
 
@@ -289,8 +296,18 @@ update_pending_users_cmd3 = """
             update_my_data_model_cmd,
         ),
         ("pending_users", ["state"], "unique_id", update_pending_users_cmd),
-        ("pending_groups", ["state", "cmd", "infodict"], ["name"], update_pending_groups_cmd),
-        ("pending_memberships", ["unique_id"], "unique_id", update_pending_memberships_cmd),
+        (
+            "pending_groups",
+            ["state", "cmd", "infodict"],
+            ["name"],
+            update_pending_groups_cmd,
+        ),
+        (
+            "pending_memberships",
+            ["unique_id"],
+            "unique_id",
+            update_pending_memberships_cmd,
+        ),
         ("pending_users", ["unknown_field"], "unique_id", update_pending_users_cmd2),
         ("pending_users", ["unique_id"], "unknown_key", update_pending_users_cmd3),
     ],
@@ -343,19 +360,29 @@ def mock_connector_with_entry(data_model, table_name, primary_key, mock_object):
     yield connector
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
-def test_create_unknown_key(mock_connector, data_model, table_name, primary_key, mock_object):
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
+def test_create_unknown_key(
+    mock_connector, data_model, table_name, primary_key, mock_object
+):
     with pytest.raises(SystemExit) as excinfo:
         mock_connector.create(data_model, table_name, "unknown_key")
     assert excinfo.value.code == FatalError.exit_code
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
-def test_create_successful(mock_connector, data_model, table_name, primary_key, mock_object):
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
+def test_create_successful(
+    mock_connector, data_model, table_name, primary_key, mock_object
+):
     mock_connector.create(data_model, table_name, primary_key)
     c = mock_connector.connection.cursor()
     # check if table exists
-    c.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
+    c.execute(
+        f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';"
+    )
     assert c.fetchone()[0] == table_name
     # check if table has the correct columns
     c.execute(f"PRAGMA table_info({table_name});")
@@ -367,21 +394,29 @@ def test_create_successful(mock_connector, data_model, table_name, primary_key, 
     assert primary_key_set == primary_key
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
-def test_create_if_not_exists(mock_connector, data_model, table_name, primary_key, mock_object):
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
+def test_create_if_not_exists(
+    mock_connector, data_model, table_name, primary_key, mock_object
+):
     mock_connector.create(data_model, table_name, primary_key)
     mock_connector.create(data_model, table_name, primary_key)
     # check that second create didn't raise any exception, but didn't create a new table
     result = (
         mock_connector.connection.cursor()
-        .execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';")
+        .execute(
+            f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}';"
+        )
         .fetchall()
     )
     assert len(result) == 1
     assert result[0][0] == table_name
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
 def test_insert_table_doesnt_exist(
     mock_connector, data_model, table_name, primary_key, mock_object
 ):
@@ -390,7 +425,9 @@ def test_insert_table_doesnt_exist(
         mock_connector.insert(data_model, table_name, entry)
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
 def test_insert_wrong_number_of_columns(
     mock_connector_with_table, data_model, table_name, primary_key, mock_object
 ):
@@ -400,7 +437,9 @@ def test_insert_wrong_number_of_columns(
         mock_connector_with_table.insert(data_model, table_name, wrong_entry)
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
 def test_insert_successful(
     mock_connector_with_table, data_model, table_name, primary_key, mock_object
 ):
@@ -416,7 +455,9 @@ def test_insert_successful(
     assert result[0] == entry
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
 def test_insert_entry_exists(
     mock_connector_with_entry, data_model, table_name, primary_key, mock_object
 ):
@@ -424,7 +465,9 @@ def test_insert_entry_exists(
     assert mock_connector_with_entry.insert(data_model, table_name, entry) == False
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
 def test_select_table_doesnt_exist(
     mock_connector, data_model, table_name, primary_key, mock_object
 ):
@@ -436,7 +479,9 @@ def test_select_table_doesnt_exist(
         mock_connector.select(data_model, table_name, primary_key, primary_key_value)
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
 def test_select_entry_not_found(
     mock_connector_with_table, data_model, table_name, primary_key, mock_object
 ):
@@ -445,24 +490,34 @@ def test_select_entry_not_found(
     else:
         primary_key_value = (getattr(mock_object, primary_key),)
     assert (
-        mock_connector_with_table.select(data_model, table_name, primary_key, primary_key_value)
+        mock_connector_with_table.select(
+            data_model, table_name, primary_key, primary_key_value
+        )
         is None
     )
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
-def test_select_found(mock_connector_with_entry, data_model, table_name, primary_key, mock_object):
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
+def test_select_found(
+    mock_connector_with_entry, data_model, table_name, primary_key, mock_object
+):
     if isinstance(primary_key, list):
         primary_key_value = tuple([getattr(mock_object, key) for key in primary_key])
     else:
         primary_key_value = (getattr(mock_object, primary_key),)
     assert (
-        mock_connector_with_entry.select(data_model, table_name, primary_key, primary_key_value)
+        mock_connector_with_entry.select(
+            data_model, table_name, primary_key, primary_key_value
+        )
         == mock_object
     )
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
 def test_delete_table_doesnt_exist(
     mock_connector, data_model, table_name, primary_key, mock_object
 ):
@@ -474,7 +529,9 @@ def test_delete_table_doesnt_exist(
         mock_connector.delete(table_name, primary_key, primary_key_value)
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
 def test_delete_entry_doesnt_exist(
     mock_connector_with_table, data_model, table_name, primary_key, mock_object
 ):
@@ -485,7 +542,9 @@ def test_delete_entry_doesnt_exist(
     mock_connector_with_table.delete(table_name, primary_key, primary_key_value)
 
 
-@pytest.mark.parametrize("data_model,table_name,primary_key,mock_object", sample_data_sqlite)
+@pytest.mark.parametrize(
+    "data_model,table_name,primary_key,mock_object", sample_data_sqlite
+)
 def test_delete_successful(
     mock_connector_with_entry, data_model, table_name, primary_key, mock_object
 ):
@@ -504,8 +563,24 @@ def test_delete_successful(
 
 # "data_model,table_name,primary_key,mock_object,column,value,second_value"
 sample_data_sqlite_select_on_column = [
-    (PendingUser, "pending_users", ["unique_id"], MOCK_USER, "cmd", "cmd", "another_unique_id"),
-    (PendingGroup, "pending_groups", ["name"], MOCK_GROUP, "cmd", "cmd", "another_name"),
+    (
+        PendingUser,
+        "pending_users",
+        ["unique_id"],
+        MOCK_USER,
+        "cmd",
+        "cmd",
+        "another_unique_id",
+    ),
+    (
+        PendingGroup,
+        "pending_groups",
+        ["name"],
+        MOCK_GROUP,
+        "cmd",
+        "cmd",
+        "another_name",
+    ),
     (
         PendingMemberships,
         "pending_memberships",
@@ -532,7 +607,14 @@ sample_data_sqlite_select_on_column = [
     sample_data_sqlite_select_on_column,
 )
 def test_select_on_column_table_doesnt_exist(
-    mock_connector, data_model, table_name, primary_key, mock_object, column, value, second_value
+    mock_connector,
+    data_model,
+    table_name,
+    primary_key,
+    mock_object,
+    column,
+    value,
+    second_value,
 ):
     with pytest.raises(Failure):
         mock_connector.select(data_model, table_name, column, (value,))
@@ -552,7 +634,10 @@ def test_select_on_column_not_found(
     value,
     second_value,
 ):
-    assert mock_connector_with_table.select(data_model, table_name, column, (value,)) is None
+    assert (
+        mock_connector_with_table.select(data_model, table_name, column, (value,))
+        is None
+    )
 
 
 @pytest.mark.parametrize(
@@ -569,7 +654,10 @@ def test_select_on_column_found(
     value,
     second_value,
 ):
-    assert mock_connector_with_entry.select(data_model, table_name, column, (value,)) == mock_object
+    assert (
+        mock_connector_with_entry.select(data_model, table_name, column, (value,))
+        == mock_object
+    )
 
 
 @pytest.mark.parametrize(
@@ -591,23 +679,43 @@ def test_select_on_column_multiple_entries(
     mock_object2.__setattr__(
         primary_key[0] if isinstance(primary_key, list) else primary_key, second_value
     )
-    second_entry = tuple(getattr(mock_object2, field.name) for field in fields(data_model))
+    second_entry = tuple(
+        getattr(mock_object2, field.name) for field in fields(data_model)
+    )
     mock_connector_with_entry.insert(data_model, table_name, second_entry)
     # check that select returns first entry when multiple entries are found
-    assert mock_connector_with_entry.select(data_model, table_name, column, (value,)) == mock_object
+    assert (
+        mock_connector_with_entry.select(data_model, table_name, column, (value,))
+        == mock_object
+    )
 
 
 # "data_model,table_name,primary_key,mock_object,column,value"
 sample_data_sqlite_update = [
     (PendingUser, "pending_users", "unique_id", MOCK_USER, "cmd", "cmd2"),
     (PendingGroup, "pending_groups", "name", MOCK_GROUP, "cmd", "cmd2"),
-    (PendingMemberships, "pending_memberships", "unique_id", MOCK_MEMBERSHIPS, "cmd", "cmd2"),
-    (MyDataModel, "my_data_model", ["id", "address"], MOCK_MY_DATA_MODEL, "name", "name2"),
+    (
+        PendingMemberships,
+        "pending_memberships",
+        "unique_id",
+        MOCK_MEMBERSHIPS,
+        "cmd",
+        "cmd2",
+    ),
+    (
+        MyDataModel,
+        "my_data_model",
+        ["id", "address"],
+        MOCK_MY_DATA_MODEL,
+        "name",
+        "name2",
+    ),
 ]
 
 
 @pytest.mark.parametrize(
-    "data_model,table_name,primary_key,mock_object,column,value", sample_data_sqlite_update
+    "data_model,table_name,primary_key,mock_object,column,value",
+    sample_data_sqlite_update,
 )
 def test_update_table_doesnt_exist(
     mock_connector, data_model, table_name, primary_key, mock_object, column, value
@@ -622,10 +730,17 @@ def test_update_table_doesnt_exist(
 
 
 @pytest.mark.parametrize(
-    "data_model,table_name,primary_key,mock_object,column,value", sample_data_sqlite_update
+    "data_model,table_name,primary_key,mock_object,column,value",
+    sample_data_sqlite_update,
 )
 def test_update_entry_doesnt_exist(
-    mock_connector_with_table, data_model, table_name, primary_key, mock_object, column, value
+    mock_connector_with_table,
+    data_model,
+    table_name,
+    primary_key,
+    mock_object,
+    column,
+    value,
 ):
     if isinstance(primary_key, list):
         primary_key_value = tuple([getattr(mock_object, key) for key in primary_key])
@@ -649,10 +764,17 @@ def test_update_entry_doesnt_exist(
 
 
 @pytest.mark.parametrize(
-    "data_model,table_name,primary_key,mock_object,column,value", sample_data_sqlite_update
+    "data_model,table_name,primary_key,mock_object,column,value",
+    sample_data_sqlite_update,
 )
 def test_update_wrong_number_of_columns(
-    mock_connector_with_entry, data_model, table_name, primary_key, mock_object, column, value
+    mock_connector_with_entry,
+    data_model,
+    table_name,
+    primary_key,
+    mock_object,
+    column,
+    value,
 ):
     if isinstance(primary_key, list):
         primary_key_value = tuple([getattr(mock_object, key) for key in primary_key])
@@ -660,14 +782,23 @@ def test_update_wrong_number_of_columns(
         primary_key_value = (getattr(mock_object, primary_key),)
     entry = (value,) + primary_key_value
     with pytest.raises(Failure):
-        mock_connector_with_entry.update(table_name, [column, column], primary_key, entry)
+        mock_connector_with_entry.update(
+            table_name, [column, column], primary_key, entry
+        )
 
 
 @pytest.mark.parametrize(
-    "data_model,table_name,primary_key,mock_object,column,value", sample_data_sqlite_update
+    "data_model,table_name,primary_key,mock_object,column,value",
+    sample_data_sqlite_update,
 )
 def test_update_wrong_number_of_values(
-    mock_connector_with_entry, data_model, table_name, primary_key, mock_object, column, value
+    mock_connector_with_entry,
+    data_model,
+    table_name,
+    primary_key,
+    mock_object,
+    column,
+    value,
 ):
     if isinstance(primary_key, list):
         primary_key_value = tuple([getattr(mock_object, key) for key in primary_key])
@@ -679,10 +810,17 @@ def test_update_wrong_number_of_values(
 
 
 @pytest.mark.parametrize(
-    "data_model,table_name,primary_key,mock_object,column,value", sample_data_sqlite_update
+    "data_model,table_name,primary_key,mock_object,column,value",
+    sample_data_sqlite_update,
 )
 def test_update_successful(
-    mock_connector_with_entry, data_model, table_name, primary_key, mock_object, column, value
+    mock_connector_with_entry,
+    data_model,
+    table_name,
+    primary_key,
+    mock_object,
+    column,
+    value,
 ):
     if isinstance(primary_key, list):
         primary_key_value = tuple([getattr(mock_object, key) for key in primary_key])

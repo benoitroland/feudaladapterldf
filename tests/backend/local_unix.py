@@ -49,7 +49,10 @@ def local_unix_user(input, exists, taken, monkeypatch):
     with monkeypatch.context() as mp:
         # patch root used by local_unix.User and subprocess.run to use this root for creating users
         mp.setattr("subprocess.run", mock_subprocess_run)
-        mp.setattr("ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.shell", "/bin/bash")
+        mp.setattr(
+            "ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.shell",
+            "/bin/bash",
+        )
         mp.setattr("ldf_adapter.backend.local_unix.User.ROOT", mock_root)
         mp.setattr("ldf_adapter.backend.local_unix.Group.ROOT", mock_root)
         if input.get("home_base"):
@@ -69,7 +72,9 @@ def local_unix_user(input, exists, taken, monkeypatch):
             (Path(mock_root()) / "etc" / "passwd").write_text(input["passwd_taken"])
         (Path(mock_root()) / "etc" / "group").write_text(input["group_entry"])
         # init service user from unix backend
-        service_user = ldf_adapter.backend.local_unix.User(MockUserInfo(input["userinfo"]))
+        service_user = ldf_adapter.backend.local_unix.User(
+            MockUserInfo(input["userinfo"])
+        )
         yield service_user
         # clean up files
         old_subprocess_run(["rm", "-rf", mock_root()])
@@ -165,7 +170,10 @@ INPUT_CUSTOM_HOME_BASE = {
 def test_create(local_unix_user, input):
     """Test that create method adds the appropriate entry in /etc/passwd."""
     local_unix_user.create()
-    assert input["passwd_entry"] in (Path(input["new_root"]) / "etc" / "passwd").read_text()
+    assert (
+        input["passwd_entry"]
+        in (Path(input["new_root"]) / "etc" / "passwd").read_text()
+    )
 
 
 @pytest.mark.parametrize("input,exists,taken", [(INPUT_UNIX, False, True)])
@@ -181,7 +189,10 @@ def test_create_taken(local_unix_user, input):
 def test_create_custom_home_base(local_unix_user, input):
     """Test that create method adds the appropriate entry in /etc/passwd with custom home dir"""
     local_unix_user.create()
-    assert input["passwd_entry"] in (Path(input["new_root"]) / "etc" / "passwd").read_text()
+    assert (
+        input["passwd_entry"]
+        in (Path(input["new_root"]) / "etc" / "passwd").read_text()
+    )
 
 
 @pytest.mark.parametrize(
@@ -189,7 +200,8 @@ def test_create_custom_home_base(local_unix_user, input):
 )
 def test_doesnt_exist(local_unix_user):
     """Tests that exists returns False on a clean system, or even if username is taken by another user.
-    (i.e. username exists, but the gecos field does not contain this user's unique_id)."""
+    (i.e. username exists, but the gecos field does not contain this user's unique_id).
+    """
     assert not local_unix_user.exists()
 
 
@@ -228,7 +240,9 @@ def test_get_username_different(local_unix_user, input):
     """Tests that get_username returns the username in passwd.
     Case 2: username in userinfo is different than the one in passwd.
     """
-    passwd_mapped = "testuser2:x:1000:1000:subuid@issuer.domain:/home/testuser:/bin/bash"
+    passwd_mapped = (
+        "testuser2:x:1000:1000:subuid@issuer.domain:/home/testuser:/bin/bash"
+    )
     (Path(input["new_root"]) / "etc" / "passwd").write_text(passwd_mapped)
     assert local_unix_user.get_username() == "testuser2"
 
@@ -278,7 +292,9 @@ INPUT_UNIX_GROUP = {
 def test_group_create(local_unix_group, input):
     """Test that create method adds the appropriate entry in /etc/group."""
     local_unix_group.create()
-    assert input["group_entry"] in (Path(input["new_root"]) / "etc" / "group").read_text()
+    assert (
+        input["group_entry"] in (Path(input["new_root"]) / "etc" / "group").read_text()
+    )
 
 
 @pytest.mark.parametrize("input,exists", [(INPUT_UNIX_GROUP, True)])
@@ -288,7 +304,9 @@ def test_group_create_exists(local_unix_group):
         local_unix_group.create()
 
 
-@pytest.mark.parametrize("input,exists", [(INPUT_UNIX_GROUP, False), (INPUT_UNIX_GROUP, True)])
+@pytest.mark.parametrize(
+    "input,exists", [(INPUT_UNIX_GROUP, False), (INPUT_UNIX_GROUP, True)]
+)
 def test_group_exist(local_unix_group, exists):
     """Tests that exists returns True if there is an entry for the given name,
     and False otherwise.
@@ -343,7 +361,10 @@ INPUT_SHADOW_COMPATIBLE_V044 = [
     ),  # all other special chars replaced with _, when first char is a letter
     ("\u5317\u4EB0", "bei_jing_"),  # unicode
     ("\u20AC", "eur"),  # unicode
-    ("user$", "users"),  # $ replaced with s even ar the end (although valid shadow name)
+    (
+        "user$",
+        "users",
+    ),  # $ replaced with s even ar the end (although valid shadow name)
     ("-user", "_user"),  # - as first character replaced with _
     (
         "-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -466,4 +487,6 @@ INPUT_UNIX_GROUP_PUNCH = {
 def test_create_group_punch4nfdi_enabled(local_unix_group, input):
     """Test that create method adds the appropriate entry in /etc/group when punch4nfdi flag is enabled."""
     local_unix_group.create()
-    assert input["group_entry"] in (Path(input["new_root"]) / "etc" / "group").read_text()
+    assert (
+        input["group_entry"] in (Path(input["new_root"]) / "etc" / "group").read_text()
+    )

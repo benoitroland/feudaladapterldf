@@ -104,16 +104,22 @@ class Notifier(generic.Notifier):
         """Send an email using the configured SMTP settings."""
         try:
             if self.use_ssl:
-                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=NOTIFY_TIMEOUT)
+                server = smtplib.SMTP_SSL(
+                    self.smtp_server, self.smtp_port, timeout=NOTIFY_TIMEOUT
+                )
             else:
-                server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=NOTIFY_TIMEOUT)
+                server = smtplib.SMTP(
+                    self.smtp_server, self.smtp_port, timeout=NOTIFY_TIMEOUT
+                )
             server.ehlo()
             if self.sent_from_password:
                 server.login(self.sent_from, self.sent_from_password)
             server.send_message(email)
             server.close()
             logger.debug(
-                "Email with subject '%s' sent successfully to '%s'!", email["Subject"], email["To"]
+                "Email with subject '%s' sent successfully to '%s'!",
+                email["Subject"],
+                email["To"],
             )
         except Exception as ex:
             raise Exception("Could not send email to {%s}: %s", email["To"], ex)
@@ -143,7 +149,8 @@ class Notifier(generic.Notifier):
             EMAIL_SETTINGS[notification_type].subject_template
         ).fill(**data)
         content = generic.NotificationTemplate.load(
-            Path(self.templates_dir) / EMAIL_SETTINGS[notification_type].body_template_file
+            Path(self.templates_dir)
+            / EMAIL_SETTINGS[notification_type].body_template_file
         ).fill(**data)
         email = self._build_email(send_to, subject, content)
         self._send_email(email)
@@ -154,7 +161,9 @@ class Notifier(generic.Notifier):
         if CONFIG.notifier.email is None:
             raise FatalError("Email notifier is not configured")
         settings = CONFIG.notifier.email.to_dict()
-        settings["sent_from_password"] = "*****" if settings["sent_from_password"] else None
+        settings["sent_from_password"] = (
+            "*****" if settings["sent_from_password"] else None
+        )
         data = {
             "admin_email": CONFIG.notifier.email.admin_email,
             "hostname": CONFIG.login_info.ssh_host,

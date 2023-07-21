@@ -46,7 +46,10 @@ class PendingDeployment:
             self._groups = list(
                 filter(
                     None,
-                    [self._pending_db.get_group(m) for m in self._memberships.supplementary_groups],
+                    [
+                        self._pending_db.get_group(m)
+                        for m in self._memberships.supplementary_groups
+                    ],
                 )
             )
         else:
@@ -150,7 +153,10 @@ class PendingDeployment:
         if group.name in [g.name for g in self.groups]:
             return False
         pending_group = PendingGroup(
-            name=group.name, state=DeploymentState.PENDING, cmd=group.create_tostring(), infodict={}
+            name=group.name,
+            state=DeploymentState.PENDING,
+            cmd=group.create_tostring(),
+            infodict={},
         )
         self._pending_db.add_group(pending_group)
         self._groups.append(pending_group)
@@ -188,7 +194,9 @@ class PendingDeployment:
                 self._pending_db.add_memberships(memberships)
                 self._memberships = memberships
             return groups_to_add, groups_to_remove
-        elif set(self._memberships.supplementary_groups) != set(supplementary_groups_names):
+        elif set(self._memberships.supplementary_groups) != set(
+            supplementary_groups_names
+        ):
             self._pending_db.update_memberships(memberships)
             self._memberships = memberships
             return groups_to_add, groups_to_remove
@@ -292,7 +300,9 @@ class PendingDeployment:
             "username": self.username,
         }
         try:
-            notified = self._notifier.notify(notification_type=admin_notification, data=data)
+            notified = self._notifier.notify(
+                notification_type=admin_notification, data=data
+            )
             if self.email:
                 self._notifier.notify(notification_type=user_notification, data=data)
             else:

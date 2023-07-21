@@ -8,7 +8,9 @@ import os
 import sys
 from logging.handlers import RotatingFileHandler
 
-logger = logging.getLogger("ldf_adapter")  # => This is the key to allow logging from other modules
+logger = logging.getLogger(
+    "ldf_adapter"
+)  # => This is the key to allow logging from other modules
 jsonlogger = logging.getLogger("jsonlog.ldf_adapter")
 
 
@@ -106,7 +108,9 @@ def setup_logging():
     # FIXME: jsonlogger name
     jsonlogfile = f"{logfile.rstrip('.log')}-json.log"
     jsonlogger = logging.getLogger("jsondata")
-    jsonfile_handler = RotatingFileHandler(jsonlogfile, maxBytes=100**6, backupCount=2)
+    jsonfile_handler = RotatingFileHandler(
+        jsonlogfile, maxBytes=100**6, backupCount=2
+    )
     jsonfile_handler.setFormatter(formatter)
     jsonfile_handler.setLevel(loglevel)
     jsonlogger.setLevel(loglevel)

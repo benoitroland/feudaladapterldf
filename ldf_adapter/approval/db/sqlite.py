@@ -37,13 +37,21 @@ def pytype_to_sqltype(pytype: Type) -> str:
     module_name = pytype.__module__
     # types from typing module supported by sqlite
     if module_name == "typing":
-        if type_name.startswith("typing.Optional") or type_name.startswith("typing.Union"):
+        if type_name.startswith("typing.Optional") or type_name.startswith(
+            "typing.Union"
+        ):
             # Union only when it's used to represent an optional field
             # in python 3.7, __repr__() for the Optional type returns the Union representation
             # in python >= 3.9, __repr__() for a Union of a type and NoneType returns the Optional representation
-            if len(pytype.__args__) == 2 and get_type_name(pytype.__args__[0]) == "NoneType":
+            if (
+                len(pytype.__args__) == 2
+                and get_type_name(pytype.__args__[0]) == "NoneType"
+            ):
                 return pytype_to_sqltype(pytype.__args__[1])
-            elif len(pytype.__args__) == 2 and get_type_name(pytype.__args__[1]) == "NoneType":
+            elif (
+                len(pytype.__args__) == 2
+                and get_type_name(pytype.__args__[1]) == "NoneType"
+            ):
                 return pytype_to_sqltype(pytype.__args__[0])
             else:
                 return "text"
@@ -99,7 +107,10 @@ def sql_command_create_table(
         str: a string representation of the sql command
     """
     columns_with_types = ", ".join(
-        [" ".join([field.name, pytype_to_sqltype(field.type)]) for field in fields(data_model)]
+        [
+            " ".join([field.name, pytype_to_sqltype(field.type)])
+            for field in fields(data_model)
+        ]
     )
     if isinstance(primary_key, List):
         primary_key = ", ".join(primary_key)
@@ -127,7 +138,9 @@ def sql_command_insert(data_model: Type[PendingModel], table_name: str) -> str:
     return f"insert into {table_name}({column_names}) values ({column_values})"
 
 
-def sql_command_update(table_name: str, columns: List[str], key: Union[str, List[str]]) -> str:
+def sql_command_update(
+    table_name: str, columns: List[str], key: Union[str, List[str]]
+) -> str:
     """Return an sql command for updating a set of fields for an entry in a given table.
 
     The sql command will require the following arguments, in this order:
@@ -143,7 +156,11 @@ def sql_command_update(table_name: str, columns: List[str], key: Union[str, List
         str: a string representation of the sql command
     """
     column_names = ", ".join([f"{col} = ?" for col in columns])
-    condition = " and ".join([f"{k} = ?" for k in key]) if isinstance(key, list) else f"{key} = ?"
+    condition = (
+        " and ".join([f"{k} = ?" for k in key])
+        if isinstance(key, list)
+        else f"{key} = ?"
+    )
     return f"update {table_name} set {column_names} where {condition}"
 
 
@@ -160,7 +177,11 @@ def sql_command_remove(table_name: str, key: Union[str, List[str]]) -> str:
     Returns:
         str: a string representation of the sql command
     """
-    condition = " and ".join([f"{k} = ?" for k in key]) if isinstance(key, list) else f"{key} = ?"
+    condition = (
+        " and ".join([f"{k} = ?" for k in key])
+        if isinstance(key, list)
+        else f"{key} = ?"
+    )
     return f"delete from {table_name} where {condition}"
 
 
@@ -177,7 +198,11 @@ def sql_command_select(table_name: str, key: Union[str, List[str]]) -> str:
     Returns:
         str: a string representation of the sql command
     """
-    condition = " and ".join([f"{k} = ?" for k in key]) if isinstance(key, list) else f"{key} = ?"
+    condition = (
+        " and ".join([f"{k} = ?" for k in key])
+        if isinstance(key, list)
+        else f"{key} = ?"
+    )
     return f"select * from {table_name} where {condition}"
 
 
@@ -210,14 +235,21 @@ class SQLiteConnector:
         Initialise self.connection object.
         """
         try:
-            self.connection = sqlite3.connect(self.location, detect_types=sqlite3.PARSE_DECLTYPES)
+            self.connection = sqlite3.connect(
+                self.location, detect_types=sqlite3.PARSE_DECLTYPES
+            )
         except sqlite3.Error as ex:
-            message = f"Could not connect to sqlite db at location {self.location}: {ex}"
+            message = (
+                f"Could not connect to sqlite db at location {self.location}: {ex}"
+            )
             logger.error(message)
             raise FatalError(message=message)
 
     def create(
-        self, data_model: Type[PendingModel], table_name: str, primary_key: Union[str, List[str]]
+        self,
+        data_model: Type[PendingModel],
+        table_name: str,
+        primary_key: Union[str, List[str]],
     ) -> None:
         """Create a table for a given data model.
 
@@ -231,7 +263,9 @@ class SQLiteConnector:
                 logger.debug("Creating table: %s", table_name)
                 self.connection.execute(
                     sql_command_create_table(
-                        data_model=data_model, table_name=table_name, primary_key=primary_key
+                        data_model=data_model,
+                        table_name=table_name,
+                        primary_key=primary_key,
                     )
                 )
                 logger.debug("Successfully created table '%s'.", table_name)
@@ -240,7 +274,9 @@ class SQLiteConnector:
             logger.error(message)
             raise FatalError(message=message)
 
-    def insert(self, data_model: Type[PendingModel], table_name: str, entry: tuple) -> bool:
+    def insert(
+        self, data_model: Type[PendingModel], table_name: str, entry: tuple
+    ) -> bool:
         """Insert an entry of a given data model into a table.
 
         Args:
@@ -258,7 +294,9 @@ class SQLiteConnector:
                     sql_command_insert(data_model=data_model, table_name=table_name),
                     entry,
                 )
-                logger.debug("Successfully inserted to table '%s': %s", table_name, entry)
+                logger.debug(
+                    "Successfully inserted to table '%s': %s", table_name, entry
+                )
             return True
         except sqlite3.IntegrityError as ex:
             if ex.args[0].startswith("UNIQUE constraint failed: "):
@@ -271,7 +309,11 @@ class SQLiteConnector:
             raise Failure(message=message)
 
     def update(
-        self, table_name: str, columns: List[str], key: Union[str, List[str]], entry: tuple
+        self,
+        table_name: str,
+        columns: List[str],
+        key: Union[str, List[str]],
+        entry: tuple,
     ) -> None:
         """Update an entry in a table.
 
@@ -289,7 +331,9 @@ class SQLiteConnector:
                     sql_command_update(table_name=table_name, columns=columns, key=key),
                     entry,
                 )
-                logger.debug("Successfully updated entry in table '%s': %s", table_name, entry)
+                logger.debug(
+                    "Successfully updated entry in table '%s': %s", table_name, entry
+                )
         except sqlite3.Error as ex:
             message = f"Failed to update table {table_name}: {ex}"
             logger.error(message)
@@ -320,17 +364,23 @@ class SQLiteConnector:
                     sql_command_select(table_name=table_name, key=key), value
                 ).fetchall()
                 logger.debug(
-                    "Successfully got entry from table '%s' for value %s.", table_name, value
+                    "Successfully got entry from table '%s' for value %s.",
+                    table_name,
+                    value,
                 )
                 if len(result) == 0:
                     return None
                 if len(result) > 1:
                     logger.warning(
-                        "Multiple entries found in table %s for value: %s", table_name, value
+                        "Multiple entries found in table %s for value: %s",
+                        table_name,
+                        value,
                     )
                 return data_model(*result[0])
         except sqlite3.Error as ex:
-            message = f"Failed to get entry from table {table_name} for value {value}: {ex}"
+            message = (
+                f"Failed to get entry from table {table_name} for value {value}: {ex}"
+            )
             logger.error(message)
             raise Failure(message=message)
 
@@ -345,8 +395,12 @@ class SQLiteConnector:
         try:
             with self.connection:
                 logger.debug("Removing from table: %s", table_name)
-                self.connection.execute(sql_command_remove(table_name=table_name, key=key), value)
-                logger.debug("Successfully removed entry %s from table '%s'.", value, table_name)
+                self.connection.execute(
+                    sql_command_remove(table_name=table_name, key=key), value
+                )
+                logger.debug(
+                    "Successfully removed entry %s from table '%s'.", value, table_name
+                )
         except sqlite3.Error as ex:
             message = f"Failed to remove entry {value} from table {table_name}: {ex}"
             logger.error(message)
@@ -362,10 +416,13 @@ class PendingDB(generic.PendingDB):
         if not self.connector.exists():
             self.connector.connect()
             logger.debug(
-                "No sqlite DB found at %s, creating it...", CONFIG.approval.user_db_location
+                "No sqlite DB found at %s, creating it...",
+                CONFIG.approval.user_db_location,
             )
             self.connector.create(
-                data_model=PendingUser, table_name="pending_users", primary_key="unique_id"
+                data_model=PendingUser,
+                table_name="pending_users",
+                primary_key="unique_id",
             )
             self.connector.create(
                 data_model=PendingGroup, table_name="pending_groups", primary_key="name"
@@ -392,7 +449,9 @@ class PendingDB(generic.PendingDB):
 
     def remove_user(self, unique_id: str) -> None:
         """Remove user entry for unique_id."""
-        self.connector.delete(table_name="pending_users", key="unique_id", value=(unique_id,))
+        self.connector.delete(
+            table_name="pending_users", key="unique_id", value=(unique_id,)
+        )
 
     def get_user(self, unique_id: str) -> Optional[PendingUser]:
         """Get a user entry that is up for approval by the user's unique_id."""
@@ -445,7 +504,10 @@ class PendingDB(generic.PendingDB):
     def get_group(self, name: str) -> Optional[PendingGroup]:
         """Get an entry that is up for approval by the group's name."""
         return self.connector.select(
-            data_model=PendingGroup, table_name="pending_groups", key="name", value=(name,)
+            data_model=PendingGroup,
+            table_name="pending_groups",
+            key="name",
+            value=(name,),
         )
 
     def notify_group(self, name: str) -> None:
@@ -462,22 +524,32 @@ class PendingDB(generic.PendingDB):
         return self.connector.insert(
             data_model=PendingMemberships,
             table_name="pending_memberships",
-            entry=tuple(getattr(membership, field.name) for field in fields(PendingMemberships)),
+            entry=tuple(
+                getattr(membership, field.name) for field in fields(PendingMemberships)
+            ),
         )
 
     def update_memberships(self, membership: PendingMemberships) -> None:
         """Update a user's pending group memberships by replacing them with the given memberships."""
-        columns = [field.name for field in fields(PendingMemberships) if field.name != "unique_id"]
+        columns = [
+            field.name
+            for field in fields(PendingMemberships)
+            if field.name != "unique_id"
+        ]
         self.connector.update(
             table_name="pending_memberships",
             columns=columns,
             key="unique_id",
-            entry=tuple([getattr(membership, col) for col in columns] + [membership.unique_id]),
+            entry=tuple(
+                [getattr(membership, col) for col in columns] + [membership.unique_id]
+            ),
         )
 
     def remove_memberships(self, unique_id: str) -> None:
         """Remove all pending group memberships of a given user."""
-        self.connector.delete(table_name="pending_memberships", key="unique_id", value=(unique_id,))
+        self.connector.delete(
+            table_name="pending_memberships", key="unique_id", value=(unique_id,)
+        )
 
     def get_memberships(self, unique_id: str) -> Optional[PendingMemberships]:
         """Get a given user's pending group memberships."""

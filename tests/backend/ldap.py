@@ -38,7 +38,9 @@ def ldap_user(mode, userinfo, existing_entries, monkeypatch):
         service_user = ldf_adapter.backend.ldap.User(MockUserInfo(userinfo))
         for entry in existing_entries:
             ldf_adapter.backend.ldap.LDAP.connection.add(
-                entry["dn"], object_class=entry["object_class"], attributes=entry["attributes"]
+                entry["dn"],
+                object_class=entry["object_class"],
+                attributes=entry["attributes"],
             )
         yield service_user
         # module needs to be reloaded on next test so that LDAP object is recreated
@@ -61,14 +63,18 @@ def ldap_group(mode, name, existing_entries, monkeypatch):
         service_group = ldf_adapter.backend.ldap.Group(name)
         for entry in existing_entries:
             ldf_adapter.backend.ldap.LDAP.connection.add(
-                entry["dn"], object_class=entry["object_class"], attributes=entry["attributes"]
+                entry["dn"],
+                object_class=entry["object_class"],
+                attributes=entry["attributes"],
             )
         yield service_group
         del sys.modules["ldf_adapter.backend.ldap"]
 
 
 @pytest.fixture(scope="function")
-def ldap_mod_entry(mode, userinfo, supplementary_group_names, existing_entries, monkeypatch):
+def ldap_mod_entry(
+    mode, userinfo, supplementary_group_names, existing_entries, monkeypatch
+):
     """Creates a backend user and groups from provided data.
     'userinfo' should contain: unique_id, username, primary_group.
     'supplementary_group_names' is a list of group names
@@ -87,7 +93,9 @@ def ldap_mod_entry(mode, userinfo, supplementary_group_names, existing_entries, 
             supplementary_groups.append(ldf_adapter.backend.ldap.Group(name))
         for entry in existing_entries:
             ldf_adapter.backend.ldap.LDAP.connection.add(
-                entry["dn"], object_class=entry["object_class"], attributes=entry["attributes"]
+                entry["dn"],
+                object_class=entry["object_class"],
+                attributes=entry["attributes"],
             )
         yield {"user": service_user, "supplementary_groups": supplementary_groups}
         del sys.modules["ldf_adapter.backend.ldap"]
@@ -233,7 +241,11 @@ def test_create_user_precreated_doesnt_exist(ldap_user):
 @pytest.mark.parametrize(
     "mode,userinfo,existing_entries",
     [
-        ("pre_created", USERINFO, [LDAP_PRECREATED_USER_ENTRY, LDAP_PRECREATED_TESTGROUP_ENTRY]),
+        (
+            "pre_created",
+            USERINFO,
+            [LDAP_PRECREATED_USER_ENTRY, LDAP_PRECREATED_TESTGROUP_ENTRY],
+        ),
     ],
 )
 def test_create_user_precreated_exists(ldap_user):
@@ -476,7 +488,12 @@ def test_mod_user_ignore(ldap_mod_entry):
     [
         ([LDAP_TESTGROUP_ENTRY, LDAP_GROUP1_ENTRY, LDAP_GROUP2_ENTRY], ["testgroup"]),
         (
-            [LDAP_USER_ENTRY, LDAP_TESTGROUP_ENTRY, LDAP_GROUP1_ENTRY, LDAP_GROUP2_ENTRY],
+            [
+                LDAP_USER_ENTRY,
+                LDAP_TESTGROUP_ENTRY,
+                LDAP_GROUP1_ENTRY,
+                LDAP_GROUP2_ENTRY,
+            ],
             ["testgroup"],
         ),
         (
@@ -494,7 +511,9 @@ def test_mod_user_ignore(ldap_mod_entry):
 def test_mod_user_success(ldap_mod_entry, userinfo, removed_from):
     added, removed = ldap_mod_entry["user"].mod(ldap_mod_entry["supplementary_groups"])
 
-    assert set(added) == set([grp.name for grp in ldap_mod_entry["supplementary_groups"]])
+    assert set(added) == set(
+        [grp.name for grp in ldap_mod_entry["supplementary_groups"]]
+    )
     assert set(removed) == set(removed_from)
 
     for group in ldap_mod_entry["supplementary_groups"]:

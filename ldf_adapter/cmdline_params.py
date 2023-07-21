@@ -40,7 +40,9 @@ def parseOptions():
         help="Default: /etc/feudal/feudal_adapter.conf",
     )
 
-    parser.add_argument("--test", action="store_true", help="Test notifier configuration")
+    parser.add_argument(
+        "--test", action="store_true", help="Test notifier configuration"
+    )
 
     return parser
 

@@ -58,7 +58,9 @@ class Entitlement:
             **{
                 **self.__dict__,
                 **{
-                    "subnamespaces": "".join([":{}".format(ns) for ns in self.subnamespaces]),
+                    "subnamespaces": "".join(
+                        [":{}".format(ns) for ns in self.subnamespaces]
+                    ),
                     "subgroups": "".join([":{}".format(grp) for grp in self.subgroups]),
                     "role": ":role={}".format(self.role) if self.role else "",
                 },
@@ -77,7 +79,9 @@ class Entitlement:
             **{
                 **self.__dict__,
                 **{
-                    "subnamespaces": "".join([",{}".format(ns) for ns in self.subnamespaces]),
+                    "subnamespaces": "".join(
+                        [",{}".format(ns) for ns in self.subnamespaces]
+                    ),
                     "subgroups": "".join([",{}".format(grp) for grp in self.subgroups]),
                     "role": " role={}".format(self.role) if self.role else "",
                 },

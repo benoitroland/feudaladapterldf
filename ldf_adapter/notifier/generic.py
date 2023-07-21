@@ -30,7 +30,9 @@ class NotificationTemplate:
 
     def get_variables(self) -> list:
         """Returns list of variables in the template."""
-        return [var for var in Template(self.template_body).pattern.split("$") if var != ""]
+        return [
+            var for var in Template(self.template_body).pattern.split("$") if var != ""
+        ]
 
     def fill(self, **kwargs):
         """Fills template with given variables.

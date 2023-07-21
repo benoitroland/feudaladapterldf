@@ -6,13 +6,22 @@ from ldf_adapter.eduperson import Entitlement
 @pytest.mark.parametrize(
     "raw,group",
     [
-        ("urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority", "group"),
-        ("urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de", "IMK-TRO-EWCC"),
+        (
+            "urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority",
+            "group",
+        ),
+        (
+            "urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de",
+            "IMK-TRO-EWCC",
+        ),
         (
             "urn:geant:h-df.de:group:MyExampleColab#login.helmholtz-data-federation.de",
             "MyExampleColab",
         ),
-        ("urn:geant:h-df.de:group:wlcg-test#login.helmholtz-data-federation.de", "wlcg-test"),
+        (
+            "urn:geant:h-df.de:group:wlcg-test#login.helmholtz-data-federation.de",
+            "wlcg-test",
+        ),
         ("urn:geant:h-df.de:group:HDF#login.helmholtz-data-federation.de", "HDF"),
     ],
 )
@@ -40,12 +49,18 @@ def test_entitlement_subgroup(raw, subgroup):
 @pytest.mark.parametrize(
     "raw,full_namespace",
     [
-        ("urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority", ["namespace"]),
+        (
+            "urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority",
+            ["namespace"],
+        ),
         (
             "urn:nid:ns1:ns2:ns3:group:group:subgroup1:subgroup2:role=admin#authority",
             ["ns1", "ns2", "ns3"],
         ),
-        ("urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de", ["h-df.de"]),
+        (
+            "urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de",
+            ["h-df.de"],
+        ),
     ],
 )
 def test_entitlement_full_namespace(raw, full_namespace):
@@ -56,9 +71,18 @@ def test_entitlement_full_namespace(raw, full_namespace):
 @pytest.mark.parametrize(
     "raw,namespace_id",
     [
-        ("urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority", "nid"),
-        ("urn:nid:ns1:ns2:ns3:group:group:subgroup1:subgroup2:role=admin#authority", "nid"),
-        ("urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de", "geant"),
+        (
+            "urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority",
+            "nid",
+        ),
+        (
+            "urn:nid:ns1:ns2:ns3:group:group:subgroup1:subgroup2:role=admin#authority",
+            "nid",
+        ),
+        (
+            "urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de",
+            "geant",
+        ),
     ],
 )
 def test_entitlement_namespace_id(raw, namespace_id):
@@ -69,9 +93,18 @@ def test_entitlement_namespace_id(raw, namespace_id):
 @pytest.mark.parametrize(
     "raw,delegated_namespace",
     [
-        ("urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority", "namespace"),
-        ("urn:nid:ns1:ns2:ns3:group:group:subgroup1:subgroup2:role=admin#authority", "ns1"),
-        ("urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de", "h-df.de"),
+        (
+            "urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority",
+            "namespace",
+        ),
+        (
+            "urn:nid:ns1:ns2:ns3:group:group:subgroup1:subgroup2:role=admin#authority",
+            "ns1",
+        ),
+        (
+            "urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de",
+            "h-df.de",
+        ),
     ],
 )
 def test_entitlement_delegated_namespace(raw, delegated_namespace):
@@ -98,9 +131,18 @@ def test_entitlement_subnamespaces(raw, subnamespaces):
 @pytest.mark.parametrize(
     "raw,role",
     [
-        ("urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority", "admin"),
-        ("urn:nid:namespace:group:group:subgroup1:subgroup2:role=user#authority", "user"),
-        ("urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de", None),
+        (
+            "urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority",
+            "admin",
+        ),
+        (
+            "urn:nid:namespace:group:group:subgroup1:subgroup2:role=user#authority",
+            "user",
+        ),
+        (
+            "urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de",
+            None,
+        ),
     ],
 )
 def test_entitlement_role(raw, role):
@@ -111,7 +153,10 @@ def test_entitlement_role(raw, role):
 @pytest.mark.parametrize(
     "raw,group_authority",
     [
-        ("urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority", "authority"),
+        (
+            "urn:nid:namespace:group:group:subgroup1:subgroup2:role=admin#authority",
+            "authority",
+        ),
         ("urn:nid:ns1:ns2:ns3:group:group:subgroup1:subgroup2:role=admin#.", "."),
         (
             "urn:geant:h-df.de:group:IMK-TRO-EWCC#login.helmholtz-data-federation.de",
