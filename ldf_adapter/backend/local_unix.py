@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class User(generic.User):
-    def __init__(self, userinfo):
+    def __init__(self, userinfo, **hooks):
         """
         Arguments:
         userinfo -- Only these attributes are used:
@@ -35,10 +35,13 @@ class User(generic.User):
                 `unique_id`  stored in gecos, used to find the user
                 `ssh_keys`
         """
+        super().__init__(userinfo, **hooks)
         self.unique_id = userinfo.unique_id
         logger.debug(f"backend processing: {userinfo.unique_id}")
         if self.exists():
-            logger.debug(f"This user does actually exist. The name is: {self.get_username()}")
+            logger.debug(
+                f"This user does actually exist. The name is: {self.get_username()}"
+            )
             self.set_username(self.get_username())
         else:
             self.set_username(userinfo.username)
@@ -62,7 +65,8 @@ class User(generic.User):
 
     def is_suspended(self):
         """Optional, only if the backend supports it.
-        Inform the user whether a user was suspended (e.g. due to a security incident)"""
+        Inform the user whether a user was suspended (e.g. due to a security incident)
+        """
         if self.exists():
             options = ["-l"]
             try:
@@ -75,9 +79,13 @@ class User(generic.User):
             except CalledProcessError as e:
                 msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
                 logger.error(
-                    "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+                    "Error executing '{}': {}".format(
+                        " ".join(e.cmd), msg or "<no output>"
+                    )
                 )
-                raise Failure(message=f"Cannot get info for user: {msg or '<no output>'}")
+                raise Failure(
+                    message=f"Cannot get info for user: {msg or '<no output>'}"
+                )
             try:
                 pattern = regex.compile(r"Account expires\s+: (.*)")
                 match = pattern.search(result.stdout.decode("utf-8"))
@@ -108,7 +116,9 @@ class User(generic.User):
     def name_taken(self, name):
         """Check if a username is already taken by *another* user"""
         name = make_shadow_compatible(name)
-        taken = name in [entry["login"] for entry in User.__all_passwd_entries("login").values()]
+        taken = name in [
+            entry["login"] for entry in User.__all_passwd_entries("login").values()
+        ]
         logger.debug(f"name_taken: {taken}")
         return taken and name != self.get_username()
 
@@ -153,7 +163,9 @@ class User(generic.User):
             )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
 
     def create_tostring(self):
@@ -168,11 +180,16 @@ class User(generic.User):
             )
         try:
             subprocess.run(
-                create_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+                create_cmd.split(" "),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
             )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
 
     def update(self):
@@ -180,7 +197,9 @@ class User(generic.User):
 
     def delete(self):
         if not self.exists():
-            raise Failure(message=f"Cannot delete user: no user found for {self.unique_id}.")
+            raise Failure(
+                message=f"Cannot delete user: no user found for {self.unique_id}."
+            )
 
         name = self.__passwd_entry["login"]
 
@@ -195,11 +214,16 @@ class User(generic.User):
             pass
         try:
             subprocess.run(
-                ["userdel", name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+                ["userdel", name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
             )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             raise Failure(message=f"Cannot delete user: {msg or '<no output>'}")
 
     def _mod_cmd(self, supplementary_groups=None):
@@ -252,7 +276,9 @@ class User(generic.User):
             return groups_added, groups_removed
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
 
     def mod_tostring(self, supplementary_groups=None):
@@ -267,11 +293,16 @@ class User(generic.User):
             )
         try:
             subprocess.run(
-                mod_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+                mod_cmd.split(" "),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
             )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             raise Failure(message=f"Cannot create user ({msg or '<no output>'})")
 
     def get_groups(self):
@@ -281,12 +312,17 @@ class User(generic.User):
         """
         try:
             result = subprocess.run(
-                ["id", "-Gn", self.name], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+                ["id", "-Gn", self.name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
             )
             return result.stdout.decode("utf-8").strip().split()
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.warning("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.warning(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             logger.info("Returning empty group list for user %s", self.name)
             return []
 
@@ -301,8 +337,12 @@ class User(generic.User):
             )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
-            raise Failure(message=f"Cannot set expiration date for user: {msg or '<no output>'}")
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
+            raise Failure(
+                message=f"Cannot set expiration date for user: {msg or '<no output>'}"
+            )
 
     def suspend(self):
         self.__expire(datetime.today().strftime("%Y-%m-%d"))
@@ -320,7 +360,9 @@ class User(generic.User):
             )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             raise Failure(message=f"Cannot modify user: {msg or '<no output>'}")
 
     def limit(self):
@@ -346,7 +388,9 @@ class User(generic.User):
             raise Failure(message=f"Could not write new ssh keys: {e or '<no output>'}")
         except Exception as e:
             logger.error(e)
-            raise Failure(message=f"Cannot change owner or permissions: {e or '<no output>'}")
+            raise Failure(
+                message=f"Cannot change owner or permissions: {e or '<no output>'}"
+            )
 
     def uninstall_ssh_keys(self):
         """Remove any SSH keys stored in the users .authorized_keys file."""
@@ -403,7 +447,10 @@ class User(generic.User):
             # for empty file return empty dict
             if raw.strip() == "":
                 return {}
-            users = [dict(zip(PASSWD_FIELDS, line.split(":"))) for line in raw.strip().split("\n")]
+            users = [
+                dict(zip(PASSWD_FIELDS, line.split(":")))
+                for line in raw.strip().split("\n")
+            ]
 
             # import json
             # thedata={user[ID_FIELD]: user for user in users}
@@ -442,11 +489,16 @@ class Group(generic.Group):
     def create(self):
         try:
             subprocess.run(
-                self._create_cmd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+                self._create_cmd(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
             )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             raise Failure(message=f"Cannot create group: {msg or '<no output>'}")
 
     def create_tostring(self):
@@ -461,11 +513,16 @@ class Group(generic.Group):
             )
         try:
             subprocess.run(
-                create_cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+                create_cmd.split(" "),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
             )
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             raise Failure(message=f"Cannot create group ({msg or '<no output>'})")
 
     def delete(self):
@@ -496,7 +553,9 @@ class Group(generic.Group):
             subprocess.run(["groupmod", "--new-name", new_name, old_name], check=True)
         except CalledProcessError as e:
             msg = (e.stderr or e.stdout or b"").decode("utf-8").strip()
-            logger.error("Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>"))
+            logger.error(
+                "Error executing '{}': {}".format(" ".join(e.cmd), msg or "<no output>")
+            )
             raise Failure(message=f"Cannot create group: {msg or '<no output>'}")
 
     @staticmethod
@@ -525,7 +584,9 @@ class Group(generic.Group):
             if self.name not in all_groups:
                 Group.__rename(self.original_name, self.name_v004, self.name)
             else:
-                Group.__fix_duplicates("FIX v0.4.4", self.original_name, self.name_v004, self.name)
+                Group.__fix_duplicates(
+                    "FIX v0.4.4", self.original_name, self.name_v004, self.name
+                )
 
     @staticmethod
     def get_group_by_id(gid):
@@ -560,7 +621,10 @@ class Group(generic.Group):
             # for empty file return empty dict
             if raw.strip() == "":
                 return {}
-            groups = [dict(zip(GROUP_FIELDS, line.split(":"))) for line in raw.strip().split("\n")]
+            groups = [
+                dict(zip(GROUP_FIELDS, line.split(":")))
+                for line in raw.strip().split("\n")
+            ]
 
             for group in groups:
                 group[LIST_FIELD] = group[LIST_FIELD].split(",")  # type: ignore
@@ -652,7 +716,9 @@ def make_shadow_compatible(orig_word) -> str:
             # logger.warning(F"shortened {orig_word} to {word}")
 
     if word != orig_word:
-        logger.debug("Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word))
+        logger.debug(
+            "Name '{}' changed to '{}' for shadow compatibilty".format(orig_word, word)
+        )
 
     return word
 

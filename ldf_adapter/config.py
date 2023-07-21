@@ -54,7 +54,9 @@ def reload_parser() -> ConfigParser:
     logger.debug(f"Files: {files}")
     try:
         globalconf_conf_file = Path(globalconfig.config["CONFIGFILE"])
-        logger.debug(f"Trying config of globalconfig: {globalconfig.config['CONFIGFILE']}")
+        logger.debug(
+            f"Trying config of globalconfig: {globalconfig.config['CONFIGFILE']}"
+        )
         if globalconf_conf_file.exists():
             files.insert(0, globalconf_conf_file)
     except KeyError:
@@ -115,7 +117,8 @@ class ConfigSection:
             return cls(**config[cls.__section__name__()])
         except KeyError:
             logger.debug(
-                "Missing config section %s, using default values.", cls.__section__name__()
+                "Missing config section %s, using default values.",
+                cls.__section__name__(),
             )
             return cls()
 
@@ -299,6 +302,7 @@ class ConfigLocalUnix(ConfigSection):
     home_base: str = "/home"
     deploy_user_ssh_keys: bool = True
     punch4nfdi: bool = False
+    post_create_script: Optional[str] = None
 
     @classmethod
     def __section__name__(cls):
@@ -319,6 +323,7 @@ class ConfigBwIdm(ConfigSection):
     http_pass: str = "bar"
     service_name: str = "sshtest"
     log_outgoing_http_requests: bool = False
+    post_create_script: Optional[str] = None
 
     @classmethod
     def __section__name__(cls):
@@ -341,6 +346,7 @@ class ConfigLdap(ConfigSection):
     attribute_local_uid: str = "uid"
     shell: str = "/bin/sh"
     home_base: str = "/home"
+    post_create_script: Optional[str] = None
     uid_min: int = 1000
     uid_max: int = 60000
     gid_min: int = 1000
@@ -402,10 +408,14 @@ class Configuration:
     approval: ConfigApproval = field(default_factory=ConfigApproval)
     notifier: ConfigNotifiers = field(default_factory=ConfigNotifiers)
     assurance: ConfigAssurance = field(default_factory=ConfigAssurance)
-    username_generator: ConfigUsernameGenerator = field(default_factory=ConfigUsernameGenerator)
+    username_generator: ConfigUsernameGenerator = field(
+        default_factory=ConfigUsernameGenerator
+    )
     login_info: ConfigLoginInfo = field(default_factory=ConfigLoginInfo)
     backend: ConfigBackends = field(default_factory=ConfigBackends)
-    verbose_info_plugin: ConfigVerboseInfoPlugin = field(default_factory=ConfigVerboseInfoPlugin)
+    verbose_info_plugin: ConfigVerboseInfoPlugin = field(
+        default_factory=ConfigVerboseInfoPlugin
+    )
 
     @classmethod
     def load(cls, config: ConfigParser):

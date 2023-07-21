@@ -20,7 +20,7 @@ from enum import Enum, auto
 
 from ldf_adapter.config import CONFIG
 from ldf_adapter.results import Failure, Rejection, FatalError
-
+from ldf_adapter.backend import generic
 
 logger = logging.getLogger(__name__)
 
@@ -135,10 +135,14 @@ class LdapConnection:
         # initialise connection used to generate LDIFs
         self.ldif_connection = Connection(server=None, client_strategy=LDIF)
         self.ldif_connection.bind()
+        self.protocol = "ldap"
+        if CONFIG.backend.ldap.tls:
+            self.protocol = "ldaps"
         # initialise and bind connection to LDAP server
         try:
             server = Server(
-                f"ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}", get_info=ALL
+                f"{self.protocol}://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}",
+                get_info=ALL,
             )
             if CONFIG.backend.ldap.admin_user and CONFIG.backend.ldap.admin_password:
                 # add SAFE_SYNC, so we get more return values
@@ -154,7 +158,7 @@ class LdapConnection:
                     server, client_strategy=SAFE_SYNC, auto_bind=AUTO_BIND_NO_TLS
                 )
         except Exception as e:
-            msg = f"Could not connect to server ldap://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
+            msg = f"Could not connect to server {self.protocol}://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -190,7 +194,9 @@ class LdapConnection:
                         f"gidNext already initialised: {search_gid.get_attribute('gidNumber')}."
                     )
         except Exception as e:
-            msg = "Error adding entries in LDAP for tracking available UID and GID values"
+            msg = (
+                "Error adding entries in LDAP for tracking available UID and GID values"
+            )
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -455,7 +461,9 @@ class LdapConnection:
         """
         try:
             changes = {
-                "homeDirectory": [(MODIFY_REPLACE, [f"{self.home_base}/{local_username}"])],
+                "homeDirectory": [
+                    (MODIFY_REPLACE, [f"{self.home_base}/{local_username}"])
+                ],
                 "loginShell": [(MODIFY_REPLACE, [self.shell])],
                 self.attr_local_uid: [(MODIFY_REPLACE, [local_username])],
                 self.attr_oidc_uid: [(MODIFY_REPLACE, [userinfo.unique_id])],
@@ -484,7 +492,9 @@ class LdapConnection:
         try:
             return self.connection.delete(f"uid={local_username},{self.user_base}")
         except Exception as e:
-            msg = f"Failed to delete the LDAP entry for local username {local_username}."
+            msg = (
+                f"Failed to delete the LDAP entry for local username {local_username}."
+            )
             logger.error(f"{msg}: {e}")
             raise Failure(message=msg)
 
@@ -600,14 +610,15 @@ class LdapConnection:
 LDAP = LdapConnection.load()
 
 
-class User:
+class User(generic.User):
     """Manages the user object on the service."""
 
-    def __init__(self, userinfo):
+    def __init__(self, userinfo, **hooks):
         """
         Arguments:
         userinfo -- (type: UserInfo)
         """
+        super().__init__(userinfo, **hooks)
         self.userinfo = userinfo
         self.unique_id = userinfo.unique_id
         logger.debug(f"backend processing: {userinfo.unique_id}")
@@ -624,6 +635,7 @@ class User:
             self.primary_group = Group(userinfo.primary_group)
 
         self.ssh_keys = [key["value"] for key in userinfo.ssh_keys]
+        self.post_create_script = CONFIG.backend.ldap.post_create_script
 
     def exists(self):
         """Return whether the user exists on the service.
@@ -644,7 +656,9 @@ class User:
             oidc_uid = search_result.get_attribute(
                 LDAP.attr_oidc_uid
             )  # this is the oidc_uid mapped to name
-            if LDAP.mode == Mode.PRE_CREATED and oidc_uid is None:  # pre-created but not mapped
+            if (
+                LDAP.mode == Mode.PRE_CREATED and oidc_uid is None
+            ):  # pre-created but not mapped
                 return False
             return oidc_uid != self.unique_id  # name already mapped to another oidc uid
         else:  # no entry for name found in LDAP
@@ -662,9 +676,9 @@ class User:
 
     def get_primary_group(self):
         """Check if a user exists based on unique_id and return the primary group name."""
-        gid = LDAP.search_user_by_oidc_uid(self.unique_id, attributes=["gidNumber"]).get_attribute(
-            "gidNumber"
-        )
+        gid = LDAP.search_user_by_oidc_uid(
+            self.unique_id, attributes=["gidNumber"]
+        ).get_attribute("gidNumber")
         return LDAP.search_group_by_gid(gid).get_attribute("cn")
 
     def get_groups(self):
@@ -693,7 +707,9 @@ class User:
                 message=f"{msg} Please contact an administrator to create an account for you."
             )
         elif LDAP.mode == Mode.PRE_CREATED:
-            if not LDAP.search_user_by_local_username(self.name, get_unique_id=False).found():
+            if not LDAP.search_user_by_local_username(
+                self.name, get_unique_id=False
+            ).found():
                 msg = f"Local username {self.name} not found in LDAP for user {self.unique_id}."
                 logger.error(msg)
                 raise Rejection(
@@ -711,7 +727,9 @@ class User:
         """
         if (
             LDAP.mode == Mode.PRE_CREATED
-            and LDAP.search_user_by_local_username(self.name, get_unique_id=False).found()
+            and LDAP.search_user_by_local_username(
+                self.name, get_unique_id=False
+            ).found()
         ):
             return LDAP.map_user_ldif(self.userinfo, self.name)
         return LDAP.add_user_ldif(self.userinfo, self.name, self.primary_group.name)
@@ -863,7 +881,7 @@ class User:
         pass
 
 
-class Group:
+class Group(generic.Group):
     """Manages the group object on the service."""
 
     def __init__(self, name):
@@ -891,9 +909,7 @@ class Group:
         if self.exists():
             logger.info(f"Group {self.name} exists.")
         elif LDAP.mode == Mode.READ_ONLY:
-            msg = (
-                f"LDAP backend in read_only mode, new entry cannot be added for group {self.name}."
-            )
+            msg = f"LDAP backend in read_only mode, new entry cannot be added for group {self.name}."
             logger.warning(msg)
         elif LDAP.mode == Mode.PRE_CREATED:
             msg = f"LDAP backend in pre_created mode, new entry cannot be added for group {self.name}."

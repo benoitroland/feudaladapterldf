@@ -83,9 +83,18 @@ class User:
             except Exception as e:
                 logger.error(f"Got an exception in uncritical code: {e}")
 
+        hooks = {}
+        backend_config = CONFIG.backend.__getattribute__(CONFIG.ldf_adapter.backend)
+        if hasattr(backend_config, "post_create_script") and backend_config.post_create_script:
+            hooks["post_create"] = backend_config.post_create_script
+        else:
+            logger.debug(
+                f"post_create_script not supported for backend {CONFIG.ldf_adapter.backend}"
+            )
+
         # Proceed as normal
         self.data = data if isinstance(data, UserInfo) else UserInfo(data)
-        self.service_user = backend.User(self.data)
+        self.service_user = backend.User(self.data, **hooks)
         self.service_groups = [backend.Group(grp) for grp in self.data.groups]
 
         # add additional groups from config
@@ -282,6 +291,8 @@ class User:
         was_created = self.ensure_exists()
         new_memberships, removed_memberships = self.ensure_group_memberships()
         new_credentials = self.ensure_credentials_active()
+        if was_created:
+            self.service_user.execute("post_create", self.service_user.get_username())
 
         if CONFIG.approval.enabled:
             self.pending_deployment.notify()
