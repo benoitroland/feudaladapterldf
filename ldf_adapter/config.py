@@ -304,6 +304,7 @@ class ConfigLocalUnix(ConfigSection):
     deploy_user_ssh_keys: bool = True
     punch4nfdi: bool = False
     post_create_script: Optional[str] = None
+    shadow_compatibility_function: Optional[str] = "default"
 
     @classmethod
     def __section__name__(cls):
