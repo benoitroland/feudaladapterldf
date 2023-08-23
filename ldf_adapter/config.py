@@ -1,3 +1,4 @@
+# vim: foldmethod=indent : tw=100
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=wrong-import-order
 # pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation
