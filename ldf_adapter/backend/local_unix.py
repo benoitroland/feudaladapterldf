@@ -631,8 +631,22 @@ class Group(generic.Group):
 
             return {group[ID_FIELD]: group for group in groups}
 
-
 def make_shadow_compatible(orig_word) -> str:
+    """Make shadow compatible, using a configured function"""
+    mode = CONFIG.backend.local_unix.shadow_compatibility_function
+    logger.error(F"MODE: {mode}")
+    if mode == "v044":
+        logger.warning("v044")
+        return make_shadow_compatible_v044(orig_word)
+    elif mode == "punch":
+        logger.warning("PUNCH")
+        return make_shadow_compatible_punch4nfdi(orig_word)
+    elif mode == "default":
+        logger.warning("default")
+        return make_shadow_compatible_default(orig_word)
+
+
+def make_shadow_compatible_default(orig_word) -> str:
     """Ensure that orig_word is a valid user/group name for standard shadow utils.
 
     While this could in theory be achived by simply substituting all non-allowed chars with a valid
@@ -643,6 +657,7 @@ def make_shadow_compatible(orig_word) -> str:
 
     """
     if orig_word is None:
+        ## FIXME: raise ValueError
         return None
         # For some reason "None" still comes in on the docker-compose setup.
         # raise Failure(message="Cannot use username 'None' in make_shadow_compatible")
