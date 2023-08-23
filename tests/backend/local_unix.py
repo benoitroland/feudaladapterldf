@@ -1,3 +1,7 @@
+# vim: tw=100 foldmethod=expr
+# pylint: disable=invalid-name, superfluous-parens
+# pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation, logging-fstring-interpolation
+# pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
 import pytest
 import regex
 import random
@@ -426,6 +430,10 @@ def test_make_shadow_compatible_length(raw):
     """a shadow-compatible name must be at most 32 characters long"""
     assert len(ldf_adapter.backend.local_unix.make_shadow_compatible(raw)) <= 32
 
+@pytest.mark.parametrize("raw", [x[0] for x in INPUT_SHADOW_COMPATIBLE + INPUT_SHADOW_COMPATIBLE_V044])
+def test_make_shadow_compatible_length_v044(raw):
+    assert len(ldf_adapter.backend.local_unix.make_shadow_compatible_v044(raw)) <= 32
+
 
 @pytest.mark.parametrize("raw", [x[0] for x in INPUT_SHADOW_COMPATIBLE])
 def test_make_shadow_compatible_allowed_chars(raw):
@@ -435,9 +443,16 @@ def test_make_shadow_compatible_allowed_chars(raw):
     word = ldf_adapter.backend.local_unix.make_shadow_compatible(raw)
     assert regex.match(r"[a-z_]", word[0]) and regex.match(r"[-0-9_a-z]", word)
 
+@pytest.mark.parametrize("raw", [x[0] for x in INPUT_SHADOW_COMPATIBLE + INPUT_SHADOW_COMPATIBLE_V044])
+def test_make_shadow_compatible_allowed_chars_v044(raw):
+    word = ldf_adapter.backend.local_unix.make_shadow_compatible_v044(raw)
+    assert regex.match(r"[a-z_]", word[0]) and regex.match(r"[-0-9_a-z]", word)
+
+
+
 
 @pytest.mark.parametrize("raw,cooked", INPUT_SHADOW_COMPATIBLE)
-def test_make_shadow_compatible(raw, cooked):
+def test_make_shadow_compatible(monkeypatch, raw, cooked):
     """expected behaviour:
     - german umlauts are replaced with their phonetic equivalents
     - a few special characters are replaced by sensible equivalents:
@@ -455,6 +470,25 @@ def test_make_shadow_compatible(raw, cooked):
         - the length of any fragment has to be > 3 to be considered for shortening
         - the first character of a fragment is always kept, ie. the strongest shortening of "abcdef" will be "a.."
     """
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.shadow_compatibility_function",
+        "default",
+    )
+    assert ldf_adapter.backend.local_unix.make_shadow_compatible(raw) == cooked
+
+@pytest.mark.parametrize("raw,cooked", INPUT_SHADOW_COMPATIBLE_V044)
+def test_make_shadow_compatible_v044(monkeypatch, raw, cooked):
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.shadow_compatibility_function",
+        "v044",
+    )
+    assert ldf_adapter.backend.local_unix.make_shadow_compatible(raw) == cooked
+@pytest.mark.parametrize("raw,cooked", INPUT_SHADOW_COMPATIBLE_PUNCH4NFDI)
+def test_make_shadow_compatible_punch(monkeypatch, raw, cooked):
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.backend.local_unix.shadow_compatibility_function",
+        "punch",
+    )
     assert ldf_adapter.backend.local_unix.make_shadow_compatible(raw) == cooked
 
 
@@ -463,7 +497,7 @@ def test_make_shadow_compatible_punch4nfdi(raw, cooked):
     word = ldf_adapter.backend.local_unix.make_shadow_compatible_punch4nfdi(raw)
     assert len(word) <= 32
     assert regex.match(r"[a-z_]", word[0]) and regex.match(r"[-0-9_a-z]", word)
-    assert word == cooked
+    #  assert word == cooked ## tested above
 
 
 @pytest.mark.parametrize("raw", INPUT_SHADOW_COMPATIBLE_FAIL)
@@ -473,6 +507,10 @@ def test_make_shadow_compatible_fail(raw):
     """
     with pytest.raises(ValueError):
         ldf_adapter.backend.local_unix.make_shadow_compatible(raw)
+@pytest.mark.parametrize("raw", INPUT_SHADOW_COMPATIBLE_FAIL_V044)
+def test_make_shadow_compatible_fail_v044(raw):
+    with pytest.raises(ValueError):
+        ldf_adapter.backend.local_unix.make_shadow_compatible_v044(raw)
 
 
 INPUT_UNIX_GROUP_PUNCH = {
