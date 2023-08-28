@@ -430,7 +430,10 @@ def test_make_shadow_compatible_length(raw):
     """a shadow-compatible name must be at most 32 characters long"""
     assert len(ldf_adapter.backend.local_unix.make_shadow_compatible(raw)) <= 32
 
-@pytest.mark.parametrize("raw", [x[0] for x in INPUT_SHADOW_COMPATIBLE + INPUT_SHADOW_COMPATIBLE_V044])
+
+@pytest.mark.parametrize(
+    "raw", [x[0] for x in INPUT_SHADOW_COMPATIBLE + INPUT_SHADOW_COMPATIBLE_V044]
+)
 def test_make_shadow_compatible_length_v044(raw):
     assert len(ldf_adapter.backend.local_unix.make_shadow_compatible_v044(raw)) <= 32
 
@@ -443,12 +446,13 @@ def test_make_shadow_compatible_allowed_chars(raw):
     word = ldf_adapter.backend.local_unix.make_shadow_compatible(raw)
     assert regex.match(r"[a-z_]", word[0]) and regex.match(r"[-0-9_a-z]", word)
 
-@pytest.mark.parametrize("raw", [x[0] for x in INPUT_SHADOW_COMPATIBLE + INPUT_SHADOW_COMPATIBLE_V044])
+
+@pytest.mark.parametrize(
+    "raw", [x[0] for x in INPUT_SHADOW_COMPATIBLE + INPUT_SHADOW_COMPATIBLE_V044]
+)
 def test_make_shadow_compatible_allowed_chars_v044(raw):
     word = ldf_adapter.backend.local_unix.make_shadow_compatible_v044(raw)
     assert regex.match(r"[a-z_]", word[0]) and regex.match(r"[-0-9_a-z]", word)
-
-
 
 
 @pytest.mark.parametrize("raw,cooked", INPUT_SHADOW_COMPATIBLE)
@@ -476,6 +480,7 @@ def test_make_shadow_compatible(monkeypatch, raw, cooked):
     )
     assert ldf_adapter.backend.local_unix.make_shadow_compatible(raw) == cooked
 
+
 @pytest.mark.parametrize("raw,cooked", INPUT_SHADOW_COMPATIBLE_V044)
 def test_make_shadow_compatible_v044(monkeypatch, raw, cooked):
     monkeypatch.setattr(
@@ -483,6 +488,8 @@ def test_make_shadow_compatible_v044(monkeypatch, raw, cooked):
         "v044",
     )
     assert ldf_adapter.backend.local_unix.make_shadow_compatible(raw) == cooked
+
+
 @pytest.mark.parametrize("raw,cooked", INPUT_SHADOW_COMPATIBLE_PUNCH4NFDI)
 def test_make_shadow_compatible_punch(monkeypatch, raw, cooked):
     monkeypatch.setattr(
@@ -507,6 +514,8 @@ def test_make_shadow_compatible_fail(raw):
     """
     with pytest.raises(ValueError):
         ldf_adapter.backend.local_unix.make_shadow_compatible(raw)
+
+
 @pytest.mark.parametrize("raw", INPUT_SHADOW_COMPATIBLE_FAIL_V044)
 def test_make_shadow_compatible_fail_v044(raw):
     with pytest.raises(ValueError):

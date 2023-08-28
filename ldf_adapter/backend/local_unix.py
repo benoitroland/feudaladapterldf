@@ -631,10 +631,11 @@ class Group(generic.Group):
 
             return {group[ID_FIELD]: group for group in groups}
 
+
 def make_shadow_compatible(orig_word) -> str:
     """Make shadow compatible, using a configured function"""
     mode = CONFIG.backend.local_unix.shadow_compatibility_function
-    logger.error(F"MODE: {mode}")
+    logger.error(f"MODE: {mode}")
     if mode == "v044":
         logger.warning("v044")
         return make_shadow_compatible_v044(orig_word)
@@ -712,7 +713,7 @@ def make_shadow_compatible_default(orig_word) -> str:
     if excess_chars > 0:
         if len(word.split("_")) == 1:  # no '_' found:
             word = "__" + word[excess_chars + 2 :]
-            logger.warning(F"shortened {orig_word} to {word}")
+            logger.warning(f"shortened {orig_word} to {word}")
 
         elif len(word.split("_")) > 1:  # at least one '_' found:
             fragments = word.split("_")
