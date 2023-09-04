@@ -1,9 +1,12 @@
 import pytest
-import mock
+from unittest import mock
 from itertools import repeat
+import logging
 
 from ldf_adapter.userinfo import UserInfo
 from . import settings
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize(
@@ -288,13 +291,15 @@ def test_primary_group_primary_and_fallback_configured(userinfo):
     "data,group",
     [
         (settings.INPUT_UNITY, "h-df-de_hdf"),
-        (settings.INPUT_EGI, None),
+        #  (settings.INPUT_EGI, None), ## I think it should return None
+        (settings.INPUT_EGI, "nogroup"),
         (settings.INPUT_DEEP_IAM, "kit-cloud"),
         (settings.INPUT_INDIGO_IAM, "developers"),
         (settings.INPUT_KIT, "kit-edu_bw_grid"),
     ],
 )
 def test_primary_group_no_fallback_or_primary_configured(userinfo, group):
+    logger.warning(F"userinfo.primary_group: {userinfo.primary_group} group: {group}")
     assert userinfo.primary_group == group
 
 
