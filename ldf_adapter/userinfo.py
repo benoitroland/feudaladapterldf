@@ -222,23 +222,6 @@ class UserInfo(Mapping):
         return self.credentials.get("ssh_key", [])
 
     @property
-    def entitlement_raw(self):
-        """Return the raw entitlement attribute of the user.
-        Strip the authority section, if it exists"""
-        attr = self.userinfo.get("eduperson_entitlement", [])
-        if not isinstance(attr, list):
-            attr = [attr]
-
-        def try_entitlement(attr):
-            try:
-                _ = eduperson.Entitlement(attr)
-                return attr.split("#")[0]
-            except ValueError:
-                return None
-
-        return filter(lambda x: x, map(try_entitlement, attr))
-
-    @property
     def entitlement(self):
         """Return the parsed entitlement attribute of the user. See `eduperson.Entitlement` for details."""
         attr = self.userinfo.get("eduperson_entitlement", [])
@@ -250,7 +233,7 @@ class UserInfo(Mapping):
                 return eduperson.Entitlement(attr)
             except ValueError:
                 return None
-
+        logger.info(F"attr: {attr}")
         return filter(lambda x: x, map(try_entitlement, attr))
 
     @property
@@ -276,18 +259,20 @@ class UserInfo(Mapping):
         else:
             logger.debug("Using aarc-g002 groups from 'entitlements' claim")
             if group_method == "classic":
+                logger.info("method: classic")
                 grouplist = self.groups_from_entitlement()
             elif group_method == "regex":
-                grouplist = self.groups_from_map()
+                logger.info("method: regex")
+                grouplist = self.groups_from_entitlement_mapped()
             else:  # the default...
+                logger.info("method: default")
                 grouplist = self.groups_from_entitlement()
 
-        return [self._group_masked_for_bwidm(grp) for grp in grouplist]
+        return set([self._group_masked_for_bwidm(grp) for grp in grouplist])
 
-    def groups_from_map(self) -> list[str]:
+    def groups_from_entitlement_mapped(self) -> list[str]:
         """Return a list of groups based on map in config"""
         group_list = regex.findall(r"[^\s]+.*", CONFIG.groups.map)
-        #  group_list = regex.findall("&|\||\(|\)|[^\s()&|]+", CONFIG.groups.map)
         group_map = [x.split(" -> ") for x in group_list]
 
         # fix missing capability of empty string:
@@ -303,13 +288,13 @@ class UserInfo(Mapping):
                 map_entry[1] = myregex.sub("", map_entry[1])
 
         grouplist = []
-        for orig_ent in self.entitlement_raw:
+        for orig_ent in self.entitlement:
             #  logger.info(F"orig_ent: {orig_ent}")
-            ent = orig_ent
+            ent = orig_ent.__repr__().split("#")[0]
             for map_entry in group_map:
                 myregex = regex.compile(map_entry[0])
                 ent = myregex.sub(map_entry[1], str(ent))
-            logger.info(f"{orig_ent:75} -> {ent}")
+            logger.info(f"{orig_ent.__repr__():75} -> {ent}")
             if ent is not None:
                 if len(ent) > 32:
                     logger.warning(f"Group needs shortening: {ent}")
