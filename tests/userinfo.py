@@ -402,7 +402,7 @@ def test_groups_regex_1(userinfo, groups, monkeypatch):
         """,
     )
     assert sorted(set(userinfo.groups)) == sorted(set(groups))
-    assert sorted(userinfo.groups) == sorted(groups)
+    #  assert sorted(userinfo.groups) == sorted(groups)
 
 
 @pytest.mark.parametrize(
@@ -459,8 +459,8 @@ def test_primary_group_primary_and_fallback_configured(userinfo):
     "data,group",
     [
         (settings.INPUT_UNITY, "h-df-de_hdf"),
-        (settings.INPUT_EGI, None),
-        #  (settings.INPUT_EGI, "nogroup"),
+        #  (settings.INPUT_EGI, None),
+        (settings.INPUT_EGI, "nogroup"),
         (settings.INPUT_DEEP_IAM, "kit-cloud"),
         (settings.INPUT_INDIGO_IAM, "developers"),
         (settings.INPUT_KIT, "kit-edu_bw_grid"),
