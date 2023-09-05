@@ -261,6 +261,29 @@ class UserInfo(Mapping):
             attr = [attr]
         return attr
 
+    @property
+    @lru_cache(maxsize=None)
+    def groups(self):
+        """Return the homogenised names of the groups the user should be a member of."""
+        group_policy = CONFIG.groups.policy
+        group_method = CONFIG.groups.method
+        logger.info(f"group policy: {group_policy}")
+        logger.info(f"group method: {group_method}")
+        # A shitty way to see if the entitlement is empty or not:
+        if len([x for x in self.entitlement]) == 0:
+            logger.debug("Using plain groups from 'groups' claim")
+            grouplist = self.groups_from_grouplist()
+        else:
+            logger.debug("Using aarc-g002 groups from 'entitlements' claim")
+            if group_method == "classic":
+                grouplist = self.groups_from_entitlement()
+            elif group_method == "regex":
+                grouplist = self.groups_from_map()
+            else:  # the default...
+                grouplist = self.groups_from_entitlement()
+
+        return [self._group_masked_for_bwidm(grp) for grp in grouplist]
+
     def groups_from_map(self) -> list[str]:
         """Return a list of groups based on map in config"""
         group_list = regex.findall(r"[^\s]+.*", CONFIG.groups.map)
@@ -293,29 +316,6 @@ class UserInfo(Mapping):
 
             grouplist.append(ent)
         return grouplist
-
-    @property
-    @lru_cache(maxsize=None)
-    def groups(self):
-        """Return the homogenised names of the groups the user should be a member of."""
-        group_policy = CONFIG.groups.policy
-        group_method = CONFIG.groups.method
-        logger.info(f"group policy: {group_policy}")
-        logger.info(f"group method: {group_method}")
-        # A shitty way to see if the entitlement is empty or not:
-        if len([x for x in self.entitlement]) == 0:
-            logger.debug("Using plain groups from 'groups' claim")
-            grouplist = self.groups_from_grouplist()
-        else:
-            logger.debug("Using aarc-g002 groups from 'entitlements' claim")
-            if group_method == "classic":
-                grouplist = self.groups_from_entitlement()
-            elif group_method == "regex":
-                grouplist = self.groups_from_map()
-            else:  # the default...
-                grouplist = self.groups_from_entitlement()
-
-        return [self._group_masked_for_bwidm(grp) for grp in grouplist]
 
     def groups_from_entitlement(self):
         """Gropus are extracted from the entitlement.
