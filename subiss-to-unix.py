@@ -27,6 +27,7 @@ logformat = "[%(levelname)s] [%(filename)s:%(funcName)s:%(lineno)d] %(message)s"
 logging.basicConfig(level=os.environ.get("LOG", "WARN"), format=logformat)
 logger = logging.getLogger(__name__)
 
+
 # Functions
 def load_config():
     """Reload configuration from disk.

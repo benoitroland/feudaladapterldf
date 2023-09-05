@@ -265,44 +265,43 @@ class UserInfo(Mapping):
         """Return a list of groups based on map in config"""
         group_list = regex.findall(r"[^\s]+.*", CONFIG.groups.map)
         #  group_list = regex.findall("&|\||\(|\)|[^\s()&|]+", CONFIG.groups.map)
-        group_map = [x.split(' -> ') for x in group_list]
+        group_map = [x.split(" -> ") for x in group_list]
 
         # fix missing capability of empty string:
         for map_entry in group_map:
             if len(map_entry) != 2:
-                map_entry[0] = map_entry[0].rstrip(' ->')
+                map_entry[0] = map_entry[0].rstrip(" ->")
                 map_entry.append("")
         # strip comments
         for map_entry in group_map:
             if len(map_entry) >= 1:
                 myregex = regex.compile(r"(^#|\W#).*")
-                map_entry[0] = myregex.sub('', map_entry[0])
-                map_entry[1] = myregex.sub('', map_entry[1])
+                map_entry[0] = myregex.sub("", map_entry[0])
+                map_entry[1] = myregex.sub("", map_entry[1])
 
         grouplist = []
         for orig_ent in self.entitlement_raw:
             #  logger.info(F"orig_ent: {orig_ent}")
             ent = orig_ent
             for map_entry in group_map:
-                myregex=regex.compile(map_entry[0])
+                myregex = regex.compile(map_entry[0])
                 ent = myregex.sub(map_entry[1], str(ent))
-            logger.info(F"{orig_ent:75} -> {ent}")
+            logger.info(f"{orig_ent:75} -> {ent}")
             if ent is not None:
                 if len(ent) > 32:
-                    logger.warning(F"Group needs shortening: {ent}")
+                    logger.warning(f"Group needs shortening: {ent}")
 
             grouplist.append(ent)
         return grouplist
-
 
     @property
     @lru_cache(maxsize=None)
     def groups(self):
         """Return the homogenised names of the groups the user should be a member of."""
-        group_policy= CONFIG.groups.policy
+        group_policy = CONFIG.groups.policy
         group_method = CONFIG.groups.method
-        logger.info(F"group policy: {group_policy}")
-        logger.info(F"group method: {group_method}")
+        logger.info(f"group policy: {group_policy}")
+        logger.info(f"group method: {group_method}")
         # A shitty way to see if the entitlement is empty or not:
         if len([x for x in self.entitlement]) == 0:
             logger.debug("Using plain groups from 'groups' claim")
@@ -313,7 +312,7 @@ class UserInfo(Mapping):
                 grouplist = self.groups_from_entitlement()
             elif group_method == "regex":
                 grouplist = self.groups_from_map()
-            else: # the default...
+            else:  # the default...
                 grouplist = self.groups_from_entitlement()
 
         return [self._group_masked_for_bwidm(grp) for grp in grouplist]
