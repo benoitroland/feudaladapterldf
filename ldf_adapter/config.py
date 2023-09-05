@@ -366,6 +366,20 @@ class ConfigLdap(ConfigSection):
 
 
 @dataclass
+class ConfigGroups(ConfigSection):
+    """Config section for groups"""
+
+    policy: str = "classic"
+    method: str = "classic"
+    map: str = ""
+    supported_entitlements: str = ""
+
+    @classmethod
+    def __section__name__(cls):
+        return "groups"
+
+
+@dataclass
 class ConfigVerboseInfoPlugin(ConfigSection):
     """Config section for verbose plugin"""
 
@@ -418,6 +432,7 @@ class Configuration:
     verbose_info_plugin: ConfigVerboseInfoPlugin = field(
         default_factory=ConfigVerboseInfoPlugin
     )
+    groups: ConfigGroups = field(default_factory=ConfigGroups)
 
     @classmethod
     def load(cls, config: ConfigParser):

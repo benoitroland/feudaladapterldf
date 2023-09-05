@@ -635,15 +635,15 @@ class Group(generic.Group):
 def make_shadow_compatible(orig_word) -> str:
     """Make shadow compatible, using a configured function"""
     mode = CONFIG.backend.local_unix.shadow_compatibility_function
-    logger.error(f"MODE: {mode}")
+    #  logger.info(f"MODE: {mode}")
     if mode == "v044":
-        logger.warning("v044")
+        #  logger.info("v044")
         return make_shadow_compatible_v044(orig_word)
     elif mode == "punch":
-        logger.warning("PUNCH")
+        #  logger.info("PUNCH")
         return make_shadow_compatible_punch4nfdi(orig_word)
     elif mode == "default":
-        logger.warning("default")
+        #  logger.info("default")
         return make_shadow_compatible_default(orig_word)
 
 

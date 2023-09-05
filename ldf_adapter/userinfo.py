@@ -1,3 +1,4 @@
+# vim: tw=100 foldmethod=expr
 """Information about the user. 
     This serves as a wrapper around the plain userinfo-dict
 """
@@ -221,6 +222,23 @@ class UserInfo(Mapping):
         return self.credentials.get("ssh_key", [])
 
     @property
+    def entitlement_raw(self):
+        """Return the raw entitlement attribute of the user.
+        Strip the authority section, if it exists"""
+        attr = self.userinfo.get("eduperson_entitlement", [])
+        if not isinstance(attr, list):
+            attr = [attr]
+
+        def try_entitlement(attr):
+            try:
+                _ = eduperson.Entitlement(attr)
+                return attr.split("#")[0]
+            except ValueError:
+                return None
+
+        return filter(lambda x: x, map(try_entitlement, attr))
+
+    @property
     def entitlement(self):
         """Return the parsed entitlement attribute of the user. See `eduperson.Entitlement` for details."""
         attr = self.userinfo.get("eduperson_entitlement", [])
@@ -243,21 +261,66 @@ class UserInfo(Mapping):
             attr = [attr]
         return attr
 
+    def groups_from_map(self) -> list[str]:
+        """Return a list of groups based on map in config"""
+        group_list = regex.findall(r"[^\s]+.*", CONFIG.groups.map)
+        #  group_list = regex.findall("&|\||\(|\)|[^\s()&|]+", CONFIG.groups.map)
+        group_map = [x.split(' -> ') for x in group_list]
+
+        # fix missing capability of empty string:
+        for map_entry in group_map:
+            if len(map_entry) != 2:
+                map_entry[0] = map_entry[0].rstrip(' ->')
+                map_entry.append("")
+        # strip comments
+        for map_entry in group_map:
+            if len(map_entry) >= 1:
+                myregex = regex.compile(r"(^#|\W#).*")
+                map_entry[0] = myregex.sub('', map_entry[0])
+                map_entry[1] = myregex.sub('', map_entry[1])
+
+        grouplist = []
+        for orig_ent in self.entitlement_raw:
+            #  logger.info(F"orig_ent: {orig_ent}")
+            ent = orig_ent
+            for map_entry in group_map:
+                myregex=regex.compile(map_entry[0])
+                ent = myregex.sub(map_entry[1], str(ent))
+            logger.info(F"{orig_ent:75} -> {ent}")
+            if ent is not None:
+                if len(ent) > 32:
+                    logger.warning(F"Group needs shortening: {ent}")
+
+            grouplist.append(ent)
+        return grouplist
+
+
     @property
     @lru_cache(maxsize=None)
     def groups(self):
         """Return the homogenised names of the groups the user should be a member of."""
+        group_policy= CONFIG.groups.policy
+        group_method = CONFIG.groups.method
+        logger.info(F"group policy: {group_policy}")
+        logger.info(F"group method: {group_method}")
         # A shitty way to see if the entitlement is empty or not:
         if len([x for x in self.entitlement]) == 0:
             logger.debug("Using plain groups from 'groups' claim")
             grouplist = self.groups_from_grouplist()
         else:
             logger.debug("Using aarc-g002 groups from 'entitlements' claim")
-            grouplist = self.groups_from_entitlement()
+            if group_method == "classic":
+                grouplist = self.groups_from_entitlement()
+            elif group_method == "regex":
+                grouplist = self.groups_from_map()
+            else: # the default...
+                grouplist = self.groups_from_entitlement()
+
         return [self._group_masked_for_bwidm(grp) for grp in grouplist]
 
     def groups_from_entitlement(self):
-        """Gropus are extracted from the entitlement. Any additional 'group'-keys in the input are ignored.
+        """Gropus are extracted from the entitlement.
+        Any additional 'group'-keys in the input are ignored.
 
         Group names are prefixed with the delegated namespace from the entitlement.
         """
@@ -343,7 +406,6 @@ class UserInfo(Mapping):
                         orig_grp, grp
                     )
                 )
-
         return grp
 
     @property

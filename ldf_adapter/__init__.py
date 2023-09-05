@@ -145,6 +145,7 @@ class User:
 
         tokens = regex.findall("&|\||\(|\)|[^\s()&|]+", CONFIG.assurance.require)
         #  tokens = regex.findall(r"&|\||\(|\)|[^\s()&|]+", CONFIG.assurance.require)
+        #  logger.info(F"assurance tokens: {tokens}")
 
         # We use a simple recursive descent parser to parse parenthesied expressions of strings,
         # composed with '&' (konjunction) and '|' (disjunction). The usual precedence rules apply.
