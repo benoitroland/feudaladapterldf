@@ -81,7 +81,7 @@ INPUT_EGI_MANYGROUPS = wrap_userinfo(
             "https://refeds.org/assurance/IAP/medium",
             "https://refeds.org/assurance/ID/unique",
             "https://refeds.org/assurance/ID/eppn-unique-no-reassign",
-            "https://aai.egi.eu/LoA#Substantial"
+            "https://aai.egi.eu/LoA#Substantial",
         ],
         "eduperson_entitlement": [
             "urn:mace:egi.eu:group:covid19.eosc-synergy.eu:admins:role=member#aai.egi.eu",
@@ -117,10 +117,7 @@ INPUT_EGI_MANYGROUPS = wrap_userinfo(
             "urn:mace:egi.eu:group:worsica.vo.incd.pt:role=member#aai.egi.eu",
             "urn:mace:egi.eu:group:worsica.vo.incd.pt:role=vm_operator#aai.egi.eu",
         ],
-        "eduperson_scoped_affiliation": [
-            "employee@kit.edu",
-            "member@kit.edu"
-        ],
+        "eduperson_scoped_affiliation": ["employee@kit.edu", "member@kit.edu"],
         "eduperson_unique_id": "d7a53cbe3e966c53ac64fde7355956560282158ecac8f3d2c770b474862f4756@egi.eu",
         "email": "hardt@kit.edu",
         "email_verified": True,
@@ -130,9 +127,7 @@ INPUT_EGI_MANYGROUPS = wrap_userinfo(
         "name": "Marcus Hardt",
         "preferred_username": "mhardt",
         "sub": "d7a53cbe3e966c53ac64fde7355956560282158ecac8f3d2c770b474862f4756@egi.eu",
-        "voperson_verified_email": [
-            "hardt@kit.edu"
-        ]
+        "voperson_verified_email": ["hardt@kit.edu"],
     }
 )
 
