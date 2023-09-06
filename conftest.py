@@ -1,3 +1,4 @@
+# vim: tw=100 foldmethod=indent
 # pylint: disable=global-statement
 
 import pytest
@@ -5,31 +6,35 @@ import pytest
 from ldf_adapter import config as globalConfig, UserInfo
 from ldf_adapter import backend as backend_module
 
-TEST_BACKENDS = ['bwidm', 'local_unix']
+TEST_BACKENDS = ["bwidm", "local_unix"]
+
 
 # this is from:
 # https://docs.pytest.org/en/stable/example/parametrize.html#deferring-the-setup-of-parametrized-resources
 def pytest_generate_tests(metafunc):
-    if 'backend' in metafunc.fixturenames:
-        metafunc.parametrize('backend', TEST_BACKENDS, indirect=True)
+    if "backend" in metafunc.fixturenames:
+        metafunc.parametrize("backend", TEST_BACKENDS, indirect=True)
 
-test_primary_group = 'test_primary_group'
+
+test_primary_group = "test_primary_group"
+
 
 @pytest.fixture
 def backend(monkeypatch, request):
-    monkeypatch.setattr(backend_module, '__backend__', request.param)
+    monkeypatch.setattr(backend_module, "__backend__", request.param)
     return backend_module
+
 
 @pytest.fixture
 def answers():
-    return {
-    }
+    return {}
+
 
 @pytest.fixture
 def user_data():
     return {
-        'user' : {
-            'userinfo': {
+        "user": {
+            "userinfo": {
                 "displayName": "Hardt, Marcus (SCC)",
                 "eduperson_entitlement": [
                     "urn:geant:kit.edu:group:DFN-SLCS#example.org",
@@ -39,13 +44,10 @@ def user_data():
                     "urn:geant:kit.edu:group:bwUniCluster#example.org",
                     "urn:geant:kit.edu:group:bwsyncnshare#example.org",
                     "urn:geant:kit.edu:group:bwsyncnshare-idm#example.org",
-                    "urn:geant:kit.edu:group:gruppenverwalter#example.org"
+                    "urn:geant:kit.edu:group:gruppenverwalter#example.org",
                 ],
                 "eduperson_principal_name": "lo0018@kit.edu",
-                "eduperson_scoped_affiliation": [
-                    "employee@kit.edu",
-                    "member@kit.edu"
-                ],
+                "eduperson_scoped_affiliation": ["employee@kit.edu", "member@kit.edu"],
                 "email": "marcus.hardt@kit.edu",
                 "family_name": "Hardt",
                 "givenName": "Marcus",
@@ -66,12 +68,10 @@ def user_data():
                     "/bwUniCluster",
                     "/bwsyncnshare",
                     "/bwsyncnshare-idm",
-                    "/gruppenverwalter"
+                    "/gruppenverwalter",
                 ],
             }
         },
-        'answers': {
-            'primary_group': 'gruppenverwalter'
-        },
-        'credentials': {},
+        "answers": {"primary_group": "gruppenverwalter"},
+        "credentials": {},
     }

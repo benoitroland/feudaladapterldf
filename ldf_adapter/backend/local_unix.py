@@ -1,7 +1,7 @@
 """
 Manages a user and groups via standard UNIX shadow-utils(8).
 """
-# vim: foldmethod=expr : tw=100
+# vim: foldmethod=indent : tw=100
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
@@ -633,6 +633,21 @@ class Group(generic.Group):
 
 
 def make_shadow_compatible(orig_word) -> str:
+    """Make shadow compatible, using a configured function"""
+    mode = CONFIG.backend.local_unix.shadow_compatibility_function
+    #  logger.info(f"MODE: {mode}")
+    if mode == "v044":
+        #  logger.info("v044")
+        return make_shadow_compatible_v044(orig_word)
+    elif mode == "punch":
+        #  logger.info("PUNCH")
+        return make_shadow_compatible_punch4nfdi(orig_word)
+    elif mode == "default":
+        #  logger.info("default")
+        return make_shadow_compatible_default(orig_word)
+
+
+def make_shadow_compatible_default(orig_word) -> str:
     """Ensure that orig_word is a valid user/group name for standard shadow utils.
 
     While this could in theory be achived by simply substituting all non-allowed chars with a valid
@@ -643,6 +658,7 @@ def make_shadow_compatible(orig_word) -> str:
 
     """
     if orig_word is None:
+        ## FIXME: raise ValueError
         return None
         # For some reason "None" still comes in on the docker-compose setup.
         # raise Failure(message="Cannot use username 'None' in make_shadow_compatible")
@@ -697,7 +713,7 @@ def make_shadow_compatible(orig_word) -> str:
     if excess_chars > 0:
         if len(word.split("_")) == 1:  # no '_' found:
             word = "__" + word[excess_chars + 2 :]
-            # logger.warning(F"shortened {orig_word} to {word}")
+            logger.warning(f"shortened {orig_word} to {word}")
 
         elif len(word.split("_")) > 1:  # at least one '_' found:
             fragments = word.split("_")
@@ -707,6 +723,7 @@ def make_shadow_compatible(orig_word) -> str:
                 fragments[1] = ".." + fragments[1][excess_chars + 2 :]
                 # TODO: fix case when len(fragments[1]) == excess_chars + 1
                 word = "_".join(fragments)
+                logger.warning(f"Shortended group name: {word} ({len(word)})")
             else:
                 logger.error(f"User or group name is too long: {word} ({len(word)})")
                 raise (ValueError)
@@ -885,9 +902,10 @@ def make_shadow_compatible_v044(orig_word) -> str:
     # since we already replace $ with s, no need to check for $ at the end
     word = regex.sub(r"[^-0-9_a-z]", "_", word)
 
-    # Shadow will das Namen mit Kleinbuchstaben oder Underscore anfangen
+    # Shadow will dass Namen mit Kleinbuchstaben oder Underscore anfangen
     if not regex.match(r"^[a-z_]", word):
         word = "_" + word
+    # Marcus does not want to start a username with _-
     if regex.match(r"_-", word):
         word = "_" + word[2:]
 
@@ -917,7 +935,8 @@ def make_shadow_compatible_v044(orig_word) -> str:
 
     if orig_excess_chars > 0:
         if excess_chars > 0:
-            return None
+            logger.error(f"User or group name is too long: {word} ({len(word)})")
+            raise (ValueError)
         else:
             if len(fragments) > 1:
                 word = "_".join(fragments)

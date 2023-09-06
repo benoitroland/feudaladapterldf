@@ -1,7 +1,10 @@
 """LDAP backend for pre-created accounts.
 It"s in the proof-of-concept state.
 """
-
+# vim: foldmethod=indent : tw=100
+# pylint: disable=invalid-name, superfluous-parens
+# pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
+# pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
 import logging
 from ldap3 import (

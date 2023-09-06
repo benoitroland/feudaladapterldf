@@ -1,3 +1,4 @@
+# vim: foldmethod=indent : tw=100
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=wrong-import-order
 # pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation
@@ -187,7 +188,7 @@ class ConfigLdfAdapter(ConfigSection):
     backend: str = "local_unix"
     backend_supports_preferring_existing_user: bool = False
     primary_group: Optional[str] = None
-    fallback_group: Optional[str] = None
+    fallback_group: Optional[str] = "nogroup"
     additional_groups: list = field(default_factory=list)
     interactive: bool = False
 
@@ -303,6 +304,7 @@ class ConfigLocalUnix(ConfigSection):
     deploy_user_ssh_keys: bool = True
     punch4nfdi: bool = False
     post_create_script: Optional[str] = None
+    shadow_compatibility_function: Optional[str] = "default"
 
     @classmethod
     def __section__name__(cls):
@@ -364,6 +366,21 @@ class ConfigLdap(ConfigSection):
 
 
 @dataclass
+class ConfigGroups(ConfigSection):
+    """Config section for groups"""
+
+    policy: str = "all"
+    method: str = "classic"
+    mapping: str = ""
+    supported_entitlements: str = ""
+    supported_groups: str = ""
+
+    @classmethod
+    def __section__name__(cls):
+        return "groups"
+
+
+@dataclass
 class ConfigVerboseInfoPlugin(ConfigSection):
     """Config section for verbose plugin"""
 
@@ -416,6 +433,7 @@ class Configuration:
     verbose_info_plugin: ConfigVerboseInfoPlugin = field(
         default_factory=ConfigVerboseInfoPlugin
     )
+    groups: ConfigGroups = field(default_factory=ConfigGroups)
 
     @classmethod
     def load(cls, config: ConfigParser):

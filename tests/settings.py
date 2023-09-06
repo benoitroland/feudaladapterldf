@@ -70,6 +70,67 @@ INPUT_EGI = wrap_userinfo(
         "iss": "https://aai.egi.eu/oidc/",
     }
 )
+INPUT_EGI_MANYGROUPS = wrap_userinfo(
+    {
+        "eduperson_assurance": [
+            "https://refeds.org/assurance/ATP/ePA-1d",
+            "https://refeds.org/assurance/ATP/ePA-1m",
+            "https://refeds.org/assurance/IAP/low",
+            "https://refeds.org/assurance/profile/cappuccino",
+            "https://refeds.org/assurance/IAP/local-enterprise",
+            "https://refeds.org/assurance/IAP/medium",
+            "https://refeds.org/assurance/ID/unique",
+            "https://refeds.org/assurance/ID/eppn-unique-no-reassign",
+            "https://aai.egi.eu/LoA#Substantial",
+        ],
+        "eduperson_entitlement": [
+            "urn:mace:egi.eu:group:covid19.eosc-synergy.eu:admins:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:covid19.eosc-synergy.eu:admins:role=owner#aai.egi.eu",
+            "urn:mace:egi.eu:group:cryoem.instruct-eric.eu:admins:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:cryoem.instruct-eric.eu:admins:role=owner#aai.egi.eu",
+            "urn:mace:egi.eu:group:eosc-synergy.eu:admins:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:eosc-synergy.eu:admins:role=owner#aai.egi.eu",
+            "urn:mace:egi.eu:group:eosc-synergy.eu:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:eosc-synergy.eu:role=vm_operator#aai.egi.eu",
+            "urn:mace:egi.eu:group:goc.egi.eu:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:goc.egi.eu:role=vm_operator#aai.egi.eu",
+            "urn:mace:egi.eu:group:mteam.data.kit.edu:admins:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:mteam.data.kit.edu:admins:role=owner#aai.egi.eu",
+            "urn:mace:egi.eu:group:mteam.data.kit.edu:perfmon.m.d.k.e:admins:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:mteam.data.kit.edu:perfmon.m.d.k.e:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:mteam.data.kit.edu:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:mteam.data.kit.edu:role=vm_operator#aai.egi.eu",
+            "urn:mace:egi.eu:group:o3as.data.kit.edu:admins:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:o3as.data.kit.edu:admins:role=owner#aai.egi.eu",
+            "urn:mace:egi.eu:group:o3as.data.kit.edu:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:o3as.data.kit.edu:role=vm_operator#aai.egi.eu",
+            "urn:mace:egi.eu:group:registry:perfmon:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:registry:perfmon:role=owner#aai.egi.eu",
+            "urn:mace:egi.eu:group:saps-vo.i3m.upv.es:admins:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:saps-vo.i3m.upv.es:admins:role=owner#aai.egi.eu",
+            "urn:mace:egi.eu:group:umsa.cerit-sc.cz:admins:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:umsa.cerit-sc.cz:admins:role=owner#aai.egi.eu"
+            "urn:mace:egi.eu:group:university.eosc-synergy.eu:admins:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:university.eosc-synergy.eu:admins:role=owner#aai.egi.eu",
+            "urn:mace:egi.eu:group:university.eosc-synergy.eu:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:university.eosc-synergy.eu:role=vm_operator#aai.egi.eu",
+            "urn:mace:egi.eu:group:worsica.vo.incd.pt:role=member#aai.egi.eu",
+            "urn:mace:egi.eu:group:worsica.vo.incd.pt:role=vm_operator#aai.egi.eu",
+        ],
+        "eduperson_scoped_affiliation": ["employee@kit.edu", "member@kit.edu"],
+        "eduperson_unique_id": "d7a53cbe3e966c53ac64fde7355956560282158ecac8f3d2c770b474862f4756@egi.eu",
+        "email": "hardt@kit.edu",
+        "email_verified": True,
+        "family_name": "Hardt",
+        "given_name": "Marcus",
+        "iss": "https://aai.egi.eu/auth/realms/egi",
+        "name": "Marcus Hardt",
+        "preferred_username": "mhardt",
+        "sub": "d7a53cbe3e966c53ac64fde7355956560282158ecac8f3d2c770b474862f4756@egi.eu",
+        "voperson_verified_email": ["hardt@kit.edu"],
+    }
+)
+
 
 INPUT_DEEP_IAM = wrap_userinfo(
     {

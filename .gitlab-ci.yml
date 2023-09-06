@@ -1,3 +1,7 @@
+default:
+  tags:
+    - linux
+
 stages:
   - test
   - build

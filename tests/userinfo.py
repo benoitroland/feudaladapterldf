@@ -1,9 +1,13 @@
+# vim: tw=100 foldmethod=expr
 import pytest
-import mock
+from unittest import mock
 from itertools import repeat
+import logging
 
 from ldf_adapter.userinfo import UserInfo
 from . import settings
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize(
@@ -256,6 +260,43 @@ def test_eppn(userinfo, eppn):
             ],
         ),
         (settings.INPUT_EGI, []),
+        (
+            settings.INPUT_EGI_MANYGROUPS,
+            [
+                "egi-eu_covid19-eosc-synergy-eu_admins",
+                "egi-eu_covid19-eosc-synergy-eu_admins",
+                "egi-eu_cryoem-instruct-eric-eu_admins",
+                "egi-eu_cryoem-instruct-eric-eu_admins",
+                "egi-eu_eosc-synergy-eu_admins",
+                "egi-eu_eosc-synergy-eu_admins",
+                "egi-eu_eosc-synergy-eu",
+                "egi-eu_eosc-synergy-eu",
+                "egi-eu_goc-egi-eu",
+                "egi-eu_goc-egi-eu",
+                "egi-eu_mteam-data-kit-edu_admins",
+                "egi-eu_mteam-data-kit-edu_admins",
+                "egi-eu_mteam-data-kit-edu_perfmon-m-d-k-e_admins",
+                "egi-eu_mteam-data-kit-edu_perfmon-m-d-k-e",
+                "egi-eu_mteam-data-kit-edu",
+                "egi-eu_mteam-data-kit-edu",
+                "egi-eu_o3as-data-kit-edu_admins",
+                "egi-eu_o3as-data-kit-edu_admins",
+                "egi-eu_o3as-data-kit-edu",
+                "egi-eu_o3as-data-kit-edu",
+                "egi-eu_registry_perfmon",
+                "egi-eu_registry_perfmon",
+                "egi-eu_saps-vo-i3m-upv-es_admins",
+                "egi-eu_saps-vo-i3m-upv-es_admins",
+                "egi-eu_umsa-cerit-sc-cz_admins",
+                "egi-eu_umsa-cerit-sc-cz_admins",
+                "egi-eu_university-eosc-synergy-eu_admins",
+                "egi-eu_university-eosc-synergy-eu_admins",
+                "egi-eu_university-eosc-synergy-eu",
+                "egi-eu_university-eosc-synergy-eu",
+                "egi-eu_worsica-vo-incd-pt",
+                "egi-eu_worsica-vo-incd-pt",
+            ],
+        ),
         (settings.INPUT_DEEP_IAM, ["kit-cloud"]),
         (settings.INPUT_INDIGO_IAM, ["users", "developers", "test-vo-users"]),
         (
@@ -273,7 +314,192 @@ def test_eppn(userinfo, eppn):
         ),
     ],
 )
-def test_groups(userinfo, groups):
+def test_groups_classic(userinfo, groups):
+    assert sorted(userinfo.groups) == sorted(set(groups))
+
+
+@pytest.mark.parametrize(
+    "data,groups",
+    [
+        (
+            settings.INPUT_UNITY,
+            [
+                "h-df-de_imk-tro-ewcc",
+                "h-df-de_my_example_colab",
+                "h-df-de_wlcg-test",
+                "h-df-de_hdf",
+            ],
+        ),
+        (settings.INPUT_EGI, []),
+        (
+            settings.INPUT_EGI_MANYGROUPS,
+            [
+                "egi-eu_covid19-eosc-synergy-eu_admins",
+                "egi-eu_covid19-eosc-synergy-eu_admins",
+                "egi-eu_cryoem-instruct-eric-eu_admins",
+                "egi-eu_cryoem-instruct-eric-eu_admins",
+                "egi-eu_eosc-synergy-eu_admins",
+                "egi-eu_eosc-synergy-eu_admins",
+                "egi-eu_eosc-synergy-eu",
+                "egi-eu_eosc-synergy-eu",
+                "egi-eu_goc-egi-eu",
+                "egi-eu_goc-egi-eu",
+                "egi-eu_mteam-data-kit-edu_admins",
+                "egi-eu_mteam-data-kit-edu_admins",
+                "egi-eu_mteam-data-kit-edu_perfmon-m-d-k-e_admins",
+                "egi-eu_mteam-data-kit-edu_perfmon-m-d-k-e",
+                "egi-eu_mteam-data-kit-edu",
+                "egi-eu_mteam-data-kit-edu",
+                "egi-eu_o3as-data-kit-edu_admins",
+                "egi-eu_o3as-data-kit-edu_admins",
+                "egi-eu_o3as-data-kit-edu",
+                "egi-eu_o3as-data-kit-edu",
+                "egi-eu_registry_perfmon",
+                "egi-eu_registry_perfmon",
+                "egi-eu_saps-vo-i3m-upv-es_admins",
+                "egi-eu_saps-vo-i3m-upv-es_admins",
+                "egi-eu_umsa-cerit-sc-cz_admins",
+                "egi-eu_umsa-cerit-sc-cz_admins",
+                "egi-eu_university-eosc-synergy-eu_admins",
+                "egi-eu_university-eosc-synergy-eu",
+                "egi-eu_university-eosc-synergy-eu",
+                "egi-eu_worsica-vo-incd-pt",
+                "egi-eu_worsica-vo-incd-pt",
+            ],
+        ),
+        (settings.INPUT_DEEP_IAM, ["kit-cloud"]),
+        (settings.INPUT_INDIGO_IAM, ["users", "developers", "test-vo-users"]),
+        (
+            settings.INPUT_KIT,
+            [
+                "kit-edu_dfn-slcs",
+                "kit-edu_lsdf-dis",
+                "kit-edu_bw_grid",
+                "kit-edu_bw_lsdf-fs",
+                "kit-edu_bw_uni_cluster",
+                "kit-edu_bwsyncnshare",
+                "kit-edu_bwsyncnshare-idm",
+                "kit-edu_gruppenverwalter",
+            ],
+        ),
+    ],
+)
+def test_groups_regex_1(userinfo, groups, monkeypatch):
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.method",
+        "regex",
+    )
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.mapping",
+        r"""
+        :role=(owner|member|vm_operator) -> # remove all role=member and role=owner entries
+        :role= -> : # all other roles: map to :
+        urn:geant:kit.edu:group: -> kit-edu_
+        urn:mace:egi.eu:group: -> egi-eu_
+        :perfmon -> _perfmon
+        urn:geant:h-df.de:group: -> h-df-de_
+        :admins -> _admins
+        """,
+    )
+    assert sorted(set(userinfo.groups)) == sorted(set(groups))
+    #  assert sorted(userinfo.groups) == sorted(groups)
+
+
+@pytest.mark.parametrize(
+    "data,groups",
+    [
+        (
+            settings.INPUT_UNITY,
+            [
+                "this-is-a-test",
+            ],
+        ),
+        (settings.INPUT_EGI, []),
+        (
+            settings.INPUT_EGI_MANYGROUPS,
+            [
+                "this-is-a-test",
+            ],
+        ),
+        (
+            settings.INPUT_DEEP_IAM,
+            ["kit-cloud"],
+        ),  # group entries are (currently) not mapped
+        (settings.INPUT_INDIGO_IAM, ["developers", "test-vo-users", "users"]),
+        (
+            settings.INPUT_KIT,
+            [
+                "this-is-a-test",
+            ],
+        ),
+    ],
+)
+def test_groups_regex_2(userinfo, groups, monkeypatch):
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.method",
+        "regex",
+    )
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.mapping",
+        r"""
+        ^.* -> this-is-a-test
+        """,
+    )
+    assert sorted(set(userinfo.groups)) == sorted(set(groups))
+
+
+@pytest.mark.parametrize(
+    "data,groups",
+    [
+        (
+            settings.INPUT_UNITY,
+            [
+                "h-df-de_my_example_colab",
+            ],
+        ),
+        (settings.INPUT_EGI, []),
+        (
+            settings.INPUT_EGI_MANYGROUPS,
+            [
+                "egi-eu_eosc-synergy-eu_admins",
+                "egi-eu_eosc-synergy-eu",
+            ],
+        ),
+        (settings.INPUT_DEEP_IAM, ["kit-cloud"]),
+        (settings.INPUT_INDIGO_IAM, ["developers", "test-vo-users"]),
+        (
+            settings.INPUT_KIT,
+            [
+                "kit-edu_bw_grid",
+                "kit-edu_bw_lsdf-fs",
+                "kit-edu_bw_uni_cluster",
+                "kit-edu_bwsyncnshare",
+                "kit-edu_bwsyncnshare-idm",
+            ],
+        ),
+    ],
+)
+def test_filters(userinfo, groups, monkeypatch):
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.policy",
+        "listed",
+    )
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.supported_entitlements",
+        r"""
+        urn:mace:egi.eu:group:eosc-synergy.eu.*
+        urn:geant:kit.edu:group:bw.*
+        urn:geant.*MyExample.*
+        """,
+    )
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.supported_groups",
+        r"""
+        Developers
+        KIT-Cloud
+        test.vo.*
+        """,
+    )
     assert sorted(userinfo.groups) == sorted(groups)
 
 
@@ -288,13 +514,15 @@ def test_primary_group_primary_and_fallback_configured(userinfo):
     "data,group",
     [
         (settings.INPUT_UNITY, "h-df-de_hdf"),
-        (settings.INPUT_EGI, None),
+        #  (settings.INPUT_EGI, None),
+        (settings.INPUT_EGI, "nogroup"),
         (settings.INPUT_DEEP_IAM, "kit-cloud"),
         (settings.INPUT_INDIGO_IAM, "developers"),
         (settings.INPUT_KIT, "kit-edu_bw_grid"),
     ],
 )
 def test_primary_group_no_fallback_or_primary_configured(userinfo, group):
+    logger.warning(f"userinfo.primary_group: {userinfo.primary_group} group: {group}")
     assert userinfo.primary_group == group
 
 
