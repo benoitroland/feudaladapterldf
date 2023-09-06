@@ -396,9 +396,8 @@ class UserInfo(Mapping):
                 logger.warning(f"supported_groups: {supported_groups}")
                 groups = filter(filter_allowed_groups, groups)
 
-        return [
-            x for x in groups
-        ]  # groups is an iterable, which an only be expanded once
+        # groups is an iterable, which an only be expanded once
+        return [x for x in groups]
 
     def _group_masked_for_bwidm(self, orig_grp):
         """Convert camelCase to snake_case,
