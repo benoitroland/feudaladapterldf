@@ -188,7 +188,7 @@ class ConfigLdfAdapter(ConfigSection):
     backend: str = "local_unix"
     backend_supports_preferring_existing_user: bool = False
     primary_group: Optional[str] = None
-    fallback_group: Optional[str] = None
+    fallback_group: Optional[str] = "nogroup"
     additional_groups: list = field(default_factory=list)
     interactive: bool = False
 
@@ -371,7 +371,7 @@ class ConfigGroups(ConfigSection):
 
     policy: str = "all"
     method: str = "classic"
-    map: str = ""
+    mapping: str = ""
     supported_entitlements: str = ""
     supported_groups: str = ""
 
