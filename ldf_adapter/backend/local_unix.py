@@ -723,7 +723,7 @@ def make_shadow_compatible_default(orig_word) -> str:
                 fragments[1] = ".." + fragments[1][excess_chars + 2 :]
                 # TODO: fix case when len(fragments[1]) == excess_chars + 1
                 word = "_".join(fragments)
-                logger.warning(f"Shortended word: {word} ({len(word)})")
+                logger.warning(f"Shortended group name: {word} ({len(word)})")
             else:
                 logger.error(f"User or group name is too long: {word} ({len(word)})")
                 raise (ValueError)
