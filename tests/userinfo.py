@@ -390,7 +390,7 @@ def test_groups_regex_1(userinfo, groups, monkeypatch):
         "regex",
     )
     monkeypatch.setattr(
-        "ldf_adapter.backend.local_unix.CONFIG.groups.map",
+        "ldf_adapter.backend.local_unix.CONFIG.groups.mapping",
         r"""
         :role=(owner|member|vm_operator) -> # remove all role=member and role=owner entries
         :role= -> : # all other roles: map to :
@@ -440,7 +440,7 @@ def test_groups_regex_2(userinfo, groups, monkeypatch):
         "regex",
     )
     monkeypatch.setattr(
-        "ldf_adapter.backend.local_unix.CONFIG.groups.map",
+        "ldf_adapter.backend.local_unix.CONFIG.groups.mapping",
         r"""
         ^.* -> this-is-a-test
         """,
@@ -514,8 +514,8 @@ def test_primary_group_primary_and_fallback_configured(userinfo):
     "data,group",
     [
         (settings.INPUT_UNITY, "h-df-de_hdf"),
-        (settings.INPUT_EGI, None),
-        #  (settings.INPUT_EGI, "nogroup"),
+        #  (settings.INPUT_EGI, None),
+        (settings.INPUT_EGI, "nogroup"),
         (settings.INPUT_DEEP_IAM, "kit-cloud"),
         (settings.INPUT_INDIGO_IAM, "developers"),
         (settings.INPUT_KIT, "kit-edu_bw_grid"),

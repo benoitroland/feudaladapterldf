@@ -291,7 +291,7 @@ class UserInfo(Mapping):
 
     def groups_from_entitlement_mapped(self) -> list:
         """Return a list of groups based on map in config"""
-        group_list = regex.findall(r"[^\s]+.*", CONFIG.groups.map)
+        group_list = regex.findall(r"[^\s]+.*", CONFIG.groups.mapping)
         group_map = [x.split(" -> ") for x in group_list]
 
         # fix missing capability of empty string:
