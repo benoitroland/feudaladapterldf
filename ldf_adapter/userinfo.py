@@ -233,8 +233,26 @@ class UserInfo(Mapping):
                 return eduperson.Entitlement(attr)
             except ValueError:
                 return None
-        logger.info(F"attr: {attr}")
-        return filter(lambda x: x, map(try_entitlement, attr))
+
+        def filter_allowed_entitlements(attr):
+            """filter string-based entitlements for
+            allowed regular expressions from config"""
+            for s_e in supported_entitlements:
+                myregex = regex.compile(s_e)
+                if myregex.search(attr):
+                    return True
+                    #  return attr
+
+        supported_entitlements = regex.findall(
+            r"[^\s]+.*", CONFIG.groups.supported_entitlements
+        )
+        if CONFIG.groups.policy == "listed":
+            logger.debug("filtering entitlements")
+            if supported_entitlements != []:
+                logger.debug(F"supported_entitlements: {supported_entitlements}")
+                attr = filter(filter_allowed_entitlements, attr)
+        retval = filter(lambda x: x, map(try_entitlement, attr))
+        return retval
 
     @property
     def group(self):
@@ -248,14 +266,15 @@ class UserInfo(Mapping):
     @lru_cache(maxsize=None)
     def groups(self):
         """Return the homogenised names of the groups the user should be a member of."""
-        group_policy = CONFIG.groups.policy
         group_method = CONFIG.groups.method
-        logger.info(f"group policy: {group_policy}")
         logger.info(f"group method: {group_method}")
         # A shitty way to see if the entitlement is empty or not:
         if len([x for x in self.entitlement]) == 0:
             logger.debug("Using plain groups from 'groups' claim")
             grouplist = self.groups_from_grouplist()
+            logger.debug(F"got grouplist: {grouplist}")
+            for grp in grouplist:
+                logger.error(F"got group: {grp}")
         else:
             logger.debug("Using aarc-g002 groups from 'entitlements' claim")
             if group_method == "classic":
@@ -310,7 +329,7 @@ class UserInfo(Mapping):
         """
         if CONFIG.username_generator.strip_sub_groups:
             logger.debug("Stripping all subgroups")
-            return set(
+            retval = set(
                 filter(
                     None,
                     [
@@ -330,31 +349,59 @@ class UserInfo(Mapping):
                     ],
                 )
             )
-        return set(
-            filter(
-                None,
-                [
-                    "{}_{}".format(ns, grp)
-                    for (ns, grp) in chain.from_iterable(
-                        (
+        else:
+            retval = set(
+                filter(
+                    None,
+                    [
+                        "{}_{}".format(ns, grp)
+                        for (ns, grp) in chain.from_iterable(
                             (
-                                "-".join([ent.delegated_namespace] + ent.subnamespaces),
-                                grp,
+                                (
+                                    "-".join([ent.delegated_namespace] + ent.subnamespaces),
+                                    grp,
+                                )
+                                for grp in ent.all_groups
                             )
-                            for grp in ent.all_groups
+                            for ent in self.entitlement
                         )
-                        for ent in self.entitlement
-                    )
-                ],
+                    ],
+                )
             )
-        )
+        for ent in retval:
+            logger.info(f"  mapped entitlement to group: {ent}")
+        return retval
 
     def groups_from_grouplist(self):
         """Gropus are extracted from the groups claim"""
-        return set([grp for grp in self.group])
+        def filter_allowed_groups(attr):
+            """filter string-based entitlements for
+            allowed regular expressions from config"""
+            for s_e in supported_groups:
+                myregex = regex.compile(s_e)
+                if myregex.search(attr):
+                    return True
+                    #  return attr
+
+        supported_groups = regex.findall(
+            r"[^\s]+.*", CONFIG.groups.supported_groups
+        )
+        groups = set([grp for grp in self.group])
+        logger.info(F"groups: {groups}")
+
+        if CONFIG.groups.policy == "listed":
+            logger.debug("filtering groups")
+            if supported_groups != []:
+                logger.warning(F"supported_groups: {supported_groups}")
+                groups = filter(filter_allowed_groups, groups)
+
+        return [x for x in groups] # groups is an iterable, which an only be expanded once
+
 
     def _group_masked_for_bwidm(self, orig_grp):
-        """Convert camelCase to snake_case, fixup beginning of name and replace invalid chars with a dash ('-')"""
+        """Convert camelCase to snake_case, 
+        fixup beginning of name 
+        and replace invalid chars with a dash ('-')"""
         grp = orig_grp
 
         # camelCase to snake_case
