@@ -287,7 +287,7 @@ class UserInfo(Mapping):
                 logger.info("method: default")
                 grouplist = self.groups_from_entitlement()
 
-        return set([self._group_masked_for_bwidm(grp) for grp in grouplist])
+        return [self._group_masked_for_bwidm(grp) for grp in grouplist]
 
     def groups_from_entitlement_mapped(self) -> list:
         """Return a list of groups based on map in config"""
