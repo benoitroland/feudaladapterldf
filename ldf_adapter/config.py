@@ -369,10 +369,11 @@ class ConfigLdap(ConfigSection):
 class ConfigGroups(ConfigSection):
     """Config section for groups"""
 
-    policy: str = "classic"
+    policy: str = "all"
     method: str = "classic"
     map: str = ""
     supported_entitlements: str = ""
+    supported_groups: str = ""
 
     @classmethod
     def __section__name__(cls):
