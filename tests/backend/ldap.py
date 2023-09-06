@@ -1,3 +1,4 @@
+# vim: foldmethod=indent : tw=100
 import pytest
 import logging
 import ldap3

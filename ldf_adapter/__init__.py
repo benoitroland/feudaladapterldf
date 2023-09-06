@@ -1,5 +1,5 @@
 name = "ldf_adapter"
-# vim: tw=100 foldmethod=expr
+# vim: tw=100 foldmethod=indent
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=redefined-outer-name, logging-not-lazy, logging-format-interpolation, logging-fstring-interpolation
 # pylint: disable=missing-docstring, trailing-whitespace, trailing-newlines, too-few-public-methods
@@ -144,6 +144,8 @@ class User:
         prefix = prefix.rstrip("/") + "/"
 
         tokens = regex.findall("&|\||\(|\)|[^\s()&|]+", CONFIG.assurance.require)
+        #  tokens = regex.findall(r"&|\||\(|\)|[^\s()&|]+", CONFIG.assurance.require)
+        #  logger.info(F"assurance tokens: {tokens}")
 
         # We use a simple recursive descent parser to parse parenthesied expressions of strings,
         # composed with '&' (konjunction) and '|' (disjunction). The usual precedence rules apply.

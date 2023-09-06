@@ -1,4 +1,9 @@
 """Generic backend User and Group, to be implemented by all backends."""
+# vim: foldmethod=indent : tw=100
+# pylint: disable=invalid-name, superfluous-parens
+# pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
+# pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
+
 from abc import ABC, abstractmethod
 from ldf_adapter.backend.hooks import Hooks
 

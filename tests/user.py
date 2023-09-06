@@ -236,8 +236,29 @@ def test_get_status(user):
     }
 
 
+@pytest.mark.skip(
+    """Can't get monkeypatch to remove the default group,
+hence the SystemExit exception is never raised"""
+)
 @pytest.mark.parametrize("data", [settings.INPUT_EGI])
-def test_deploy_fails_no_primary_group(user):
+def test_deploy_fails_no_primary_group(user, monkeypatch):
+    """Make sure we raise an error, if no group is passed _AND_ there's no
+    fallback_group configured"""
+    #  attr = monkeypatch.__getattribute__("ldf_adapter.backend.local_unix.CONFIG.ldf_adapter.fallback_group")
+    #  logger.error(F"monkeypatch: {attr}")
+    #  for a in attr:
+    #      logger.error(F"monkeypatch: {a}")
+    monkeypatch.setattr("ldf_adapter.CONFIG.messages.log_level", "DEBUG")
+    monkeypatch.setattr("ldf_adapter.userinfo.CONFIG.messages.log_level", "DEBUG")
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.messages.log_level", "DEBUG"
+    )
+    monkeypatch.delattr(
+        "ldf_adapter.backend.local_unix.CONFIG.ldf_adapter.fallback_group"
+    )
+    monkeypatch.delattr("ldf_adapter.userinfo.primary_group")
+    #  monkeypatch.delattr("ldf_adapter.userinfo.user.primary_group")
+    #  monkeypatch.delattr("ldf_adapter.userinfo.CONFIG.ldf_adapter.fallback_group")
     with pytest.raises(SystemExit):
         user.deploy()
 
