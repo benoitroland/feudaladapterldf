@@ -11,6 +11,7 @@ from feudal_globalconfig import globalconfig
 from ldf_adapter import User
 from ldf_adapter.cmdline_params import args
 
+
 def main():
     try:
         data = json.load(sys.stdin)
@@ -25,9 +26,9 @@ def main():
 
     user = User(data)
 
-    print(F"User: {user.data.username}")
+    print(f"User: {user.data.username}")
     for grp in sorted(user.data.groups):
-        print (F"   {grp}")
+        print(f"   {grp}")
 
 
 if __name__ == "__main__":
