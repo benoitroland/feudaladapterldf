@@ -448,6 +448,61 @@ def test_groups_regex_2(userinfo, groups, monkeypatch):
     assert sorted(set(userinfo.groups)) == sorted(set(groups))
 
 
+@pytest.mark.parametrize(
+    "data,groups",
+    [
+        (
+            settings.INPUT_UNITY,
+            [
+                "h-df-de_my_example_colab",
+            ],
+        ),
+        (settings.INPUT_EGI, []),
+        (
+            settings.INPUT_EGI_MANYGROUPS,
+            [
+                "egi-eu_eosc-synergy-eu_admins",
+                "egi-eu_eosc-synergy-eu",
+            ],
+        ),
+        (settings.INPUT_DEEP_IAM, ["kit-cloud"]),
+        (settings.INPUT_INDIGO_IAM, ["developers", "test-vo-users"]),
+        (
+            settings.INPUT_KIT,
+            [
+                "kit-edu_bw_grid",
+                "kit-edu_bw_lsdf-fs",
+                "kit-edu_bw_uni_cluster",
+                "kit-edu_bwsyncnshare",
+                "kit-edu_bwsyncnshare-idm",
+            ],
+        ),
+    ],
+)
+def test_filters(userinfo, groups, monkeypatch):
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.policy",
+        "listed",
+    )
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.supported_entitlements",
+        r"""
+        urn:mace:egi.eu:group:eosc-synergy.eu.*
+        urn:geant:kit.edu:group:bw.*
+        urn:geant.*MyExample.*
+        """,
+    )
+    monkeypatch.setattr(
+        "ldf_adapter.backend.local_unix.CONFIG.groups.supported_groups",
+        r"""
+        Developers
+        KIT-Cloud
+        test.vo.*
+        """,
+    )
+    assert sorted(userinfo.groups) == sorted(groups)
+
+
 @mock.patch("ldf_adapter.userinfo.CONFIG.ldf_adapter.fallback_group", "nogroup")
 @mock.patch("ldf_adapter.userinfo.CONFIG.ldf_adapter.primary_group", "mytestgroup")
 @pytest.mark.parametrize("data", settings.ALL_INPUT)
