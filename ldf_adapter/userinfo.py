@@ -289,7 +289,7 @@ class UserInfo(Mapping):
 
         return set([self._group_masked_for_bwidm(grp) for grp in grouplist])
 
-    def groups_from_entitlement_mapped(self) -> list[str]:
+    def groups_from_entitlement_mapped(self) -> list:
         """Return a list of groups based on map in config"""
         group_list = regex.findall(r"[^\s]+.*", CONFIG.groups.map)
         group_map = [x.split(" -> ") for x in group_list]
