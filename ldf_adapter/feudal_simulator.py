@@ -20,7 +20,7 @@ def main():
         print(message)
         sys.exit(2)
 
-    try: # User.__init__ tries finding userinfo in data["user"]["userinfo"]
+    try:  # User.__init__ tries finding userinfo in data["user"]["userinfo"]
         user = User(data)
     except KeyError:
         try:
@@ -30,9 +30,8 @@ def main():
             print("cannot find required information in input json.")
             sys.exit(3)
         except Exception as e:
-            print(F"Unhandled Exception: {e}")
+            print(f"Unhandled Exception: {e}")
             raise
-
 
     print(f"User: {user.data.username}")
     for grp in sorted(user.data.groups):
