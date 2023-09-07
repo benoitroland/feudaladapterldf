@@ -20,11 +20,19 @@ def main():
         print(message)
         sys.exit(2)
 
-    if data["user"]["userinfo"] is None:
-        message = "Cannot process null input"
-        print(message)
+    try: # User.__init__ tries finding userinfo in data["user"]["userinfo"]
+        user = User(data)
+    except KeyError:
+        try:
+            data = {"user": {"userinfo": data}}
+            user = User(data)
+        except KeyError:
+            print("cannot find required information in input json.")
+            sys.exit(3)
+        except Exception as e:
+            print(F"Unhandled Exception: {e}")
+            raise
 
-    user = User(data)
 
     print(f"User: {user.data.username}")
     for grp in sorted(user.data.groups):
