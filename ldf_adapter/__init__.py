@@ -124,7 +124,7 @@ class User:
                 grp.fix_group_names()
 
     def assurance_verifier(self):
-        """Produce a suitably function to check if a user is allowed.
+        """Produce a suitable function to check if a user is allowed.
 
         Relevant config:
         assurance.prefix -- The common prefix of all relative assurance claims
