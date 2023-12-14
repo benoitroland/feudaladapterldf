@@ -572,7 +572,7 @@ def test_missing_assurance(userinfo, assurance):
 
 
 def test_ignore_excess_entitlement():
-    """https://git.scc.kit.edu/feudal/feudalAdapterLdf/issues/8"""
+    """https://codebase.helmholtz.cloud/m-team/feudal/feudalAdapterLdf/issues/8"""
 
     input_test = {
         "eduperson_assurance": [

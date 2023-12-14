@@ -11,7 +11,7 @@ Distributed with the adapter are backends for [BWIDM](ldf_adapter/backend/bwidm.
  - `pip install feudalAdapter`
 
 ## From Source
-- Git clone: `git clone git@git.scc.kit.edu:feudal/feudalAdapterLdf.git`
+- Git clone: `git clone git@codebase.helmholtz.cloud:m-team/feudal/feudalAdapterLdf.git`
 - Build package: `cd feudalAdapterLDF; ./setup.py sdist`
 - Install package: `pip install dist/feudalAdapter-$version.tar.gz`
 
@@ -44,7 +44,7 @@ it is found no further config files will be considered:
 The FeudalAdapter is designed to work with feudalClient and hence expects
 specific json on stdin, and produces specific json on stdout. 
 
-The was initially defined [here (feudalScripts)](https://git.scc.kit.edu/feudal/feudalScripts/)
+The was initially defined [here (feudalScripts)](https://codebase.helmholtz.cloud/m-team/feudal/feudalScripts/)
 
 An extension is implemented, to work with [Motley Cue](https://github.com/dianagudu/motley_cue), 
 therefore, we feudalAdapterLDF supports additional targets. Most of these
