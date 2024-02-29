@@ -1,4 +1,5 @@
 """Generic backend User and Group, to be implemented by all backends."""
+
 # vim: foldmethod=indent : tw=100
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation

@@ -62,9 +62,9 @@ class BwIdmConnection:
             lambda frag: requests.utils.quote(frag, safe=""), url_fragments
         )
         url = reduce(
-            lambda acc, frag: urljoin(acc, frag)
-            if acc.endswith("/")
-            else urljoin(acc + "/", frag),
+            lambda acc, frag: (
+                urljoin(acc, frag) if acc.endswith("/") else urljoin(acc + "/", frag)
+            ),
             url_fragments,
             CONFIG.backend.bwidm.url,
         )

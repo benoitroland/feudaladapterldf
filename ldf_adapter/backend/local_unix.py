@@ -1,6 +1,7 @@
 """
 Manages a user and groups via standard UNIX shadow-utils(8).
 """
+
 # vim: foldmethod=indent : tw=100
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation

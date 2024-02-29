@@ -1,4 +1,5 @@
 """Parse commandline options"""
+
 #
 # Author: Marcus Hardt <hardt@kit.edu>
 #

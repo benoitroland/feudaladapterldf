@@ -1,4 +1,5 @@
 """test name_generators"""
+
 import pytest
 import mock
 
