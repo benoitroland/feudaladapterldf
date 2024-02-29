@@ -15,7 +15,7 @@ original_init = ldap3.Connection.__init__
 
 
 def mock_ldap3_connection_init(self, *args, **kwargs):
-    if kwargs.get("client_strategy") is ldap3.SAFE_SYNC:
+    if kwargs.get("client_strategy") in [ldap3.SAFE_SYNC, ldap3.SAFE_RESTARTABLE]:
         kwargs["client_strategy"] = ldap3.MOCK_SYNC
     if kwargs.get("auto_bind"):
         del kwargs["auto_bind"]

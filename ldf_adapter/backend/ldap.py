@@ -1,15 +1,15 @@
 """LDAP backend for pre-created accounts.
 It"s in the proof-of-concept state.
 """
+
 # vim: foldmethod=indent : tw=100
 # pylint: disable=invalid-name, superfluous-parens
 # pylint: disable=logging-fstring-interpolation, logging-not-lazy, logging-format-interpolation
 # pylint: disable=raise-missing-from, missing-docstring, too-few-public-methods
 
 import logging
+from enum import Enum, auto
 from ldap3 import (
-    AUTO_BIND_NO_TLS,
-    SAFE_RESTARTABLE,
     Server,
     Connection,
     ALL,
@@ -17,9 +17,10 @@ from ldap3 import (
     MODIFY_DELETE,
     MODIFY_ADD,
     SAFE_SYNC,
+    SAFE_RESTARTABLE,
     LDIF,
+    AUTO_BIND_NO_TLS,
 )
-from enum import Enum, auto
 
 from ldf_adapter.config import CONFIG
 from ldf_adapter.results import Failure, Rejection, FatalError
@@ -62,7 +63,14 @@ class LdapSearchResult:
         @param args: list of arguments for ldap3.Connection.search method
         @param kwargs: dictionary of key-value arguments for ldap3.Connection.search method
         """
+        logger.debug("=========================")
+        logger.debug("Searching in the LDAP:")
+        logger.debug(f"base: {args[0]}")
+        logger.debug(f"filter: {args[1]}")
+        logger.debug(f"kwargs: {kwargs}")
+        logger.debug("=========================")
         try:
+            ldap_connection.bind()
             search_result = ldap_connection.search(*args, **kwargs)
             if ldap_connection.strategy_type in [SAFE_SYNC, SAFE_RESTARTABLE]:
                 self.status = search_result[0]
@@ -153,13 +161,20 @@ class LdapConnection:
                     server,
                     CONFIG.backend.ldap.admin_user,
                     CONFIG.backend.ldap.admin_password,
-                    client_strategy=SAFE_SYNC,
+                    client_strategy=SAFE_RESTARTABLE,
                     auto_bind=AUTO_BIND_NO_TLS,
+                    # collect_usage=True,
                 )
             else:
                 self.connection = Connection(
-                    server, client_strategy=SAFE_SYNC, auto_bind=AUTO_BIND_NO_TLS
+                    server,
+                    client_strategy=SAFE_RESTARTABLE,
+                    auto_bind=AUTO_BIND_NO_TLS,
+                    collect_usage=True,
                 )
+            logger.debug(
+                "Connection to LDAP server created: %s", self.connection.result
+            )
         except Exception as e:
             msg = f"Could not connect to server {self.protocol}://{CONFIG.backend.ldap.host}:{CONFIG.backend.ldap.port}/"
             logger.error(f"{msg}: {e}")
@@ -173,6 +188,7 @@ class LdapConnection:
             if self.mode == Mode.FULL_ACCESS:
                 search_uid = self.search_next_uid()
                 if not search_uid.found():
+                    self.connection.bind()
                     result = self.connection.add(
                         f"cn=uidNext,{self.user_base}",
                         object_class=["uidNext"],
@@ -186,6 +202,7 @@ class LdapConnection:
 
                 search_gid = self.search_next_gid()
                 if not search_gid.found():
+                    self.connection.bind()
                     result = self.connection.add(
                         f"cn=gidNext,{self.group_base}",
                         object_class=["gidNext"],
@@ -221,9 +238,11 @@ class LdapConnection:
                 f"(&({self.attr_local_uid}={username})(objectClass=inetOrgPerson)(objectClass=posixAccount))",
             ],
             {
-                "attributes": [self.attr_local_uid, self.attr_oidc_uid]
-                if get_unique_id
-                else [self.attr_local_uid]
+                "attributes": (
+                    [self.attr_local_uid, self.attr_oidc_uid]
+                    if get_unique_id
+                    else [self.attr_local_uid]
+                )
             },
         )
 
@@ -318,6 +337,7 @@ class LdapConnection:
 
             # specify uid in MODIFY_DELETE operation to avoid race conditions
             # the operation will fail if the value has been modified in the meantime
+            self.connection.bind()
             result = self.connection.modify(
                 f"cn=uidNext,{self.user_base}",
                 {"uidNumber": [(MODIFY_DELETE, [uid]), (MODIFY_ADD, [next_uid + 1])]},
@@ -345,6 +365,7 @@ class LdapConnection:
 
             # specify gid in MODIFY_DELETE operation to avoid race conditions
             # the operation will fail if the value has been modified in the meantime
+            self.connection.bind()
             result = self.connection.modify(
                 f"cn=gidNext,{self.group_base}",
                 {"gidNumber": [(MODIFY_DELETE, [gid]), (MODIFY_ADD, [next_gid + 1])]},
@@ -378,11 +399,16 @@ class LdapConnection:
                 attributes["cn"] = userinfo.full_name
             if userinfo.email is not None:
                 attributes["mail"] = userinfo.email
-            return self.connection.add(
+            self.connection.bind()
+            result = self.connection.add(
                 dn,
                 object_class=object_class,
                 attributes=attributes,
             )
+            logger.debug(
+                f"Added LDAP entry for uid {userinfo.unique_id} with local username {local_username}: {result}"
+            )
+            return result
         except Exception as e:
             msg = f"Failed to add an LDAP entry for uid {userinfo.unique_id} with local username {local_username}"
             logger.error(f"{msg}: {e}")
@@ -424,6 +450,7 @@ class LdapConnection:
             attributes["cn"] = userinfo.full_name
         if userinfo.email is not None:
             attributes["mail"] = userinfo.email
+        self.ldif_connection.bind()
         self.ldif_connection.add(dn, object_class=object_class, attributes=attributes)
         return self.ldif_connection.response
 
@@ -433,6 +460,7 @@ class LdapConnection:
         If user doesn't exist, a Failure exception is raised.
         """
         try:
+            self.connection.bind()
             return self.connection.modify(
                 f"uid={local_username},{self.user_base}",
                 {self.attr_oidc_uid: [(MODIFY_REPLACE, [userinfo.unique_id])]},
@@ -447,6 +475,7 @@ class LdapConnection:
         mapped oidc uid. If user doesn't exist, a Failure exception is raised.
         """
         try:
+            self.ldif_connection.bind()
             self.ldif_connection.modify(
                 f"uid={local_username},{self.user_base}",
                 {self.attr_oidc_uid: [(MODIFY_REPLACE, [userinfo.unique_id])]},
@@ -479,6 +508,7 @@ class LdapConnection:
                 changes["cn"] = [(MODIFY_REPLACE, [userinfo.full_name])]
             if userinfo.email is not None:
                 changes["mail"] = [(MODIFY_REPLACE, [userinfo.email])]
+            self.connection.bind()
             return self.connection.modify(
                 f"uid={local_username},{self.user_base}",
                 changes,
@@ -493,6 +523,7 @@ class LdapConnection:
         If user doesn't exist, no failure is raised.
         """
         try:
+            self.connection.bind()
             return self.connection.delete(f"uid={local_username},{self.user_base}")
         except Exception as e:
             msg = (
@@ -506,6 +537,7 @@ class LdapConnection:
         If either of them does not exist, a Failure exception is raised.
         """
         try:
+            self.connection.bind()
             self.connection.modify(
                 f"cn={group_name},{self.group_base}",
                 {
@@ -519,6 +551,7 @@ class LdapConnection:
 
     def add_user_to_group_ldif(self, local_username, group_name):
         """LDIF representation for adding a user to group."""
+        self.ldif_connection.bind()
         self.ldif_connection.modify(
             f"cn={group_name},{self.group_base}",
             {
@@ -532,6 +565,7 @@ class LdapConnection:
         If either of them does not exist, a Failure exception is raised.
         """
         try:
+            self.connection.bind()
             self.connection.modify(
                 f"cn={group_name},{self.group_base}",
                 {
@@ -545,6 +579,7 @@ class LdapConnection:
 
     def remove_user_from_group_ldif(self, local_username, group_name):
         """LDIF representation for removing a user from a group."""
+        self.ldif_connection.bind()
         self.ldif_connection.modify(
             f"cn={group_name},{self.group_base}",
             {
@@ -569,6 +604,7 @@ class LdapConnection:
         If group exists, a warning is issued.
         """
         try:
+            self.connection.bind()
             return self.connection.add(
                 f"cn={group_name},{self.group_base}",
                 object_class=["top", "posixGroup"],
@@ -584,6 +620,7 @@ class LdapConnection:
 
     def add_group_ldif(self, group_name):
         """LDIF representation for adding an LDAP entry for `group_name`."""
+        self.ldif_connection.bind()
         self.ldif_connection.add(
             f"cn={group_name},{self.group_base}",
             object_class=["top", "posixGroup"],
@@ -646,7 +683,9 @@ class User(generic.User):
         If this returns True,  calling `create` should have no effect or raise an error.
         """
         logger.info(f"Check if user exists: {self.unique_id}")
-        return LDAP.search_user_by_oidc_uid(self.unique_id, attributes=[]).found()
+        result = LDAP.search_user_by_oidc_uid(self.unique_id, attributes=[]).found()
+        logger.info(f"User {self.unique_id} exists: {result}")
+        return result
 
     def name_taken(self, name):
         """Return whether the username is already taken by another user on the service,
