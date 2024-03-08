@@ -126,5 +126,10 @@ class PooledNameGenerator:
         self.index += 1
         if self.index >= 10**self.digits:
             return None
-        candidate_name = f"{self.username_prefix}%0{self.digits}d" % self.index
+        candidate_name_no_digits = f"{self.username_prefix}"
+        potential_length = len(candidate_name_no_digits) + self.digits
+        if potential_length > 32:
+            excess_chars = potential_length - 32
+            candidate_name_no_digits = candidate_name_no_digits[:-excess_chars]
+        candidate_name = f"{candidate_name_no_digits}%0{self.digits}d" % self.index
         return candidate_name
