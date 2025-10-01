@@ -366,6 +366,40 @@ class ConfigLdap(ConfigSection):
 
 
 @dataclass
+class ConfigBonsaiLdap(ConfigSection):
+    """Config section for bonsai ldap backend"""
+
+    mode: str = "read_only"
+    host: str = "localhost"
+    port: Optional[int] = None
+    connection_pool_size: int = 10
+    admin_user: Optional[str] = None
+    admin_password: Optional[str] = None
+    tls: bool = False
+    user_base: str = "ou=users,dc=example"
+    group_base: str = "ou=groups,dc=example"
+    attribute_oidc_uid: str = "gecos"
+    attribute_local_uid: str = "uid"
+    shell: str = "/bin/sh"
+    home_base: str = "/home"
+    post_create_script: Optional[str] = None
+    uid_min: int = 1000
+    uid_max: int = 60000
+    gid_min: int = 1000
+    gid_max: int = 60000
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.port is None:
+            self.port = 636 if self.tls else 1389
+        self.home_base.rstrip("/")
+
+    @classmethod
+    def __section__name__(cls):
+        return "backend.bonsai_ldap"
+
+
+@dataclass
 class ConfigGroups(ConfigSection):
     """Config section for groups"""
 
@@ -414,6 +448,7 @@ class ConfigBackends(ConfigListOfSections):
     local_unix: ConfigLocalUnix = field(default_factory=ConfigLocalUnix)
     ldap: ConfigLdap = field(default_factory=ConfigLdap)
     bwidm: ConfigBwIdm = field(default_factory=ConfigBwIdm)
+    bonsai_ldap: ConfigBonsaiLdap = field(default_factory=ConfigBonsaiLdap)
 
 
 @dataclass

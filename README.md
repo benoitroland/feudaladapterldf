@@ -42,11 +42,11 @@ it is found no further config files will be considered:
 # Input and Output
 
 The FeudalAdapter is designed to work with feudalClient and hence expects
-specific json on stdin, and produces specific json on stdout. 
+specific json on stdin, and produces specific json on stdout.
 
 The was initially defined [here (feudalScripts)](https://codebase.helmholtz.cloud/m-team/feudal/feudalScripts/)
 
-An extension is implemented, to work with [Motley Cue](https://github.com/dianagudu/motley_cue), 
+An extension is implemented, to work with [Motley Cue](https://github.com/dianagudu/motley_cue),
 therefore, we feudalAdapterLDF supports additional targets. Most of these
 targets do not require the full userinfo to be passed along:
 
@@ -113,6 +113,7 @@ foo = bar
 Supported backends:
 - local UNIX
 - [LDAP](LDAP.md)
+- [LDAP](LDAP.md) Bonsai module ([Bonsai documentation](https://bonsai.readthedocs.io/en/latest))
 - bwIDM
 
 ## Development
@@ -240,7 +241,7 @@ Use this call to update the user object and to rewrite the generic store in the 
 
 ```
 curl --basic -u $USER:$PASS \
-    -H "Content-Type: application/json" 
+    -H "Content-Type: application/json"
     -X POST -d ' \
 {"externalId":"test0002","eppn":"test0002@hdf.de","email":"test-diezweite@kit.edu","genericStore": { "ssh_key": "[{'value': 'ssh-rsa AA[..]0R', 'name': 'unity_key'}]" },"surName":"Testfamilie","givenName":"Hans","primaryGroup":{"id":1002637},"attributeStore":{"urn:oid:0.9.2342.19200300.100.1.1":"test0002","http://bw idm.de/bwidmOrgId":"hdf"}}
 ' \
@@ -249,9 +250,9 @@ curl --basic -u $USER:$PASS \
 
 The above, but reformatted:
 ```
-curl --basic -u $USER:$PASS 
-    -H "Content-Type: application/json" 
-    -X POST -d ' 
+curl --basic -u $USER:$PASS
+    -H "Content-Type: application/json"
+    -X POST -d '
         {
           "externalId": "test0002",
           "eppn": "test0002@hdf.de",
@@ -269,7 +270,7 @@ curl --basic -u $USER:$PASS
             "http://bw idm.de/bwidmOrgId": "hdf"
           }
         }
-    ' 
+    '
     $ENDP/external-user/update
 ```
 

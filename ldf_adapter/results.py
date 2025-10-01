@@ -87,8 +87,12 @@ class Failure(ExceptionalResult):
     The previous state should be retained, but might also be inconsistent
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(state="failed", **kwargs)
+    def __init__(self, message=None, **kwargs):
+        super().__init__(state="failed", message=message, **kwargs)
+        self.message = message
+
+    def __str__(self):
+        return self.message or super().__str__()
 
 
 class Rejection(ExceptionalResult):

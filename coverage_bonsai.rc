@@ -1,0 +1,15 @@
+[run]
+source =
+    ldf_adapter
+omit =
+    */tests/*
+    */__init__.py
+    */ldf_adapter/backend/bwidm.py
+    */ldf_adapter/backend/ldap.py
+
+concurrency = multiprocessing,thread
+parallel = True
+
+
+
+
