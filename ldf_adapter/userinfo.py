@@ -5,7 +5,7 @@
 from collections.abc import Mapping
 from functools import lru_cache
 from itertools import chain
-import urllib
+import urllib.parse
 from unidecode import unidecode
 import logging
 import regex
