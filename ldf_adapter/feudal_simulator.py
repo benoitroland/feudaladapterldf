@@ -33,7 +33,9 @@ def main():
             print(f"Unhandled Exception: {e}")
             raise
 
+    print("From the input data and the provided config, feudal would make use of:")
     print(f"User: {user.data.username}")
+    print("Groups:")
     for grp in sorted(user.data.groups):
         print(f"   {grp}")
 
